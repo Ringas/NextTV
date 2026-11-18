@@ -132,6 +132,7 @@ fun NextTvApp() {
                     dualPlayer = dualPlayer,
                     channels = channels,
                     initialChannel = selectedChannel,
+                    repository = repository,
                     onChannelChanged = { ch ->
                         selectedChannel = ch
                         scope.launch { repository.setLastChannel(ch) }

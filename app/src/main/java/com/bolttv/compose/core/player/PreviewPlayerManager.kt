@@ -66,7 +66,7 @@ class PreviewPlayerManager(private val context: Context) {
             _isReady.value = playbackState == Player.STATE_READY && stillFocused
             if (playbackState == Player.STATE_READY && stillFocused) {
                 Log.d(TAG, "Preview ready for ${_focusedChannel.value?.name}")
-                mainHandler.postDelayed({ captureCurrentFrame() }, 800)
+                mainHandler.postDelayed({ captureCurrentFrame() }, 400)
             }
         }
 
@@ -175,7 +175,7 @@ class PreviewPlayerManager(private val context: Context) {
         if (previewPlayer != null) return
 
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(500, 3000, 250, 500)
+            .setBufferDurationsMs(300, 2500, 150, 400)
             .build()
 
         previewPlayer = ExoPlayer.Builder(context)
@@ -206,6 +206,6 @@ class PreviewPlayerManager(private val context: Context) {
     }
 
     companion object {
-        const val DEFAULT_DEBOUNCE_MS = 180L
+        const val DEFAULT_DEBOUNCE_MS = 120L
     }
 }

@@ -163,7 +163,7 @@ fun HomeScreen(
                     val id = focused?.id ?: return@LaunchedEffect
                     val index = displayChannels.indexOfFirst { it.id == id }
                     if (index >= 0) {
-                        listState.animateScrollToItem(index)
+                        listState.animateScrollToItem(index = index, scrollOffset = -120)
                     }
                 }
                 LazyColumn(

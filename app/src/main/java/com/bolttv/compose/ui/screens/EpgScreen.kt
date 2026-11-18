@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -107,12 +108,16 @@ fun EpgScreen(
     val dayFmt = remember { SimpleDateFormat("MM/dd E", Locale.getDefault()) }
     val hScroll = rememberScrollState()
 
+    val density = LocalDensity.current
     LaunchedEffect(windowStart, dayOffset, epgLoaded) {
         if (!epgLoaded) return@LaunchedEffect
+        if (now !in windowStart until windowEnd) return@LaunchedEffect
         val minutesFromStart = ((now - windowStart) / 60_000f).coerceAtLeast(0f)
-        // 4dp per minute * density ~ 假设 2px/dp → 用 scroll 像素近似：minutes * 8
-        val approxPx = (minutesFromStart * 8f - 120f).toInt().coerceAtLeast(0)
-        hScroll.animateScrollTo(approxPx)
+        // 红线放在视口约 28%：scroll = nowX - viewport*0.28
+        val nowX = with(density) { (pxPerMinute * minutesFromStart).toPx() }
+        val viewport = 800f // 近似内容区宽度 px，足够把「现在」偏左可见
+        val target = (nowX - viewport * 0.28f).toInt().coerceAtLeast(0)
+        hScroll.animateScrollTo(target)
     }
 
     // 当前时间线位置

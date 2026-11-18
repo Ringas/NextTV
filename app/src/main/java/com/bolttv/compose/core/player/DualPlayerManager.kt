@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import com.bolttv.compose.core.model.Channel
 import com.bolttv.compose.core.model.DualPlayerState
@@ -79,7 +80,11 @@ class DualPlayerManager(private val context: Context) {
     }
 
     private fun buildPlayer(): ExoPlayer {
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(800, 25000, 500, 1000)
+            .build()
         return ExoPlayer.Builder(context)
+            .setLoadControl(loadControl)
             .setHandleAudioBecomingNoisy(true)
             .build()
             .apply { playWhenReady = true }
