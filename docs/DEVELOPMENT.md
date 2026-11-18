@@ -4,7 +4,7 @@
 > 定位：Android TV 端、类 APTV 体验的现代化 IPTV 播放器  
 > 上游思路：[Bolt-IPTV](https://github.com/AaronHvang/Bolt-IPTV)
 
-**当前版本：v0.4.0**  
+**当前版本：v0.5.0-ui**  
 **更新日期：2026-11**
 
 ---
@@ -178,3 +178,4 @@ previewManager.debounceMs = 300L
 | 0.2 | 实时预览、Tv/Lazy 网格 |
 | 0.3 | 自适应列数、EPG、扫码加源、首帧缓存、Debounce；工程可编译配置；品牌定为 **NextTV** |
 | 0.4 | DataStore 持久化、多源管理、播放自动重试、数字键换台、启动恢复上次源/频道 |
+| 0.5-ui | APTV 向三栏首页（列表+大预览）、全屏左侧频道浮层；交互参照 APTV，不足处对齐 Bolt |
