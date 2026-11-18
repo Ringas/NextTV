@@ -35,6 +35,21 @@
 
 ---
 
+## 品牌
+
+| 资源 | 路径 |
+|------|------|
+| 应用图标 | `assets/branding/nexttv_icon_512.png` |
+| 横幅 Logo | `assets/branding/nexttv_banner.jpg` |
+
+<p align="center">
+  <img src="assets/branding/nexttv_icon_512.png" width="160" alt="NextTV Icon"/>
+</p>
+
+<p align="center">
+  <img src="assets/branding/nexttv_banner.jpg" width="480" alt="NextTV Banner"/>
+</p>
+
 ## 截图 / 体验路径
 
 1. 打开应用 → 侧边栏 **设置**
