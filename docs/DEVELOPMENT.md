@@ -4,7 +4,7 @@
 > 定位：Android TV 端、类 APTV 体验的现代化 IPTV 播放器  
 > 上游思路：[Bolt-IPTV](https://github.com/AaronHvang/Bolt-IPTV)
 
-**当前版本：v0.3.0**  
+**当前版本：v0.4.0**  
 **更新日期：2026-11**
 
 ---
@@ -55,11 +55,11 @@
 | 项 | 状态 | 说明 |
 |----|------|------|
 | Navigation Compose | ❌ | 目前为简单 Screen 枚举切换 |
-| DataStore / Room 持久化 | ❌ | 播放源、收藏重启丢失 |
-| 数字键换台 | ❌ | 全屏仅上下键 |
+| DataStore 持久化 | ✅ | 源列表、当前源、收藏、上次频道 |
+| 数字键换台 | ✅ | 全屏数字键 + 频道号/序号 |
 | EPG 时间轴网格 | ❌ | 当前为列表式节目表 |
 | Xtream Codes | ❌ | 枚举预留，未实现 |
-| 多源管理 UI | ⚠️ | 仅能加载覆盖式源 |
+| 多源管理 UI | ✅ | 添加/切换/删除/刷新 |
 | 正式签名与应用名全面重命名 | ⚠️ | applicationId 仍为 `com.bolttv.compose`，显示名可再统一为 NextTV |
 | 单元测试 / UI 测试 | ❌ | 无 |
 | 低端盒子专项优化 | ⚠️ | 已有单预览实例 + debounce，未做机型分级 |
@@ -177,3 +177,4 @@ previewManager.debounceMs = 300L
 | 0.1 | 骨架：双播放器、M3U、Home/Player |
 | 0.2 | 实时预览、Tv/Lazy 网格 |
 | 0.3 | 自适应列数、EPG、扫码加源、首帧缓存、Debounce；工程可编译配置；品牌定为 **NextTV** |
+| 0.4 | DataStore 持久化、多源管理、播放自动重试、数字键换台、启动恢复上次源/频道 |

@@ -92,6 +92,14 @@ fun HomeScreen(
                     previewManager.clearPreview()
                 }
             )
+            GroupChip(
+                label = "收藏",
+                selected = selectedGroup == "收藏",
+                onClick = {
+                    selectedGroup = "收藏"
+                    previewManager.clearPreview()
+                }
+            )
             groups.forEach { group ->
                 GroupChip(
                     label = group,
