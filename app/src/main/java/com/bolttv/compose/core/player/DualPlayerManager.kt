@@ -81,7 +81,7 @@ class DualPlayerManager(private val context: Context) {
 
     private fun buildPlayer(): ExoPlayer {
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(800, 25000, 500, 1000)
+            .setBufferDurationsMs(1500, 30000, 500, 1000)
             .build()
         return ExoPlayer.Builder(context)
             .setLoadControl(loadControl)

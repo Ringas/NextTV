@@ -3,7 +3,6 @@ package com.bolttv.compose.ui.components
 import android.graphics.Bitmap
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import androidx.tv.material3.Border
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -69,10 +67,7 @@ fun ChannelCard(
             }
         },
         shape = CardDefaults.shape(shape = RoundedCornerShape(12.dp)),
-        border = CardDefaults.border(
-            focusedBorder = Border(
-                border = BorderStroke(3.dp, MaterialTheme.colorScheme.primary),
-                shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(12.dp)
             )
         ),
         colors = CardDefaults.colors(

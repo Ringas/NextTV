@@ -58,7 +58,6 @@ private val AptvDarkScheme = darkColorScheme(
     onSurface = NextTvColors.TextPrimary,
     surfaceVariant = NextTvColors.BgElevated,
     onSurfaceVariant = NextTvColors.TextSecondary,
-    border = NextTvColors.PanelBorder,
     error = NextTvColors.Danger
 )
 

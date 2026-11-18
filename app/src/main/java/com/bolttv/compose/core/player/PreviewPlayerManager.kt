@@ -175,7 +175,7 @@ class PreviewPlayerManager(private val context: Context) {
         if (previewPlayer != null) return
 
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(300, 2500, 150, 400)
+            .setBufferDurationsMs(1000, 5000, 250, 500)
             .build()
 
         previewPlayer = ExoPlayer.Builder(context)

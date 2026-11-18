@@ -266,12 +266,7 @@ fun PlayerScreen(
                                     else androidx.compose.ui.graphics.Color.Transparent,
                                     focusedContainerColor = NextTvColors.AccentSoft
                                 ),
-                                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(NextTvDimens.radiusSm)),
-                                border = ClickableSurfaceDefaults.border(
-                                    focusedBorder = androidx.tv.material3.Border(
-                                        border = androidx.compose.foundation.BorderStroke(1.5.dp, NextTvColors.Accent),
-                                        shape = RoundedCornerShape(NextTvDimens.radiusSm)
-                                    )
+                                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(NextTvDimens.radiusSm))
                                 )
                             ) {
                                 Text(

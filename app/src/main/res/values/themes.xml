@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.BoltComposeTV" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#0D1117</item>
+    <!-- Media3 PlayerView 需要 AppCompat 主题，否则部分设备启动/进播放即崩 -->
+    <style name="Theme.BoltComposeTV" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">#0B0D10</item>
         <item name="android:windowFullscreen">true</item>
+        <item name="android:statusBarColor">#0B0D10</item>
+        <item name="android:navigationBarColor">#0B0D10</item>
+        <item name="colorPrimary">#D946EF</item>
+        <item name="colorPrimaryDark">#0B0D10</item>
+        <item name="colorAccent">#D946EF</item>
     </style>
 </resources>

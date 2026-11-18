@@ -57,13 +57,8 @@ fun AptvNavItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var focused = false
-    // Surface handles focus; animate selected bg
     val bg by animateColorAsState(
-        targetValue = when {
-            selected -> NextTvColors.Accent
-            else -> Color.Transparent
-        },
+        targetValue = if (selected) NextTvColors.Accent else Color.Transparent,
         animationSpec = ColorAnim,
         label = "navBg"
     )
@@ -130,13 +125,7 @@ fun AptvChannelRow(
             focusedContainerColor = NextTvColors.AccentSoft
         ),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(NextTvDimens.radiusMd)),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f), // 自管 scale 更顺
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = androidx.tv.material3.Border(
-                border = androidx.compose.foundation.BorderStroke(2.dp, NextTvColors.Accent),
-                shape = RoundedCornerShape(NextTvDimens.radiusMd)
-            )
-        )
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
