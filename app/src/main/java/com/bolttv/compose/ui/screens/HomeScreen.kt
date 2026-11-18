@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -155,7 +157,17 @@ fun HomeScreen(
                     Text("添加播放源后开始观看", color = NextTvColors.TextMuted)
                 }
             } else {
+                val listState = rememberLazyListState()
+                // 焦点频道滚入可视区（跟手）
+                LaunchedEffect(focused?.id, displayChannels) {
+                    val id = focused?.id ?: return@LaunchedEffect
+                    val index = displayChannels.indexOfFirst { it.id == id }
+                    if (index >= 0) {
+                        listState.animateScrollToItem(index)
+                    }
+                }
                 LazyColumn(
+                    state = listState,
                     contentPadding = PaddingValues(bottom = 40.dp, end = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.fillMaxSize()

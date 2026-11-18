@@ -1,5 +1,9 @@
 package com.bolttv.compose.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -11,9 +15,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
@@ -25,6 +31,9 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.bolttv.compose.ui.theme.NextTvColors
 import com.bolttv.compose.ui.theme.NextTvDimens
+
+private val FocusAnim = tween<Float>(durationMillis = 160, easing = FastOutSlowInEasing)
+private val ColorAnim = tween<Color>(durationMillis = 160, easing = FastOutSlowInEasing)
 
 @Composable
 fun GlassPanel(
@@ -48,19 +57,25 @@ fun AptvNavItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var focused = false
+    // Surface handles focus; animate selected bg
+    val bg by animateColorAsState(
+        targetValue = when {
+            selected -> NextTvColors.Accent
+            else -> Color.Transparent
+        },
+        animationSpec = ColorAnim,
+        label = "navBg"
+    )
     Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = when {
-                selected -> NextTvColors.Accent
-                else -> Color.Transparent
-            },
-            focusedContainerColor = if (selected) NextTvColors.Accent
-            else NextTvColors.AccentSoft
+            containerColor = bg,
+            focusedContainerColor = if (selected) NextTvColors.Accent else NextTvColors.AccentSoft
         ),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(NextTvDimens.radiusSm)),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f)
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f)
     ) {
         Text(
             text = label,
@@ -84,21 +99,38 @@ fun AptvChannelRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val scale by animateFloatAsState(
+        targetValue = if (focused) 1.02f else 1f,
+        animationSpec = FocusAnim,
+        label = "rowScale"
+    )
+    val bg by animateColorAsState(
+        targetValue = when {
+            focused -> NextTvColors.AccentSoft
+            playing -> NextTvColors.BgElevated
+            else -> Color.Transparent
+        },
+        animationSpec = ColorAnim,
+        label = "rowBg"
+    )
+    val titleColor by animateColorAsState(
+        targetValue = if (focused || playing) NextTvColors.Accent else NextTvColors.TextPrimary,
+        animationSpec = ColorAnim,
+        label = "titleColor"
+    )
+
     Surface(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
+            .scale(scale)
             .onFocusChanged { if (it.isFocused) onFocused() },
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = when {
-                focused -> NextTvColors.AccentSoft
-                playing -> NextTvColors.BgElevated
-                else -> Color.Transparent
-            },
+            containerColor = bg,
             focusedContainerColor = NextTvColors.AccentSoft
         ),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(NextTvDimens.radiusMd)),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = NextTvDimens.focusScale),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f), // 自管 scale 更顺
         border = ClickableSurfaceDefaults.border(
             focusedBorder = androidx.tv.material3.Border(
                 border = androidx.compose.foundation.BorderStroke(2.dp, NextTvColors.Accent),
@@ -114,10 +146,7 @@ fun AptvChannelRow(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleSmall,
-                    color = when {
-                        focused || playing -> NextTvColors.Accent
-                        else -> NextTvColors.TextPrimary
-                    },
+                    color = titleColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

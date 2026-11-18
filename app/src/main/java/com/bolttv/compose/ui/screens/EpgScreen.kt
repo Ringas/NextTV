@@ -17,9 +17,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -104,6 +106,14 @@ fun EpgScreen(
     val hourFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val dayFmt = remember { SimpleDateFormat("MM/dd E", Locale.getDefault()) }
     val hScroll = rememberScrollState()
+
+    LaunchedEffect(windowStart, dayOffset, epgLoaded) {
+        if (!epgLoaded) return@LaunchedEffect
+        val minutesFromStart = ((now - windowStart) / 60_000f).coerceAtLeast(0f)
+        // 4dp per minute * density ~ 假设 2px/dp → 用 scroll 像素近似：minutes * 8
+        val approxPx = (minutesFromStart * 8f - 120f).toInt().coerceAtLeast(0)
+        hScroll.animateScrollTo(approxPx)
+    }
 
     // 当前时间线位置
     val nowOffset: Dp = if (now in windowStart until windowEnd) {

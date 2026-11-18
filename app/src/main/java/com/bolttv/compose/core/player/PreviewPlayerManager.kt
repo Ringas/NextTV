@@ -206,6 +206,6 @@ class PreviewPlayerManager(private val context: Context) {
     }
 
     companion object {
-        const val DEFAULT_DEBOUNCE_MS = 250L
+        const val DEFAULT_DEBOUNCE_MS = 180L
     }
 }
