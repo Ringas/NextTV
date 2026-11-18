@@ -57,7 +57,7 @@
 | Navigation Compose | ❌ | 目前为简单 Screen 枚举切换 |
 | DataStore 持久化 | ✅ | 源列表、当前源、收藏、上次频道 |
 | 数字键换台 | ✅ | 全屏数字键 + 频道号/序号 |
-| EPG 时间轴网格 | ❌ | 当前为列表式节目表 |
+| EPG 时间轴网格 | ✅ | 频道×时间块 + 现在红线 + 日切换 |
 | Xtream Codes | ❌ | 枚举预留，未实现 |
 | 多源管理 UI | ✅ | 添加/切换/删除/刷新 |
 | 正式签名与应用名全面重命名 | ⚠️ | applicationId 仍为 `com.bolttv.compose`，显示名可再统一为 NextTV |
@@ -179,3 +179,4 @@ previewManager.debounceMs = 300L
 | 0.3 | 自适应列数、EPG、扫码加源、首帧缓存、Debounce；工程可编译配置；品牌定为 **NextTV** |
 | 0.4 | DataStore 持久化、多源管理、播放自动重试、数字键换台、启动恢复上次源/频道 |
 | 0.5-ui | APTV 向三栏首页（列表+大预览）、全屏左侧频道浮层；交互参照 APTV，不足处对齐 Bolt |
+| 0.5-epg | APTV 风格 EPG 时间轴：频道×时间块、当前时间线、日期切换 |

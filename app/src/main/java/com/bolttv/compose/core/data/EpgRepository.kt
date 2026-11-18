@@ -42,7 +42,7 @@ class EpgRepository {
             val connection = URL(url).openConnection() as HttpURLConnection
             connection.connectTimeout = 20000
             connection.readTimeout = 60000
-            connection.setRequestProperty("User-Agent", "BoltComposeTV/0.2")
+            connection.setRequestProperty("User-Agent", "NextTV/0.5")
             connection.inputStream.use { stream ->
                 parseXmlTv(stream)
             }
@@ -71,6 +71,20 @@ class EpgRepository {
     fun getUpcoming(channelId: String?, tvgId: String?, limit: Int = 5, now: Long = System.currentTimeMillis()): List<EpgProgram> {
         val list = resolveList(channelId, tvgId) ?: return emptyList()
         return list.filter { it.end > now }.take(limit)
+    }
+
+
+    /**
+     * 获取时间窗内的节目（与窗口有交集）
+     */
+    fun getProgramsInRange(
+        channelId: String?,
+        tvgId: String?,
+        rangeStart: Long,
+        rangeEnd: Long
+    ): List<EpgProgram> {
+        val list = resolveList(channelId, tvgId) ?: return emptyList()
+        return list.filter { it.end > rangeStart && it.start < rangeEnd }
     }
 
     fun clear() {
