@@ -1,55 +1,74 @@
 package com.bolttv.compose.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme
-import androidx.tv.material3.lightColorScheme
 
-// APTV / Bolt 风格的深色现代主题
-private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF4FC3F7),
-    onPrimary = Color(0xFF003544),
-    secondary = Color(0xFF80CBC4),
-    onSecondary = Color(0xFF003732),
-    tertiary = Color(0xFFFFB74D),
-    background = Color(0xFF0D1117),
-    onBackground = Color(0xFFE6EDF3),
-    surface = Color(0xFF161B22),
-    onSurface = Color(0xFFE6EDF3),
-    surfaceVariant = Color(0xFF21262D),
-    onSurfaceVariant = Color(0xFF8B949E),
-    border = Color(0xFF30363D),
-    error = Color(0xFFF85149)
-)
+/** APTV 向设计色板 */
+object NextTvColors {
+    val Bg = Color(0xFF0B0D10)
+    val BgElevated = Color(0xFF12151C)
+    val Panel = Color(0xE612151C)
+    val PanelSolid = Color(0xFF161A22)
+    val PanelBorder = Color(0x33FFFFFF)
+    val Accent = Color(0xFF5AC8FA)
+    val AccentDim = Color(0xFF2A9FD6)
+    val AccentSoft = Color(0x335AC8FA)
+    val TextPrimary = Color(0xFFF2F4F8)
+    val TextSecondary = Color(0xFF9AA3B2)
+    val TextMuted = Color(0xFF6B7380)
+    val Danger = Color(0xFFFF6B6B)
+    val NowLine = Color(0xFFFF5252)
+    val Playing = Color(0xFF5AC8FA)
+    val FocusGlow = Color(0x665AC8FA)
 
-private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF0277BD),
-    onPrimary = Color.White,
-    background = Color(0xFFF6F8FA),
-    surface = Color.White,
-    onSurface = Color(0xFF24292F)
+    val ScrimBottom = Brush.verticalGradient(
+        listOf(Color.Transparent, Color(0xCC000000))
+    )
+    val ScrimTop = Brush.verticalGradient(
+        listOf(Color(0x99000000), Color.Transparent)
+    )
+}
+
+object NextTvDimens {
+    val radiusSm = 8.dp
+    val radiusMd = 12.dp
+    val radiusLg = 16.dp
+    val radiusXl = 20.dp
+    val padScreen = 28.dp
+    val categoryWidth = 196.dp
+    val listWidth = 360.dp
+    val focusScale = 1.03f
+}
+
+private val AptvDarkScheme = darkColorScheme(
+    primary = NextTvColors.Accent,
+    onPrimary = Color(0xFF00344D),
+    secondary = NextTvColors.AccentDim,
+    onSecondary = Color.White,
+    background = NextTvColors.Bg,
+    onBackground = NextTvColors.TextPrimary,
+    surface = NextTvColors.PanelSolid,
+    onSurface = NextTvColors.TextPrimary,
+    surfaceVariant = NextTvColors.BgElevated,
+    onSurfaceVariant = NextTvColors.TextSecondary,
+    border = NextTvColors.PanelBorder,
+    error = NextTvColors.Danger
 )
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun BoltComposeTheme(
-    darkTheme: Boolean = true, // TV 默认深色
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = AptvDarkScheme,
         content = content
     )
-}
-
-// 常用尺寸（电视 10-foot UI）
-object Dimens {
-    val cardCorner = 12
-    val screenPadding = 48
-    val focusScale = 1.08f
 }

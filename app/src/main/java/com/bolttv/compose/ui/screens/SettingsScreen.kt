@@ -1,5 +1,6 @@
 package com.bolttv.compose.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,6 +28,7 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.bolttv.compose.ui.theme.NextTvColors
 import com.bolttv.compose.core.data.ChannelRepository
 import com.bolttv.compose.core.data.EpgRepository
 import com.bolttv.compose.core.data.SourceWebServer
@@ -71,7 +73,7 @@ fun SettingsScreen(
     Row(
         modifier = modifier
             .fillMaxSize()
-            .padding(40.dp),
+            .background(NextTvColors.Bg).padding(40.dp),
         horizontalArrangement = Arrangement.spacedBy(32.dp)
     ) {
         Column(
@@ -81,7 +83,7 @@ fun SettingsScreen(
             Text(
                 text = "设置",
                 style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground
+                color = NextTvColors.TextPrimary
             )
 
             Text(

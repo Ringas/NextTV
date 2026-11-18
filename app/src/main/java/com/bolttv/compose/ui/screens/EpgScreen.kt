@@ -38,6 +38,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.bolttv.compose.ui.theme.NextTvColors
 import com.bolttv.compose.core.data.ChannelRepository
 import com.bolttv.compose.core.data.EpgRepository
 import com.bolttv.compose.core.model.Channel
@@ -115,7 +116,7 @@ fun EpgScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(NextTvColors.Bg)
             .padding(horizontal = 28.dp, vertical = 24.dp)
     ) {
         // 顶栏

@@ -6,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,8 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -49,12 +45,10 @@ import androidx.tv.material3.Text
 import com.bolttv.compose.core.model.Channel
 import com.bolttv.compose.core.model.PlaybackState
 import com.bolttv.compose.core.player.DualPlayerManager
+import com.bolttv.compose.ui.theme.NextTvColors
+import com.bolttv.compose.ui.theme.NextTvDimens
 import kotlinx.coroutines.delay
 
-/**
- * 全屏播放 + APTV/Bolt 式左侧频道浮层
- * 左键或菜单打开列表；数字键跳台；上下键换台
- */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun PlayerScreen(
@@ -78,14 +72,12 @@ fun PlayerScreen(
             onChannelChanged(it)
         }
     }
-
     LaunchedEffect(showInfo, state.currentChannel, showSidebar) {
         if (showInfo && !showSidebar) {
-            delay(4000)
+            delay(4500)
             showInfo = false
         }
     }
-
     LaunchedEffect(numberBuffer) {
         if (numberBuffer.isEmpty()) return@LaunchedEffect
         numberHint = numberBuffer
@@ -94,104 +86,67 @@ fun PlayerScreen(
         numberBuffer = ""
         numberHint = null
         if (num != null) {
-            val target = channels.firstOrNull { it.number == num }
-                ?: channels.getOrNull(num - 1)
+            val target = channels.firstOrNull { it.number == num } ?: channels.getOrNull(num - 1)
             if (target != null) {
                 dualPlayer.play(target)
                 onChannelChanged(target)
                 showInfo = true
             } else {
                 numberHint = "无频道 $num"
-                delay(1500)
+                delay(1200)
                 numberHint = null
             }
         }
     }
-
     LaunchedEffect(state.currentChannel, channels) {
-        val current = state.currentChannel ?: return@LaunchedEffect
-        val index = channels.indexOfFirst { it.id == current.id }
-        if (index >= 0) dualPlayer.preload(channels.getOrNull(index + 1))
+        val cur = state.currentChannel ?: return@LaunchedEffect
+        val i = channels.indexOfFirst { it.id == cur.id }
+        if (i >= 0) dualPlayer.preload(channels.getOrNull(i + 1))
     }
-
     LaunchedEffect(showSidebar) {
         if (showSidebar) {
-            delay(50)
+            delay(40)
             runCatching { listFocus.requestFocus() }
         }
     }
 
-    fun switchByOffset(delta: Int) {
-        val current = state.currentChannel ?: return
-        val index = channels.indexOfFirst { it.id == current.id }
-        if (index < 0) return
-        val targetIndex = (index + delta).coerceIn(0, channels.lastIndex)
-        if (targetIndex != index) {
-            val ch = channels[targetIndex]
-            dualPlayer.play(ch)
-            onChannelChanged(ch)
+    fun zap(delta: Int) {
+        val cur = state.currentChannel ?: return
+        val i = channels.indexOfFirst { it.id == cur.id }
+        if (i < 0) return
+        val t = (i + delta).coerceIn(0, channels.lastIndex)
+        if (t != i) {
+            dualPlayer.play(channels[t])
+            onChannelChanged(channels[t])
             showInfo = true
         }
     }
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
-                when (event.key) {
-                    Key.Back, Key.Escape -> {
-                        if (showSidebar) {
-                            showSidebar = false
-                            true
-                        } else {
-                            onBack()
-                            true
-                        }
-                    }
-                    Key.DirectionUp -> {
-                        if (!showSidebar) {
-                            switchByOffset(-1)
-                            true
-                        } else false
-                    }
-                    Key.DirectionDown -> {
-                        if (!showSidebar) {
-                            switchByOffset(1)
-                            true
-                        } else false
-                    }
-                    Key.DirectionLeft, Key.Menu -> {
-                        showSidebar = true
-                        showInfo = true
-                        true
-                    }
-                    Key.DirectionRight -> {
-                        if (showSidebar) {
-                            showSidebar = false
-                            true
-                        } else {
-                            showInfo = true
-                            true
-                        }
-                    }
-                    Key.Enter, Key.DirectionCenter -> {
-                        showInfo = true
-                        true
-                    }
-                    Key.Zero, Key.NumPad0 -> { numberBuffer += "0"; true }
-                    Key.One, Key.NumPad1 -> { numberBuffer += "1"; true }
-                    Key.Two, Key.NumPad2 -> { numberBuffer += "2"; true }
-                    Key.Three, Key.NumPad3 -> { numberBuffer += "3"; true }
-                    Key.Four, Key.NumPad4 -> { numberBuffer += "4"; true }
-                    Key.Five, Key.NumPad5 -> { numberBuffer += "5"; true }
-                    Key.Six, Key.NumPad6 -> { numberBuffer += "6"; true }
-                    Key.Seven, Key.NumPad7 -> { numberBuffer += "7"; true }
-                    Key.Eight, Key.NumPad8 -> { numberBuffer += "8"; true }
-                    Key.Nine, Key.NumPad9 -> { numberBuffer += "9"; true }
-                    else -> false
+        modifier = modifier.fillMaxSize().onPreviewKeyEvent { e ->
+            if (e.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
+            when (e.key) {
+                Key.Back, Key.Escape -> {
+                    if (showSidebar) { showSidebar = false; true } else { onBack(); true }
                 }
+                Key.DirectionUp -> if (!showSidebar) { zap(-1); true } else false
+                Key.DirectionDown -> if (!showSidebar) { zap(1); true } else false
+                Key.DirectionLeft, Key.Menu -> { showSidebar = true; showInfo = true; true }
+                Key.DirectionRight -> if (showSidebar) { showSidebar = false; true } else { showInfo = true; true }
+                Key.Enter, Key.DirectionCenter -> { showInfo = true; true }
+                Key.Zero, Key.NumPad0 -> { numberBuffer += "0"; true }
+                Key.One, Key.NumPad1 -> { numberBuffer += "1"; true }
+                Key.Two, Key.NumPad2 -> { numberBuffer += "2"; true }
+                Key.Three, Key.NumPad3 -> { numberBuffer += "3"; true }
+                Key.Four, Key.NumPad4 -> { numberBuffer += "4"; true }
+                Key.Five, Key.NumPad5 -> { numberBuffer += "5"; true }
+                Key.Six, Key.NumPad6 -> { numberBuffer += "6"; true }
+                Key.Seven, Key.NumPad7 -> { numberBuffer += "7"; true }
+                Key.Eight, Key.NumPad8 -> { numberBuffer += "8"; true }
+                Key.Nine, Key.NumPad9 -> { numberBuffer += "9"; true }
+                else -> false
             }
+        }
     ) {
         AndroidView(
             factory = { ctx ->
@@ -207,61 +162,57 @@ fun PlayerScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // 左侧频道浮层（半透明）
         if (showSidebar) {
             Box(
-                modifier = Modifier
+                Modifier
                     .align(Alignment.CenterStart)
                     .fillMaxHeight()
-                    .width(360.dp)
-                    .background(Color(0xE612151A))
-                    .padding(top = 32.dp, bottom = 24.dp, start = 16.dp, end = 12.dp)
+                    .width(380.dp)
+                    .background(NextTvColors.Panel)
+                    .padding(top = 28.dp, bottom = 20.dp, start = 14.dp, end = 10.dp)
             ) {
                 Column {
                     Text(
-                        text = "频道列表",
+                        "频道",
                         style = MaterialTheme.typography.titleMedium,
-                        color = Color.White,
-                        modifier = Modifier.padding(bottom = 12.dp, start = 8.dp)
+                        color = NextTvColors.TextPrimary,
+                        modifier = Modifier.padding(start = 10.dp, bottom = 12.dp)
                     )
-                    val listState = rememberLazyListState()
-                    LazyColumn(
-                        state = listState,
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        items(channels, key = { it.id }) { channel ->
-                            val active = state.currentChannel?.id == channel.id
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        items(channels, key = { it.id }) { ch ->
+                            val active = state.currentChannel?.id == ch.id
                             Surface(
                                 onClick = {
-                                    dualPlayer.play(channel)
-                                    onChannelChanged(channel)
+                                    dualPlayer.play(ch)
+                                    onChannelChanged(ch)
                                     showSidebar = false
                                     showInfo = true
                                 },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .then(
-                                        if (active) Modifier.focusRequester(listFocus)
-                                        else Modifier
-                                    ),
-                                colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = if (active) MaterialTheme.colorScheme.primary.copy(0.25f)
-                                    else Color.Transparent,
-                                    focusedContainerColor = MaterialTheme.colorScheme.primary.copy(0.35f)
+                                modifier = Modifier.fillMaxWidth().then(
+                                    if (active) Modifier.focusRequester(listFocus) else Modifier
                                 ),
-                                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp))
+                                colors = ClickableSurfaceDefaults.colors(
+                                    containerColor = if (active) NextTvColors.AccentSoft else androidx.compose.ui.graphics.Color.Transparent,
+                                    focusedContainerColor = NextTvColors.AccentSoft
+                                ),
+                                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(NextTvDimens.radiusSm)),
+                                border = ClickableSurfaceDefaults.border(
+                                    focusedBorder = androidx.tv.material3.Border(
+                                        border = androidx.compose.foundation.BorderStroke(1.5.dp, NextTvColors.Accent),
+                                        shape = RoundedCornerShape(NextTvDimens.radiusSm)
+                                    )
+                                )
                             ) {
                                 Text(
                                     text = buildString {
-                                        channel.number?.let { append("$it  ") }
-                                        append(channel.name)
+                                        ch.number?.let { append("$it  ") }
+                                        append(ch.name)
                                     },
                                     style = MaterialTheme.typography.bodyLarge,
-                                    color = if (active) MaterialTheme.colorScheme.primary else Color.White,
+                                    color = if (active) NextTvColors.Accent else NextTvColors.TextPrimary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp)
                                 )
                             }
                         }
@@ -272,67 +223,49 @@ fun PlayerScreen(
 
         numberHint?.let { hint ->
             Box(
-                modifier = Modifier
+                Modifier
                     .align(Alignment.Center)
-                    .background(Color.Black.copy(0.7f), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 32.dp, vertical = 16.dp)
+                    .background(NextTvColors.Panel, RoundedCornerShape(NextTvDimens.radiusMd))
+                    .padding(horizontal = 36.dp, vertical = 18.dp)
             ) {
-                Text(hint, style = MaterialTheme.typography.displaySmall, color = Color.White)
+                Text(hint, style = MaterialTheme.typography.displaySmall, color = NextTvColors.TextPrimary)
             }
         }
 
         if ((showInfo || state.playbackState is PlaybackState.Error) && !showSidebar) {
             Box(
-                modifier = Modifier
+                Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
-                        )
-                    )
-                    .padding(horizontal = 48.dp, vertical = 28.dp)
+                    .background(NextTvColors.ScrimBottom)
+                    .padding(horizontal = 44.dp, vertical = 26.dp)
             ) {
                 Column {
                     val ch = state.currentChannel
                     Text(
-                        text = buildString {
+                        buildString {
                             ch?.number?.let { append("$it  ") }
                             append(ch?.name ?: "无信号")
                         },
                         style = MaterialTheme.typography.headlineMedium,
-                        color = Color.White
+                        color = NextTvColors.TextPrimary
                     )
                     Spacer(Modifier.height(4.dp))
+                    Text(ch?.group.orEmpty(), style = MaterialTheme.typography.bodyLarge, color = NextTvColors.TextSecondary)
                     Text(
-                        text = ch?.group ?: "",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = Color.White.copy(0.8f)
-                    )
-                    Text(
-                        text = "← 频道列表  ·  上下换台  ·  数字键跳台",
+                        "← 频道列表    ↑↓ 换台    数字键跳台",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(0.5f),
-                        modifier = Modifier.padding(top = 8.dp)
+                        color = NextTvColors.TextMuted,
+                        modifier = Modifier.padding(top = 10.dp)
                     )
                     when (val ps = state.playbackState) {
-                        is PlaybackState.Buffering -> {
-                            Text(
-                                "缓冲中…",
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                        }
+                        is PlaybackState.Buffering ->
+                            Text("缓冲中…", color = NextTvColors.Accent, modifier = Modifier.padding(top = 8.dp))
                         is PlaybackState.Error -> {
-                            Text(
-                                ps.message,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                            Button(
-                                onClick = { dualPlayer.retryNow() },
-                                modifier = Modifier.padding(top = 10.dp)
-                            ) { Text("立即重试") }
+                            Text(ps.message, color = NextTvColors.Danger, modifier = Modifier.padding(top = 8.dp))
+                            Button(onClick = { dualPlayer.retryNow() }, modifier = Modifier.padding(top = 10.dp)) {
+                                Text("立即重试")
+                            }
                         }
                         else -> {}
                     }
