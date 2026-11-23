@@ -6,15 +6,33 @@ val nextTvSigning = Properties().apply { if(nextTvSigningFile.exists())nextTvSig
 val nextTvVersion = Properties().apply {
     rootProject.file("version.properties").inputStream().use { load(it) }
 }
-val nextTvVersionCode = nextTvVersion.getProperty("versionCode").toInt()
+val baseVersionName = nextTvVersion.getProperty("versionName")
+require(baseVersionName.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+"))) {
+    "versionName 必须使用 主版本.次版本.修订号 格式。"
+}
+val releaseNumber = nextTvVersion.getProperty("releaseNumber").toInt()
+// An Android upgrade must have a version code at least as high as the installed APK.
+// Reserve the last code in each range for the formal build.
+val versionCodeRange = 100_000
+require(releaseNumber in 1..(2_100_000_000 / versionCodeRange))
+val alphaBuild = providers.gradleProperty("nextTvAlphaBuild").orNull?.let {
+    val buildNumber = it.toIntOrNull()
+    require(buildNumber != null && buildNumber in 1 until versionCodeRange) {
+        "nextTvAlphaBuild 必须在 1 到 ${versionCodeRange - 1} 之间。"
+    }
+    buildNumber
+}
+val nextTvVersionName = alphaBuild?.let { "$baseVersionName-Alpha.$it" } ?: baseVersionName
+val nextTvVersionCode = alphaBuild?.let { (releaseNumber - 1) * versionCodeRange + it }
+    ?: releaseNumber * versionCodeRange
 val verifyReleaseVersion by tasks.registering {
     group = "verification"
-    description = "Checks that the candidate uses the next Android version code."
+    description = "Checks that the candidate uses the next formal release number."
     inputs.file(rootProject.file("version.properties"))
     doLast {
-        val previous = nextTvVersion.getProperty("lastPublishedVersionCode").toInt()
-        check(previous in 1 until 2_100_000_000 && nextTvVersionCode == previous + 1) {
-            "versionCode 必须恰好比上次正式发布的 lastPublishedVersionCode 大 1。"
+        val previous = nextTvVersion.getProperty("lastPublishedReleaseNumber").toInt()
+        check(previous in 0 until releaseNumber && releaseNumber == previous + 1) {
+            "releaseNumber 必须恰好比上次正式发布的 lastPublishedReleaseNumber 大 1。"
         }
     }
 }
@@ -40,7 +58,7 @@ android {
  }
  namespace = "com.nexttv"
  compileSdk = 35
- defaultConfig { testInstrumentationRunner = providers.gradleProperty("perfRunner").orNull ?: "com.nexttv.AuditFixInstrumentation"; applicationId = "com.nexttv"; minSdk = 23; targetSdk = 35; versionCode = nextTvVersionCode; versionName = nextTvVersion.getProperty("versionName") }
+ defaultConfig { testInstrumentationRunner = providers.gradleProperty("perfRunner").orNull ?: "com.nexttv.AuditFixInstrumentation"; applicationId = "com.nexttv"; minSdk = 23; targetSdk = 35; versionCode = nextTvVersionCode; versionName = nextTvVersionName }
  compileOptions { isCoreLibraryDesugaringEnabled = true; sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  kotlinOptions { jvmTarget = "17" }
  buildFeatures { compose = true; buildConfig = true }

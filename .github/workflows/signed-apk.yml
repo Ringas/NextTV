@@ -16,6 +16,8 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    outputs:
+      version_name: ${{ steps.apk.outputs.version_name }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -48,9 +50,10 @@ jobs:
           printf '%s' "$KEYSTORE_B64" | base64 --decode > .signing/NextTV-release.p12
           printf '%s' "$SIGNING_PROPERTIES_B64" | base64 --decode > .signing/signing.properties
 
-      - name: Build and verify release APK
+      - name: Build and verify signed Alpha APK
+        id: apk
         run: |
-          bash ./gradlew --no-daemon :app:packageNextTvRelease
+          bash ./gradlew --no-daemon :app:packageNextTvRelease "-PnextTvAlphaBuild=$GITHUB_RUN_NUMBER"
           apk=app/build/outputs/apk/release/app-release.apk
           certificate=$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk")
           expected=19899ab2e33f7043ffec3d271182cfec5a72e4e4649620c8a1cda5768b5c38be
@@ -59,8 +62,15 @@ jobs:
             echo '::error::The APK does not match the Next TV release certificate.'
             exit 1
           fi
+          badging=$("$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk")
+          version_name=$(sed -n "s/^package:.*versionName='\([^']*\)'.*/\1/p" <<< "$badging")
+          if [[ ! "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+-Alpha\.$GITHUB_RUN_NUMBER$ ]]; then
+            echo '::error::The APK version does not match the GitHub Alpha build number.'
+            exit 1
+          fi
+          printf 'version_name=%s\n' "$version_name" >> "$GITHUB_OUTPUT"
           mkdir -p deliverables
-          cp "$apk" "deliverables/Next-TV-${GITHUB_SHA::12}-signed.apk"
+          cp "$apk" "deliverables/Next-TV-${version_name}-signed.apk"
 
       - name: Remove signing files
         if: always()
@@ -80,7 +90,7 @@ jobs:
     permissions:
       contents: write
     concurrency:
-      group: apk-release-${{ github.sha }}
+      group: apk-release-${{ github.run_id }}
       cancel-in-progress: false
     steps:
       - name: Download verified APK
@@ -92,10 +102,10 @@ jobs:
       - name: Publish signed APK as a pre-release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION_NAME: ${{ needs.build.outputs.version_name }}
         run: |
-          short_sha=${GITHUB_SHA::12}
-          tag="build-${GITHUB_SHA}"
-          asset="Next-TV-${short_sha}-signed.apk"
+          tag="build-${GITHUB_SHA}-${GITHUB_RUN_NUMBER}"
+          asset="Next-TV-${VERSION_NAME}-signed.apk"
           apk="deliverables/${asset}"
           test -s "$apk"
 
@@ -109,7 +119,7 @@ jobs:
             fi
           else
             gh release create "$tag" "$apk" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --title "Next TV 测试构建 ${short_sha}" \
+              --target "$GITHUB_SHA" --title "Next TV ${VERSION_NAME}" \
               --notes "签名 APK 来自提交 \`${GITHUB_SHA}\`。构建记录：${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
               --prerelease --latest=false
           fi
