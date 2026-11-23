@@ -1,0 +1,74 @@
+name: Build signed APK
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Ensure Android SDK is available
+        run: |
+          if [[ ! -f "$ANDROID_HOME/platforms/android-35/android.jar" ||
+                ! -x "$ANDROID_HOME/build-tools/35.0.0/apksigner" ]]; then
+            sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          fi
+
+      - name: Restore signing configuration
+        env:
+          KEYSTORE_B64: ${{ secrets.NEXTTV_KEYSTORE_BASE64 }}
+          SIGNING_PROPERTIES_B64: ${{ secrets.NEXTTV_SIGNING_PROPERTIES_BASE64 }}
+        run: |
+          if [[ -z "$KEYSTORE_B64" || -z "$SIGNING_PROPERTIES_B64" ]]; then
+            echo '::error::The Next TV signing secrets are missing.'
+            exit 1
+          fi
+          umask 077
+          mkdir -p .signing
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > .signing/NextTV-release.p12
+          printf '%s' "$SIGNING_PROPERTIES_B64" | base64 --decode > .signing/signing.properties
+
+      - name: Build and verify release APK
+        run: |
+          bash ./gradlew --no-daemon :app:packageNextTvRelease
+          apk=app/build/outputs/apk/release/app-release.apk
+          certificate=$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk")
+          expected=19899ab2e33f7043ffec3d271182cfec5a72e4e4649620c8a1cda5768b5c38be
+          actual=$(awk -F ': ' '/certificate SHA-256 digest:/{print $2}' <<< "$certificate")
+          if [[ "$actual" != "$expected" ]]; then
+            echo '::error::The APK does not match the Next TV release certificate.'
+            exit 1
+          fi
+          mkdir -p deliverables
+          cp "$apk" "deliverables/Next-TV-${GITHUB_SHA::12}-signed.apk"
+
+      - name: Remove signing files
+        if: always()
+        run: rm -f .signing/NextTV-release.p12 .signing/signing.properties
+
+      - name: Upload signed APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Next-TV-signed-${{ github.sha }}
+          path: deliverables/Next-TV-*-signed.apk
+          if-no-files-found: error
