@@ -1,0 +1,6 @@
+# Copy to .signing/signing.properties (this path is gitignored).
+# Paths are relative to the project root.
+storeFile=.signing/nexttv-release.p12
+storePassword=CHANGE_ME
+keyAlias=nexttv
+keyPassword=CHANGE_ME

@@ -1,0 +1,24 @@
+local.properties
+.gradle/
+**/build/
+
+.toolchain/
+
+.signing/
+/.signing
+signing.properties
+*.jks
+*.p12
+
+/local.properties
+/.kotlin/
+.DS_Store
+*.keystore
+
+# Working materials and generated handoff files
+/audits/
+/backups/
+/deliverables/
+/design/
+/logs/
+/research/

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Next TV network policy.
+
+  Playback and subscription URLs are supplied by the user and commonly use
+  plain HTTP (http://…m3u / http://…m3u8). HTTPS continues to work under the
+  system trust store. Cleartext is enabled in base-config so those user hosts
+  are not blocked; this replaces application-wide usesCleartextTraffic in the
+  manifest so policy lives in one place and can be tightened later (e.g.
+  domain-config exceptions) without another manifest flag.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

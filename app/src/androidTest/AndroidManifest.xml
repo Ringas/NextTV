@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation android:name="com.nexttv.AuditFixInstrumentation" android:targetPackage="com.nexttv" />
+    <!-- Stable entry points for isolated API compatibility devices. -->
+    <instrumentation android:name="com.nexttv.CompatibilityInstrumentation" android:targetPackage="com.nexttv" android:functionalTest="true" />
+    <instrumentation android:name="com.nexttv.CompatibilityPlaybackInstrumentation" android:targetPackage="com.nexttv" android:functionalTest="true" />
+    <instrumentation android:name="com.nexttv.ColdReleaseBenchmarkInstrumentation" android:targetPackage="com.nexttv.test" android:functionalTest="true" />
+</manifest>
