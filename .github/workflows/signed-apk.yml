@@ -72,3 +72,44 @@ jobs:
           name: Next-TV-signed-${{ github.sha }}
           path: deliverables/Next-TV-*-signed.apk
           if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: apk-release-${{ github.sha }}
+      cancel-in-progress: false
+    steps:
+      - name: Download verified APK
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Next-TV-signed-${{ github.sha }}
+          path: deliverables
+
+      - name: Publish signed APK as a pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          short_sha=${GITHUB_SHA::12}
+          tag="build-${GITHUB_SHA}"
+          asset="Next-TV-${short_sha}-signed.apk"
+          apk="deliverables/${asset}"
+          test -s "$apk"
+
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets,isPrerelease,isDraft > release.json; then
+            jq -e '.isPrerelease' release.json > /dev/null
+            if ! jq -e --arg name "$asset" '.assets | any(.name == $name and .size > 0)' release.json > /dev/null; then
+              gh release upload "$tag" "$apk" --repo "$GITHUB_REPOSITORY"
+            fi
+            if jq -e '.isDraft' release.json > /dev/null; then
+              gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest=false
+            fi
+          else
+            gh release create "$tag" "$apk" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title "Next TV 测试构建 ${short_sha}" \
+              --notes "签名 APK 来自提交 \`${GITHUB_SHA}\`。构建记录：${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              --prerelease --latest=false
+          fi
