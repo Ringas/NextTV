@@ -6,6 +6,7 @@ package com.nexttv.core.tv
 import com.nexttv.core.App
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.compose.ui.platform.createLifecycleAwareWindowRecomposer
 import androidx.core.view.WindowCompat
@@ -56,125 +57,134 @@ class TvActivity:ComponentActivity(){
  internal fun bindPageBack(owner:Any,handler:()->Unit){pageBackOwner=owner;pageBack=handler}
  internal fun unbindPageBack(owner:Any){if(pageBackOwner===owner){pageBackOwner=null;pageBack=null}}
  private fun interaction(){(playerInteraction?:homeInteraction)?.invoke()}
- private var consumedBack=false
  internal var pointerNavigation=false
   private set
+
+ // Pointer gesture bookkeeping lives on the activity; dispatchTouchEvent below is a
+ // standard Activity override instead of a Window.Callback replacement.
+ private var replayStepX=0f
+ private var replaySteps=0
+ private var replayDrag=false
+ private var swipeX=0f
+ private var swipeY=0f
+ private var swipeClaimed=false
+ private var swipePassthrough=false
+
  internal fun dispatchNavigationKey(code:Int,fromPointer:Boolean){
   val previous=pointerNavigation;pointerNavigation=fromPointer
-  try{window.callback.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN,code));window.callback.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP,code))}finally{pointerNavigation=previous}
+  try{
+   dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN,code))
+   dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP,code))
+  }finally{pointerNavigation=previous}
  }
- /** Activity-level key routing, with one release consumed after a page is removed. */
- private fun routeBackKey(event:android.view.KeyEvent):Boolean{
-  val key=TvKey(event)
-  if(key.action==InputAction.BACK){
-   if(key.up&&consumedBack){consumedBack=false;return true}
-   if(key.down){
-    if(key.repeated)return true
-    val handler=playerBack?:pageBack?:homeBack
-    if(handler!=null){consumedBack=true;handler();return true}
+
+ private fun applyReplayDrag(x: Float, start: Boolean = false, finish: Boolean = false) {
+  val stepPixels = 36f * resources.displayMetrics.density
+  val steps = ((x - replayStepX) / stepPixels).toInt()
+  if (steps == 0 && !finish) return
+  replayStepX += steps * stepPixels
+  replaySteps += steps
+  if (com.nexttv.BuildConfig.DEBUG) android.util.Log.d("NextTVReplayDrag", "x=$x threshold=$stepPixels total=$replaySteps start=$start finish=$finish")
+  replayTouchSeek?.invoke(replaySteps, start, finish)
+ }
+
+ /**
+  * Observe every key before Compose consumes it (input-mode hints, IME/quick-menu routing),
+  * then delegate unchanged. BACK is never consumed here: ComponentActivity forwards it to
+  * OnBackPressedDispatcher, where per-screen BackHandler runs first.
+  * RestrictedApi is a false positive: dispatchKeyEvent is public on android.app.Activity.
+  */
+ @android.annotation.SuppressLint("RestrictedApi")
+ override fun dispatchKeyEvent(event:android.view.KeyEvent):Boolean {
+  InteractionStyle.keyboard(event.keyCode,pointerNavigation)
+  if(modalKeys?.invoke(event)==true)return true
+  if(event.action==android.view.KeyEvent.ACTION_DOWN&&TvKey(event).action!=InputAction.BACK)interaction()
+  return super.dispatchKeyEvent(event)
+ }
+
+ override fun dispatchGenericMotionEvent(event:android.view.MotionEvent):Boolean{
+  if(TvInput.pointerInteraction(event)){InteractionStyle.pointerInput();interaction()}
+  return super.dispatchGenericMotionEvent(event)
+ }
+
+ override fun dispatchTouchEvent(event:android.view.MotionEvent):Boolean{
+  when(event.actionMasked){
+   android.view.MotionEvent.ACTION_DOWN->{
+    InteractionStyle.pointerInput();interaction();swipeX=event.x;swipeY=event.y;swipeClaimed=false;replayDrag=false;replayStepX=event.x;replaySteps=0
+    val point=androidx.compose.ui.geometry.Offset(event.x,event.y)
+    swipePassthrough=modalKeys!=null||directPointerRegion?.contains(point)==true||
+     quickActionsPointerRegion?.contains(point)==true||event.buttonState and android.view.MotionEvent.BUTTON_SECONDARY!=0||pageBack!=null
+   }
+   android.view.MotionEvent.ACTION_POINTER_DOWN->{swipePassthrough=true}
+   android.view.MotionEvent.ACTION_MOVE->{
+    val swipeThreshold=36f*resources.displayMetrics.density
+    if (replayDrag) {
+     if (event.pointerCount == 1) applyReplayDrag(event.x)
+     return true
+    }
+    if(swipeClaimed)return true
+    if(!swipePassthrough&&event.pointerCount==1){
+     val dx=event.x-swipeX;val dy=event.y-swipeY
+     // Home/settings keep native vertical scrolling; the player shares all four directions.
+     if((playerBack==null||browserGesture!=null)&&kotlin.math.abs(dy)>=android.view.ViewConfiguration.get(this@TvActivity).scaledTouchSlop&&kotlin.math.abs(dy)>kotlin.math.abs(dx)*1.3f)swipePassthrough=true
+     else{
+      val direction=swipeDirection(dx,dy,swipeThreshold)
+      if(direction!=null){
+       val cancel=android.view.MotionEvent.obtain(event);cancel.action=android.view.MotionEvent.ACTION_CANCEL
+       super.dispatchTouchEvent(cancel);cancel.recycle();swipeClaimed=true
+       val action=TvInput.swipeAction(direction)
+       val horizontal=TvInput.horizontal(action)
+       val touchSeek = replayTouchSeek
+       if (touchSeek != null && event.isFromSource(android.view.InputDevice.SOURCE_TOUCHSCREEN) && horizontal != null) {
+        replayDrag = true
+        applyReplayDrag(event.x, start = true)
+        return true
+       }
+       val browserMove = browserGesture
+       if (browserMove != null) {
+        horizontal?.let { browserMove(-it) }
+        return true
+       }
+       TvInput.directionKey(action)?.let{dispatchNavigationKey(it,fromPointer=true)}
+       return true
+      }
+      if(playerBack!=null&&browserGesture==null)return true
+     }
+    }
+   }
+   android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+    if (swipeClaimed) {
+     if (replayDrag && event.actionMasked == android.view.MotionEvent.ACTION_UP) applyReplayDrag(event.x, finish = true)
+     swipeClaimed = false
+     replayDrag = false
+     return true
+    }
+    // Input dispatch may batch the entire threshold-crossing movement into the release.
+    if (event.actionMasked == android.view.MotionEvent.ACTION_UP && !swipePassthrough &&
+     replayTouchSeek != null && event.isFromSource(android.view.InputDevice.SOURCE_TOUCHSCREEN)) {
+     val threshold = 36f * resources.displayMetrics.density
+     val direction = swipeDirection(event.x - swipeX, event.y - swipeY, threshold)
+     if (direction == SwipeDirection.LEFT || direction == SwipeDirection.RIGHT) {
+      val cancel = android.view.MotionEvent.obtain(event)
+      cancel.action = android.view.MotionEvent.ACTION_CANCEL
+      super.dispatchTouchEvent(cancel)
+      cancel.recycle()
+      applyReplayDrag(event.x, start = true, finish = true)
+      return true
+     }
+    }
    }
   }
-  return false
+  return super.dispatchTouchEvent(event)
  }
 
  override fun onCreate(savedInstanceState:Bundle?){
   super.onCreate(savedInstanceState)
   window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-  // Public Window.Callback contract: preserves AndroidX dispatch for every other key.
-  var replayStepX=0f;var replaySteps=0;var replayDrag=false;var swipeX=0f;var swipeY=0f;var swipeClaimed=false;var swipePassthrough=false
-  fun applyReplayDrag(x: Float, start: Boolean = false, finish: Boolean = false) {
-   val stepPixels = 36f * resources.displayMetrics.density
-   val steps = ((x - replayStepX) / stepPixels).toInt()
-   if (steps == 0 && !finish) return
-   replayStepX += steps * stepPixels
-   replaySteps += steps
-   if (com.nexttv.BuildConfig.DEBUG) android.util.Log.d("NextTVReplayDrag", "x=$x threshold=$stepPixels total=$replaySteps start=$start finish=$finish")
-   replayTouchSeek?.invoke(replaySteps, start, finish)
-  }
-  val originalCallback=window.callback
-  window.callback=object:android.view.Window.Callback by originalCallback{
-   override fun dispatchKeyEvent(event:android.view.KeyEvent):Boolean {
-    val key=TvKey(event)
-    if(key.down){InteractionStyle.keyboard(event.keyCode,pointerNavigation)}
-    if(modalKeys?.invoke(event)==true)return true
-    if(routeBackKey(event))return true
-    if(key.down&&key.action!=InputAction.BACK)interaction()
-    return originalCallback.dispatchKeyEvent(event)
-   }
-   override fun dispatchTouchEvent(event:android.view.MotionEvent):Boolean{
-    when(event.actionMasked){
-     android.view.MotionEvent.ACTION_DOWN->{
-      InteractionStyle.pointerInput();interaction();swipeX=event.x;swipeY=event.y;swipeClaimed=false;replayDrag=false;replayStepX=event.x;replaySteps=0
-      val point=androidx.compose.ui.geometry.Offset(event.x,event.y)
-      swipePassthrough=modalKeys!=null||directPointerRegion?.contains(point)==true||
-       quickActionsPointerRegion?.contains(point)==true||event.buttonState and android.view.MotionEvent.BUTTON_SECONDARY!=0||pageBack!=null
-     }
-     android.view.MotionEvent.ACTION_POINTER_DOWN->{swipePassthrough=true}
-     android.view.MotionEvent.ACTION_MOVE->{
-      val swipeThreshold=36f*resources.displayMetrics.density
-      if (replayDrag) {
-       if (event.pointerCount == 1) applyReplayDrag(event.x)
-       return true
-      }
-      if(swipeClaimed)return true
-      if(!swipePassthrough&&event.pointerCount==1){
-       val dx=event.x-swipeX;val dy=event.y-swipeY
-       // Home/settings keep native vertical scrolling; the player shares all four directions.
-       if((playerBack==null||browserGesture!=null)&&kotlin.math.abs(dy)>=android.view.ViewConfiguration.get(this@TvActivity).scaledTouchSlop&&kotlin.math.abs(dy)>kotlin.math.abs(dx)*1.3f)swipePassthrough=true
-       else{
-        val direction=swipeDirection(dx,dy,swipeThreshold)
-        if(direction!=null){
-         val cancel=android.view.MotionEvent.obtain(event);cancel.action=android.view.MotionEvent.ACTION_CANCEL
-         originalCallback.dispatchTouchEvent(cancel);cancel.recycle();swipeClaimed=true
-         val action=TvInput.swipeAction(direction)
-         val horizontal=TvInput.horizontal(action)
-         val touchSeek = replayTouchSeek
-         if (touchSeek != null && event.isFromSource(android.view.InputDevice.SOURCE_TOUCHSCREEN) && horizontal != null) {
-          replayDrag = true
-          applyReplayDrag(event.x, start = true)
-          return true
-         }
-         val browserMove = browserGesture
-         if (browserMove != null) {
-          horizontal?.let { browserMove(-it) }
-          return true
-         }
-         TvInput.directionKey(action)?.let{dispatchNavigationKey(it,fromPointer=true)}
-         return true
-        }
-        if(playerBack!=null&&browserGesture==null)return true
-       }
-      }
-     }
-     android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
-      if (swipeClaimed) {
-       if (replayDrag && event.actionMasked == android.view.MotionEvent.ACTION_UP) applyReplayDrag(event.x, finish = true)
-       swipeClaimed = false
-       replayDrag = false
-       return true
-      }
-      // Input dispatch may batch the entire threshold-crossing movement into the release.
-      if (event.actionMasked == android.view.MotionEvent.ACTION_UP && !swipePassthrough &&
-       replayTouchSeek != null && event.isFromSource(android.view.InputDevice.SOURCE_TOUCHSCREEN)) {
-       val threshold = 36f * resources.displayMetrics.density
-       val direction = swipeDirection(event.x - swipeX, event.y - swipeY, threshold)
-       if (direction == SwipeDirection.LEFT || direction == SwipeDirection.RIGHT) {
-        val cancel = android.view.MotionEvent.obtain(event)
-        cancel.action = android.view.MotionEvent.ACTION_CANCEL
-        originalCallback.dispatchTouchEvent(cancel)
-        cancel.recycle()
-        applyReplayDrag(event.x, start = true, finish = true)
-        return true
-       }
-      }
-     }
-    }
-    return originalCallback.dispatchTouchEvent(event)
-   }
-   override fun dispatchGenericMotionEvent(event:android.view.MotionEvent):Boolean{
-    if(TvInput.pointerInteraction(event)){InteractionStyle.pointerInput();interaction()}
-    return originalCallback.dispatchGenericMotionEvent(event)
-   }
+  // Compose screens own their BackHandler; this callback is the last-resort exit path.
+  onBackPressedDispatcher.addCallback(this) {
+   val handler = homeBack
+   if (handler != null) handler() else finish()
   }
   WindowCompat.setDecorFitsSystemWindows(window,false)
   WindowInsetsControllerCompat(window,window.decorView).apply{hide(WindowInsetsCompat.Type.systemBars());systemBarsBehavior=WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE}

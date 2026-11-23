@@ -7,6 +7,7 @@ package com.nexttv.core.tv
 import android.media.AudioManager
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.*
@@ -297,7 +298,7 @@ import kotlin.math.roundToInt
     }else Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(gap),verticalAlignment=Alignment.Top){identity(Modifier.width(identityWidth));programme(Modifier.weight(1f));clock(Modifier.width(clockWidth))}
    }
    if(actionsVisible){
-    val activity=LocalContext.current as TvActivity
+    val activity=LocalActivity.current as TvActivity
     DisposableEffect(activity){onDispose{activity.quickActionsPointerRegion=null}}
     Box(Modifier.fillMaxWidth().padding(top=6.dp).height(1.dp).background(NextTvStyle.Stroke,androidx.compose.foundation.shape.CircleShape))
     Row(Modifier.fillMaxWidth()

@@ -11,7 +11,7 @@ import com.nexttv.core.io.*
  */
 object M3uParser {
 
-    data class Result(val channels: List<Channel>, val epgUrl: String?)
+    data class Result(val channels: List<Channel>, val epgUrl: String?, val skippedUnsupported: Int = 0)
 
     private val attrRegex = Regex("""([A-Za-z0-9_-]+)\s*=\s*"([^"]*)"""")
 
@@ -27,10 +27,13 @@ object M3uParser {
         val channels = ArrayList<Channel>()
         val seen = HashSet<Pair<String, String>>()
         var guide: String? = null
+        var skippedUnsupported = 0
         var pending: Pending? = null
         fun add(entry: Pending, url: String) {
             val name = entry.name.ifBlank { entry.tvgName }.trim().trimEnd(',').trim()
             if (name.isEmpty() || !isUrl(url) || !seen.add(name to url)) return
+            // 播放引擎仅支持 HTTP(S)：其余协议在导入期就跳过，避免"能导入、点了必失败"。
+            if (!isPlayableUrl(url)) { skippedUnsupported++; return }
             if (channels.size == ImportPolicy.CHANNELS) throw ImportLimitException("播放源频道/线路数量超过上限")
             channels += Channel(
                 stableChannelId(sourceId, name, entry.tvgId), name, entry.tvgId, entry.logo,
@@ -82,7 +85,7 @@ object M3uParser {
                 }
             }
         }
-        return Result(channels, guide?.takeIf(String::isNotBlank))
+        return Result(channels, guide?.takeIf(String::isNotBlank), skippedUnsupported)
     }
 
     private fun splitInfo(line: String): Pair<String, String> {
@@ -108,6 +111,9 @@ object M3uParser {
         if (g.isBlank()) return Channel.DEFAULT_GROUP
         return g
     }
+
+    /** 当前播放引擎（Media3 + DefaultHttpDataSource）实际支持的网络协议。 */
+    fun isPlayableUrl(url:String):Boolean=url.trim().startsWith("http://",true)||url.trim().startsWith("https://",true)
 
     private fun resolve(base:String,value:String):String = if(base.isBlank())value else runCatching{java.net.URI(base).resolve(value).toString()}.getOrDefault(value)
     private fun isUrl(v: String): Boolean {

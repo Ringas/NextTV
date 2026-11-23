@@ -4,9 +4,15 @@ package com.nexttv.core.data
 import android.content.Context
 import com.nexttv.core.io.*
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import java.io.File
 
 internal class SubscriptionRefresh(
@@ -25,56 +31,56 @@ internal class SubscriptionRefresh(
         val guide: String
     )
 
+    /**
+     * 每个订阅拥有独立的下载/解析预算，单个源失败只影响该源；
+     * 已成功的源会先进入待提交结果，不再因为一个慢源或超限而整批作废。
+     */
     suspend fun prepare(
         sources: List<Source>,
         previousBySource: Map<String, List<Channel>>,
         staged: MutableMap<String, File>,
         onProgress: (String) -> Unit
     ): PreparedRefresh {
+        val outcomes = coroutineScope {
+            val gate = Semaphore(REFRESH_CONCURRENCY)
+            sources.map { source ->
+                async(Dispatchers.IO) {
+                    gate.withPermit {
+                        fetchOutcome(source, previousBySource[source.id].orEmpty(), onProgress)
+                    }
+                }
+            }.awaitAll()
+        }
+
         val channels = ArrayList<Channel>()
         val updated = ArrayList<Source>()
         val refreshed = linkedSetOf<String>()
-        val started = System.nanoTime()
         var stagedBytes = 0L
         var failures = 0
         var guide = ""
-        for (source in sources) {
-            currentCoroutineContext().ensureActive()
-            val previous = previousBySource[source.id].orEmpty()
-            val selected = if (!source.enabled) {
-                updated += source
-                previous
-            } else {
-                onProgress("正在更新 ${source.name} …")
-                val remaining = 90_000 - (System.nanoTime() - started) / 1_000_000
-                if (remaining <= 0) throw ImportLimitException("订阅刷新总耗时超过上限，已保留原列表")
-                val result = fetchAndParse(source, minOf(remaining, ImportPolicy.IMPORT_MS))
-                val file = result.staged
-                if (file != null) {
-                    staged[source.id] = file
-                    stagedBytes += file.length()
-                    if (stagedBytes > ImportPolicy.PLAYLIST_BYTES * 2) throw ImportLimitException("订阅文本总量超过上限，已保留原列表")
-                    refreshed += source.id
-                    val epg = result.epgUrl.orEmpty()
-                    if (guide.isEmpty()) guide = epg
-                    val resolvedGuide = if (epg.isBlank()) source.epgUrl else
-                        runCatching { java.net.URI(source.url).resolve(epg).toString() }.getOrDefault(epg)
-                    updated += source.copy(
-                        channelCount = mergeChannelRoutes(result.channels).size,
-                        lastUpdate = System.currentTimeMillis(), lastError = "", epgUrl = resolvedGuide
-                    )
-                    result.channels
+        outcomes.forEach { outcome ->
+            val original = outcome.channels
+            val room = (ImportPolicy.CHANNEL_CACHE_RECORDS - channels.size).coerceAtLeast(0)
+            val selected = if (original.size > room) original.take(room) else original
+            val trimmed = selected.size < original.size
+            val refreshedFully = outcome.refreshed && !trimmed
+            if (refreshedFully) refreshed += outcome.source.id
+            if (outcome.source.enabled && !refreshedFully) failures++
+            val file = outcome.staged
+            if (file != null) {
+                if (stagedBytes + file.length() > ImportPolicy.PLAYLIST_BYTES * 4) {
+                    file.delete()
                 } else {
-                    failures++
-                    updated += source.copy(
-                        lastError = result.error.ifBlank { "获取失败" }, lastUpdate = System.currentTimeMillis()
-                    )
-                    previous.ifEmpty { cache.readSourceCache(source.id, source.url).orEmpty() }
+                    staged[outcome.source.id] = file
+                    stagedBytes += file.length()
                 }
             }
-            if (channels.size + selected.size > ImportPolicy.CHANNEL_CACHE_RECORDS) {
-                throw ImportLimitException("所有订阅的频道/线路总量超过上限")
-            }
+            if (guide.isEmpty() && !outcome.epg.isNullOrBlank()) guide = outcome.epg.orEmpty()
+            val error = listOf(
+                outcome.error.takeIf { it.isNotBlank() },
+                if (trimmed) "频道总量超过上限，仅保留前 ${selected.size} 个" else null
+            ).filterNotNull().joinToString(" · ")
+            updated += outcome.source.copy(lastError = error.ifBlank { outcome.source.lastError })
             channels.addAll(selected)
         }
 
@@ -85,11 +91,49 @@ internal class SubscriptionRefresh(
         return PreparedRefresh(updated, channels, refreshed, expired, failures, guide)
     }
 
+    private data class SourceOutcome(
+        val source: Source,
+        val channels: List<Channel>,
+        val staged: File?,
+        val refreshed: Boolean,
+        val error: String,
+        val epg: String?
+    )
+
+    private suspend fun fetchOutcome(
+        source: Source,
+        previous: List<Channel>,
+        onProgress: (String) -> Unit
+    ): SourceOutcome {
+        currentCoroutineContext().ensureActive()
+        if (!source.enabled) return SourceOutcome(source, previous, null, false, "", null)
+        onProgress("正在更新 ${source.name} …")
+        val result = fetchAndParse(source, ImportPolicy.IMPORT_MS)
+        val file = result.staged
+        return if (file != null) {
+            val resolvedGuide = if (result.epgUrl.isNullOrBlank()) source.epgUrl else
+                runCatching { java.net.URI(source.url).resolve(result.epgUrl).toString() }.getOrDefault(result.epgUrl)
+            SourceOutcome(
+                source.copy(channelCount = mergeChannelRoutes(result.channels).size,
+                    unsupportedCount = result.skippedUnsupported,
+                    lastUpdate = System.currentTimeMillis(), lastError = "", epgUrl = resolvedGuide),
+                result.channels, file, true, "", result.epgUrl
+            )
+        } else {
+            SourceOutcome(
+                source.copy(lastError = result.error.ifBlank { "获取失败" }, lastUpdate = System.currentTimeMillis()),
+                previous.ifEmpty { cache.readSourceCache(source.id, source.url).orEmpty() },
+                null, false, result.error, null
+            )
+        }
+    }
+
     private data class ParseOutcome(
         val channels: List<Channel>,
         val staged: File?,
         val error: String,
-        val epgUrl: String?
+        val epgUrl: String?,
+        val skippedUnsupported: Int = 0
     )
 
     private suspend fun fetchAndParse(src: Source,timeoutMs:Long=ImportPolicy.IMPORT_MS): ParseOutcome {
@@ -104,7 +148,7 @@ internal class SubscriptionRefresh(
                 }
                 keep = parsed.channels.isNotEmpty()
                 ParseOutcome(parsed.channels, stage.takeIf { keep },
-                    if (keep) "" else "解析到 0 个频道", parsed.epgUrl)
+                    if (keep) "" else "解析到 0 个频道", parsed.epgUrl, parsed.skippedUnsupported)
             }
         } catch (e: CancellationException) {
             throw e
@@ -113,6 +157,11 @@ internal class SubscriptionRefresh(
         } finally {
             if (!keep) stage.delete()
         }
+    }
+
+    private companion object {
+        /** 同时拉取的订阅数；电视盒子网络与磁盘都有限，3 路足够抵消串行等待。 */
+        const val REFRESH_CONCURRENCY = 3
     }
 
 }

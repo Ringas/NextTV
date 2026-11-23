@@ -87,6 +87,13 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
         if (activationChanged) applyChannels(rawChannels, persist = false)
     }
 
+    /** UI 调用入口：整表重建可能涉及上万条稳定 ID，放到 Default 线程执行。 */
+    suspend fun upsertSourceAsync(source: Source) = withContext(Dispatchers.Default) { upsertSource(source) }
+
+    suspend fun removeSourceAsync(id: String) = withContext(Dispatchers.Default) { removeSource(id) }
+
+    suspend fun rebuildChannelsAsync() = withContext(Dispatchers.Default) { rebuildChannels() }
+
     @Synchronized fun removeSource(id: String) {
         configVersion++
         sources = sources.filterNot { it.id == id }
@@ -138,7 +145,7 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
         }
         rawChannels = canonical
         val knownSources=sources.associateBy{it.id}
-        val sourceChannels = mergeChannelRoutes(canonical.filter { c -> knownSources[c.sourceId]?.enabled == true })
+        val sourceChannels = mergeChannelRoutes(canonical.filter { c -> knownSources[c.sourceId]?.enabled == true && M3uParser.isPlayableUrl(c.url) })
         val merged = if (prefs.mergeChannelsAcrossSources) mergeAcrossSources(sourceChannels) else sourceChannels
         val numbering=runCatching{org.json.JSONObject(prefs.channelNumbersJson.ifBlank{"{}"})}.getOrElse{org.json.JSONObject()}
         var nextNumber=(numbering.keys().asSequence().map{numbering.optInt(it)}.maxOrNull()?:0)+1

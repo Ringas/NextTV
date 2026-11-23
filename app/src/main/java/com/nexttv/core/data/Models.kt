@@ -41,6 +41,8 @@ data class Source(
     val enabled: Boolean = true,
     val autoUpdate: Boolean = true,
     val channelCount: Int = 0,
+    /** 最近一次解析被跳过的非 HTTP(S) 频道数 */
+    val unsupportedCount: Int = 0,
     val lastUpdate: Long = 0L,
     val lastError: String = ""
 ) {

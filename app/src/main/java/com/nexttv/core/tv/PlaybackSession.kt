@@ -12,7 +12,14 @@ import kotlinx.coroutines.*
 
 /** Each attempt owns its player/listener/job. Late callbacks cannot fail or retune a newer attempt. */
 class PlaybackSession(private val context:Context,initial:Channel,private val scope:CoroutineScope){
- companion object { internal var active:PlaybackSession?=null;private set;internal var stallTimeoutMillis=25000L }
+ companion object {
+  private var activeRef:java.lang.ref.WeakReference<PlaybackSession>?=null
+  /** 只保留弱引用：Activity 非正常销毁时不会把 Context 长期钉在静态字段上。 */
+  internal var active:PlaybackSession?
+   get()=activeRef?.get()
+   private set(value){activeRef=value?.let{java.lang.ref.WeakReference(it)}}
+  internal var stallTimeoutMillis=25000L
+ }
  val app=App.get()
  var current by mutableStateOf(initial);private set
  private val preloadPool=DataPreloadPool(context)

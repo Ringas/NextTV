@@ -62,7 +62,7 @@ import java.util.UUID
   }else false
  }
  fun refresh(){app.refreshSources()}
- fun save(source:Source){app.channels.upsertSource(source);revision++;onChanged();refresh()}
+ fun save(source:Source){scope.launch{app.channels.upsertSourceAsync(source);revision++;onChanged();refresh()}}
 
  Column(Modifier.fillMaxSize().onPreviewKeyEvent{e->
   if(e.nativeKeyEvent.action!=android.view.KeyEvent.ACTION_DOWN||!TvInput.vertical(e.nativeKeyEvent.keyCode)||!InteractionStyle.keyboardAfterPointer||!sourceListFocused||dialog.isNotBlank())false else{
@@ -74,7 +74,7 @@ import java.util.UUID
   AppText(app.sourceStatus,color=NextTvStyle.Muted,fontSize=12.sp,modifier=Modifier.padding(vertical=12.dp))
   LazyColumn(flingBehavior=appFlingBehavior(),state=sourceList,modifier=Modifier.continuousWheel(sourceList),contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){items(sourceRows,key={it.id}){s->
    val request=remember(s.id){FocusRequester()};DisposableEffect(s.id,request){sourceRequests[s.id]=request;onDispose{if(sourceRequests[s.id]===request)sourceRequests.remove(s.id)}}
-   TvSurface(Modifier.fillMaxWidth().focusRequester(request).focusEdges(down=s.id==sourceRows.lastOrNull()?.id,left=true,right=true).focusProperties{left=FocusRequester.Cancel;right=FocusRequester.Cancel;if(s.id==sourceRows.firstOrNull()?.id)up=addFocus;if(s.id==sourceRows.lastOrNull()?.id)down=FocusRequester.Cancel},kind="source",onFocus={sourceFocused=s.id;sourceListFocused=true},onClick={sourceFocused=s.id;sourceListFocused=true;chosen=s;operationEntry="编辑";dialog="操作"}){Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){AppText(s.name,fontSize=InteractionStyle.subheading,fontWeight=FontWeight.Bold);AppText(s.url,fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1);AppText("${s.channelCount} 个频道"+if(s.lastError.isBlank())""else" · ${s.lastError}",fontSize=InteractionStyle.caption,color=NextTvStyle.Muted)};AppText(if(s.enabled)"已启用 ›"else"已停用 ›",fontSize=12.sp,color=NextTvStyle.AccentText)}}}}
+   TvSurface(Modifier.fillMaxWidth().focusRequester(request).focusEdges(down=s.id==sourceRows.lastOrNull()?.id,left=true,right=true).focusProperties{left=FocusRequester.Cancel;right=FocusRequester.Cancel;if(s.id==sourceRows.firstOrNull()?.id)up=addFocus;if(s.id==sourceRows.lastOrNull()?.id)down=FocusRequester.Cancel},kind="source",onFocus={sourceFocused=s.id;sourceListFocused=true},onClick={sourceFocused=s.id;sourceListFocused=true;chosen=s;operationEntry="编辑";dialog="操作"}){Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){AppText(s.name,fontSize=InteractionStyle.subheading,fontWeight=FontWeight.Bold);AppText(s.url,fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1);AppText("${s.channelCount} 个频道"+(if(s.unsupportedCount>0)" · ${s.unsupportedCount} 个因协议不支持已跳过" else "")+if(s.lastError.isBlank())""else" · ${s.lastError}",fontSize=InteractionStyle.caption,color=NextTvStyle.Muted)};AppText(if(s.enabled)"已启用 ›"else"已停用 ›",fontSize=12.sp,color=NextTvStyle.AccentText)}}}}
  }
  if(dialog.isNotBlank())StableDialogHost({sourceBack()},transitionKey=dialog){when(dialog){
   "编辑"->{val source=chosen!!;AddressInputDialog(if(source.name.isBlank())source.url else "${source.name},${source.url}",epg=false,editingSource=true,onDismiss={dialog=editorParent},onConfirm={input->save(subscriptionFromAddress(input,app.channels.sources,editing=source));dialog="";editorParent=""})}
@@ -89,7 +89,7 @@ import java.util.UUID
    val cancel=remember{androidx.compose.ui.focus.FocusRequester()}
    LaunchedEffect(Unit){withFrameNanos{};cancel.requestFocus()}
    AppText("删除“${chosen!!.name}”及其频道？此操作不会删除订阅服务器上的内容。",Modifier.weight(1f,false).appVerticalScroll(rememberScrollState()),color=NextTvStyle.Text,fontSize=InteractionStyle.body)
-   Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){TvButton("保留订阅",Modifier.focusRequester(cancel),onClick={dialog="操作"});TvButton("删除订阅",kind="danger",onClick={app.channels.removeSource(chosen!!.id);revision++;onChanged();dialog=""})}
+   Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){TvButton("保留订阅",Modifier.focusRequester(cancel),onClick={dialog="操作"});TvButton("删除订阅",kind="danger",onClick={val id=chosen!!.id;scope.launch{app.channels.removeSourceAsync(id);revision++;onChanged();dialog=""}})}
   }
   "添加"->AddressInputDialog("",epg=false,onDismiss={closeAdd()},onConfirm={input->save(subscriptionFromAddress(input,app.channels.sources));closeAdd()})
  }}

@@ -13,7 +13,7 @@ internal object SubscriptionSettingsCodec {
                 "enabled" to source.enabled, "autoUpdate" to source.autoUpdate,
                 "kind" to source.kind, "epgUrl" to source.epgUrl,
                 "userAgent" to source.userAgent, "referer" to source.referer, "headers" to source.headers,
-                "channelCount" to source.channelCount, "lastUpdate" to source.lastUpdate,
+                "channelCount" to source.channelCount, "unsupportedCount" to source.unsupportedCount, "lastUpdate" to source.lastUpdate,
                 "lastError" to source.lastError
             ))
         }
@@ -35,7 +35,7 @@ internal object SubscriptionSettingsCodec {
                 epgUrl = entry.optString("epgUrl"), headers = entry.optString("headers"),
                 referer = entry.optString("referer"), userAgent = entry.optString("userAgent"),
                 lastError = entry.optString("lastError"), lastUpdate = entry.optLong("lastUpdate"),
-                channelCount = entry.optInt("channelCount")
+                channelCount = entry.optInt("channelCount"), unsupportedCount = entry.optInt("unsupportedCount")
             )
         }
     }

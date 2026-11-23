@@ -14,7 +14,12 @@ stream.m3u8
 https://example.org/other
 ""","provider","https://example.org/list/index.m3u").channels;assertEquals(2,c.size);assertEquals("News, HD",c[0].group);assertEquals("News, live",c[0].name);assertEquals("news",c[0].tvgId);assertEquals("https://example.org/list/stream.m3u8",c[0].url);assertEquals("未分组",c[1].groupName)}
  @Test fun invalidStreamIgnored(){assertTrue(M3uParser.parse("#EXTINF:-1,X\nnot-a-url","provider").channels.isEmpty())}
- @Test fun declaredUriDoesNotFalselyClaimPlaybackCapability(){val c=M3uParser.parse("#EXTINF:-1,X\nfile:///tmp/x","provider").channels.single();assertFalse(supportsHttpPlayback(c.url));assertFalse(supportsHttpPlayback("rtsp://example.test/live"));assertTrue(supportsHttpPlayback("HTTP://example.test/live"));assertTrue(supportsHttpPlayback("https://example.test/no-suffix"))}
+ @Test fun declaredUriDoesNotFalselyClaimPlaybackCapability(){
+  val skipped=M3uParser.parse("#EXTINF:-1,X\nfile:///tmp/x\n#EXTINF:-1,Y\nrtsp://example.test/live","provider")
+  assertTrue(skipped.channels.isEmpty());assertEquals(2,skipped.skippedUnsupported)
+  assertFalse(supportsHttpPlayback("file:///tmp/x"));assertFalse(supportsHttpPlayback("rtsp://example.test/live"))
+  assertTrue(supportsHttpPlayback("HTTP://example.test/live"));assertTrue(supportsHttpPlayback("https://example.test/no-suffix"))
+ }
  @Test fun timezoneIsAppliedByCurrentXmltvParser(){assertEquals(Instant.parse("2026-11-16T04:00:00Z").toEpochMilli(),XmltvTimeParser().parse("20261116120000 +0800"))}
  @Test fun invalidCalendarAndMalformedTimesAreRejected(){val t=XmltvTimeParser();assertNull(t.parse("20260230120000 +0000"));assertNull(t.parse("bad"));assertNull(t.parse("20261116120000 +2460"))}
  @Test fun strictTimestampAndWhitespace(){val t=XmltvTimeParser();assertEquals(Instant.parse("2026-11-16T06:30:00Z").toEpochMilli(),t.parse("20261116120000   +0530"));assertNull(t.parse("202611161200 +0530"))}

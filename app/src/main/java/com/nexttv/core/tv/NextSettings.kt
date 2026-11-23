@@ -90,7 +90,7 @@ private typealias SettingsEntry = SettingsRowData
    SettingsEntry("换台预加载",listOf("关闭","下一台","上一台","上下台")[p.preloadMode],"提前准备相邻频道；「上下台」会同时预加载上一台和下一台，会增加网络与内存占用。",{edit="换台预加载"}),
    SettingsEntry("换台保留画面",if(p.keepLastFrame)"开启"else"关闭","切换频道或线路时保留上一画面，直到新画面出现。",{p.keepLastFrame=!p.keepLastFrame;changed()},false))
   category=="频道与外观"->listOf(
-   SettingsEntry("频道合并",if(p.mergeChannelsAcrossSources)"开启"else"关闭","将不同订阅中的同一频道合成多条播放线路，并汇总节目单。优先匹配频道标识，缺少标识时匹配无歧义的频道名。",{p.mergeChannelsAcrossSources=!p.mergeChannelsAcrossSources;app.channels.rebuildChannels();changed()},false),
+   SettingsEntry("频道合并",if(p.mergeChannelsAcrossSources)"开启"else"关闭","将不同订阅中的同一频道合成多条播放线路，并汇总节目单。优先匹配频道标识，缺少标识时匹配无歧义的频道名。",{p.mergeChannelsAcrossSources=!p.mergeChannelsAcrossSources;scope.launch{app.channels.rebuildChannelsAsync();changed()}},false),
    SettingsEntry("频道布局",if(p.gridMode)"网格"else"列表","选择首页频道的展示方式。",{edit="频道布局"}),
    SettingsEntry("频道预览",if(p.channelPreviews)"开启"else"关闭","停稳后同时静音预览当前可见频道，操作时暂停；会增加网络与解码开销，关闭后停止全部预览。",{p.channelPreviews=!p.channelPreviews;changed()},false),
    SettingsEntry("界面主题",if(p.lightGlass)"浅色"else"深色","选择深色或浅色，应用于首页、设置和播放器浮层。",{edit="界面主题"}),

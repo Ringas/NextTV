@@ -4,6 +4,13 @@ package com.nexttv.core.data
 
 import com.nexttv.core.io.*
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 import androidx.compose.runtime.*
 import android.content.Context
@@ -84,29 +91,39 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
         if(requested.size>16){lastError="节目单来源超过16个，请减少后重试";return@withContext false}
         if(requested.isEmpty()){updateState();lastError="没有单独订阅或播放源内置节目单";return@withContext false}
         if(requested.any{!feeds.containsKey(it)})loadCache()
-        var success=false;var manualError="";var sourceError=""
-        val refreshStart=System.nanoTime()
-        for(url in requested){
-            kotlinx.coroutines.currentCoroutineContext().ensureActive()
-            val cached=feeds[url]
-            if(!force&&cached!=null&&System.currentTimeMillis()-cached.time<STALE_MS){success=true;continue}
-            try{
-                val remaining=60000-(System.nanoTime()-refreshStart)/1_000_000
-                if(remaining<=0)throw ImportLimitException("节目单刷新总耗时超过上限")
-                val job=kotlinx.coroutines.currentCoroutineContext()[Job]
-                ImportBudget("节目单",minOf(ImportPolicy.IMPORT_MS,remaining),cancelled={job?.isActive==false}).use{budget->
-                 val stream=open(url,budget)?:error("无法打开节目单")
-                 val parsed=stream.use { readXmltvFeed(budget.input(decodedInput(budget.input(it,ImportPolicy.EPG_WIRE_BYTES)),ImportPolicy.EPG_XML_BYTES), budget, ::normalize) }
-                 if(parsed.programmes.isEmpty())error("节目单为空")
-                 budget.check();checkAggregate(url,parsed)
-                 val value=Feed(parsed,System.currentTimeMillis());saveCache(url,value,budget)
-                 budget.check();feeds[url]=value;success=true
-                }
-            }catch(e:kotlinx.coroutines.CancellationException){throw e}catch(e:Exception){if(url==manual)manualError=e.message?:"单独节目单刷新失败"else sourceError=e.message?:"内置节目单刷新失败"}
+        val outcomes=coroutineScope{
+            val gate=Semaphore(EPG_CONCURRENCY)
+            requested.map{url->async{
+                gate.withPermit{refreshOne(url,manual,force)}
+            }}.awaitAll()
         }
+        val success=outcomes.any{it.ok}
+        val manualError=outcomes.firstOrNull{it.url==manual&&!it.ok}?.error.orEmpty()
+        val sourceError=outcomes.firstOrNull{it.url!=manual&&!it.ok}?.error.orEmpty()
         updateState();if(prefs.epgUrl==manual)lastError=manualError.ifBlank{if(sourceError.isNotBlank())"部分源内置节目单更新失败：$sourceError" else ""}
         success
     }}
+
+    private data class RefreshOutcome(val url:String,val ok:Boolean,val error:String)
+
+    /** 单个节目单源：独立 30 s 预算，失败只影响该源，不再被全局 60 s 排队饿死。 */
+    private suspend fun refreshOne(url:String,manual:String,force:Boolean):RefreshOutcome{
+        try{
+            val cached=feeds[url]
+            if(!force&&cached!=null&&System.currentTimeMillis()-cached.time<STALE_MS)return RefreshOutcome(url,true,"")
+            val job=currentCoroutineContext()[Job]
+            ImportBudget("节目单",ImportPolicy.IMPORT_MS,cancelled={job?.isActive==false}).use{budget->
+                val stream=open(url,budget)?:error("无法打开节目单")
+                val parsed=stream.use { readXmltvFeed(budget.input(decodedInput(budget.input(it,ImportPolicy.EPG_WIRE_BYTES)),ImportPolicy.EPG_XML_BYTES), budget, ::normalize) }
+                if(parsed.programmes.isEmpty())error("节目单为空")
+                budget.check();synchronized(feeds){checkAggregate(url,parsed)}
+                val value=Feed(parsed,System.currentTimeMillis());saveCache(url,value,budget)
+                budget.check();feeds[url]=value
+            }
+            return RefreshOutcome(url,true,"")
+        }catch(e:kotlinx.coroutines.CancellationException){throw e}
+        catch(e:Exception){return RefreshOutcome(url,false,e.message?:if(url==manual)"单独节目单刷新失败"else"内置节目单刷新失败")}
+    }
 
     private fun open(url: String,budget:ImportBudget): java.io.InputStream? {
         if (url.startsWith("content://") || url.startsWith("/") || url.startsWith("file:")) {
@@ -196,6 +213,8 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
         private val SPACE_PATTERN=Regex("""\s+""")
         private val QUALITY_PATTERN=Regex("""1080[pi]|720[pi]|2160[pi]|480[pi]|576[pi]|4k|uhd|高清|超高清|标清|超清|高码""")
         private const val STALE_MS = 6 * 3600_000L
+        /** 同时下载/解析的节目单数量，避免 16 个源串行排队。 */
+        private const val EPG_CONCURRENCY = 3
     }
 }
 

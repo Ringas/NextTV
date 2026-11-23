@@ -326,13 +326,17 @@ import com.nexttv.observeGridDraws
     tab==2->SettingsScreen(settingsNavigation,settingsRestore,navFocused,onContentFocus={contentFocus()},onBackToNav={focusNav()},onTopBack={homeBack()},onSources={sources=true;clearExit()},onChanged={revision++})
 
     else->{
-     Row(Modifier.fillMaxWidth().heightIn(min=if(homeConfiguration.screenHeightDp<480)80.dp else 96.dp).padding(horizontal=safeInsets.horizontal.dp),verticalAlignment=Alignment.CenterVertically){
-      Column(Modifier.weight(1f)){AppText(if(tab==1)"我的收藏"else if(group.isBlank())"全部频道"else group,fontSize=InteractionStyle.title,fontWeight=FontWeight.Bold,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis);AppText(if(!cacheReady)"正在读取频道…" else "共 ${all.size} 个频道"+if(app.updatingAll)" · 更新中"else"",fontSize=InteractionStyle.body,color=NextTvStyle.Muted,modifier=Modifier.padding(top=4.dp),maxLines=1)}
-      if(tab==0&&cacheReady&&!noSources){
-      if(tab==0)TvButton("分类",Modifier.semantics{contentDescription="频道分类：${group.ifBlank{"全部频道"}}"}.focusRequester(first).focusProperties{up=nav[tab];left=FocusRequester.Cancel;right=FocusRequester.Cancel;down=if(all.isEmpty())emptyAction else FocusRequester.Cancel},onFocus={gridInput.job?.cancel();gridInput.target=null;cardInput=false;contentFocus()},focusReturn=first,onClick={contentFocus();first.requestFocus();dialog="分类"})
-
-      }
-     }
+     HomeHeader(
+      title=if(tab==1)"我的收藏"else if(group.isBlank())"全部频道"else group,
+      subtitle=if(!cacheReady)"正在读取频道…" else "共 ${all.size} 个频道"+if(app.updatingAll)" · 更新中"else"",
+      showCategory=tab==0&&cacheReady&&!noSources,
+      first=first,navUp=nav[tab],
+      categoryDown=if(all.isEmpty())emptyAction else FocusRequester.Cancel,
+      horizontalPadding=safeInsets.horizontal.toInt(),
+      minHeight=if(homeConfiguration.screenHeightDp<480)80 else 96,
+      onFocus={gridInput.job?.cancel();gridInput.target=null;cardInput=false;contentFocus()},
+      onCategoryClick={contentFocus();first.requestFocus();dialog="分类"}
+     )
 
      CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides HomeGridFocusVisibility) {
      LazyVerticalGrid(GridCells.Fixed(columns),flingBehavior=appFlingBehavior(),state=grid,modifier=Modifier.fillMaxSize().continuousWheel(grid).observeGridDraws(grid),contentPadding=PaddingValues(start=safeInsets.horizontal.dp,end=safeInsets.horizontal.dp,top=14.dp,bottom=28.dp),horizontalArrangement=Arrangement.spacedBy(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
@@ -350,29 +354,17 @@ import com.nexttv.observeGridDraws
        )
       }
       if(cacheReady&&all.isEmpty())item(span={GridItemSpan(columns)}){
-       Column(Modifier.fillMaxWidth().padding(horizontal=36.dp,vertical=48.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(14.dp)){
-        AppText(
-         when {
-          tab==1 && app.prefs.favorites.isEmpty() -> "还没有收藏频道"
-          tab==1 -> "收藏的频道暂不可用，请更新订阅"
-          noSources -> "添加订阅后开始使用"
-          addingSubscription || app.updatingAll -> "正在更新订阅…"
-          app.channels.sources.none{it.enabled} -> "所有订阅均已停用"
-          app.channels.hasLoadedChannels -> "当前分组下没有频道"
-          else -> "订阅暂无可用频道，请重试"
-         },
-         textAlign=androidx.compose.ui.text.style.TextAlign.Center,
-         color=NextTvStyle.Text,
-         fontSize=InteractionStyle.subheading,
-         fontWeight=FontWeight.SemiBold
-        )
-        if(tab==0 && noSources){
-         AppText("粘贴 M3U 地址即可导入频道，无需经过多层设置。",textAlign=androidx.compose.ui.text.style.TextAlign.Center,color=NextTvStyle.Muted,fontSize=InteractionStyle.caption)
-        } else if(tab==1 && app.prefs.favorites.isEmpty()){
-         AppText("在频道上长按可添加收藏。",textAlign=androidx.compose.ui.text.style.TextAlign.Center,color=NextTvStyle.Muted,fontSize=InteractionStyle.caption)
-        }
-        if(tab==0)TvButton(if(noSources)"添加订阅"else if(app.channels.sources.any{it.enabled}&&!app.channels.hasLoadedChannels)"重试"else"管理订阅",Modifier.focusRequester(emptyAction).focusEdges(down=true,left=true,right=true).focusProperties{up=if(noSources)nav[tab]else first;left=FocusRequester.Cancel;right=FocusRequester.Cancel;down=FocusRequester.Cancel},onFocus={contentFocus()},onClick={contentFocus();if(noSources)dialog="添加订阅"else if(app.channels.sources.any{it.enabled}&&!app.channels.hasLoadedChannels){retryFromEmpty=true;app.refreshSubscriptionsAndGuide()}else sources=true})
-       }
+       HomeEmptyState(
+        message=homeEmptyMessage(tab,app.prefs.favorites.isEmpty(),noSources,addingSubscription,app.updatingAll,
+         app.channels.sources.any{it.enabled},app.channels.hasLoadedChannels),
+        hint=homeEmptyHint(tab,noSources,app.prefs.favorites.isEmpty()),
+        actionLabel=homeEmptyActionLabel(noSources,app.channels.sources.any{it.enabled},app.channels.hasLoadedChannels),
+        emptyAction=emptyAction,
+        navUp=if(noSources)nav[tab]else first,
+        horizontalPadding=36,
+        onFocus={contentFocus()},
+        onAction={contentFocus();if(noSources)dialog="添加订阅"else if(app.channels.sources.any{it.enabled}&&!app.channels.hasLoadedChannels){retryFromEmpty=true;app.refreshSubscriptionsAndGuide()}else sources=true}
+       )
       }
      }
      }
@@ -389,10 +381,13 @@ import com.nexttv.observeGridDraws
  }
  HomeChannelDialogs(dialog, app.channels.groups, group, ::dismissAddSubscription,
   onSubscription={input->
-   app.channels.upsertSource(subscriptionFromAddress(input,app.channels.sources))
-   dialog="";tab=0;group="";app.prefs.selectedGroup="";restoreId="";cancelReturn();addingSubscription=true;revision++
-   val serial=gridInput.serial
-   refresh{addingSubscription=false;if(serial==gridInput.serial&&tab==0&&dialog.isBlank()&&!sources&&playing==null)firstCardFocusPending=true}
+   val source=subscriptionFromAddress(input,app.channels.sources)
+   scope.launch{
+    app.channels.upsertSourceAsync(source)
+    dialog="";tab=0;group="";app.prefs.selectedGroup="";restoreId="";cancelReturn();addingSubscription=true;revision++
+    val serial=gridInput.serial
+    refresh{addingSubscription=false;if(serial==gridInput.serial&&tab==0&&dialog.isBlank()&&!sources&&playing==null)firstCardFocusPending=true}
+   }
   },
   onDismissCategory={dialog=""},
   onCategory={g->gridInput.job?.cancel();gridInput.target=null;group=g;restoreId="";channelGrid.requestScrollToItem(0);firstCardFocusPending=true;dialog=""},
