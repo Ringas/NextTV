@@ -83,6 +83,8 @@ jobs:
     timeout-minutes: 30
     outputs:
       version_name: ${{ steps.apk.outputs.version_name }}
+      asset_name: ${{ steps.apk.outputs.asset_name }}
+      branch_label: ${{ steps.apk.outputs.branch_label }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -133,9 +135,25 @@ jobs:
             echo '::error::The APK version does not match the GitHub Alpha build number.'
             exit 1
           fi
+          # main keeps the plain version name; every other branch is prefixed with a
+          # filesystem-safe slug, e.g. dev-1.4.1-Alpha.5 or dev-1.4.1 for formal builds.
+          branch="${GITHUB_REF_NAME}"
+          if [[ "$branch" == "main" || "$branch" == "master" ]]; then
+            branch_label=""
+            branch_prefix=""
+          else
+            branch_label="$branch"
+            slug=$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//')
+            slug=${slug:0:32}
+            [[ -n "$slug" ]] || slug="branch"
+            branch_prefix="${slug}-"
+          fi
+          asset="Next-TV-${branch_prefix}${version_name}-signed.apk"
           printf 'version_name=%s\n' "$version_name" >> "$GITHUB_OUTPUT"
+          printf 'asset_name=%s\n' "$asset" >> "$GITHUB_OUTPUT"
+          printf 'branch_label=%s\n' "$branch_label" >> "$GITHUB_OUTPUT"
           mkdir -p deliverables
-          cp "$apk" "deliverables/Next-TV-${version_name}-signed.apk"
+          cp "$apk" "deliverables/${asset}"
 
       - name: Remove signing files
         if: always()
@@ -168,9 +186,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION_NAME: ${{ needs.build.outputs.version_name }}
+          ASSET_NAME: ${{ needs.build.outputs.asset_name }}
+          BRANCH_LABEL: ${{ needs.build.outputs.branch_label }}
         run: |
           tag="build-${GITHUB_SHA}-${GITHUB_RUN_NUMBER}"
-          asset="Next-TV-${VERSION_NAME}-signed.apk"
+          asset="${ASSET_NAME}"
           apk="deliverables/${asset}"
           test -s "$apk"
 
@@ -183,8 +203,10 @@ jobs:
               gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest=false
             fi
           else
+            title="Next TV ${VERSION_NAME}"
+            if [[ -n "$BRANCH_LABEL" ]]; then title="Next TV ${BRANCH_LABEL} ${VERSION_NAME}"; fi
             gh release create "$tag" "$apk" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --title "Next TV ${VERSION_NAME}" \
-              --notes "签名 APK 来自提交 \`${GITHUB_SHA}\`。构建记录：${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+              --target "$GITHUB_SHA" --title "$title" \
+              --notes "签名 APK 来自分支 \`${GITHUB_REF_NAME}\`、提交 \`${GITHUB_SHA}\`。构建记录：${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
               --prerelease --latest=false
           fi
