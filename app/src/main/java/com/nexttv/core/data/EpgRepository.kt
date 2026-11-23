@@ -41,13 +41,14 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
 
     private data class Feed(val parsed:XmltvFeed,val time:Long)
     private val feeds=java.util.concurrent.ConcurrentHashMap<String,Feed>()
+    private val aggregate=EpgAggregateLimiter()
     var loaded=false;private set
     var updatedAt=0L;private set
     var lastError="";private set
     private fun sources()=com.nexttv.core.App.get().channels.sources.filter{it.enabled&&it.epgUrl.isNotBlank()}
     private fun urls()=(listOf(prefs.epgUrl)+sources().map{it.epgUrl}).filter{it.isNotBlank()}.distinct()
     private fun file(url:String):File {val name=java.security.MessageDigest.getInstance("SHA-256").digest(url.toByteArray()).joinToString(""){"%02x".format(it)};return File(context.filesDir,"epg_feeds/$name.json")}
-    private fun updateState(){lookup.clear();val activeUrls=urls().toSet();feeds.keys.retainAll(activeUrls);val active=activeUrls.mapNotNull{feeds[it]};loaded=active.any{it.parsed.programmes.isNotEmpty()};updatedAt=active.maxOfOrNull{it.time}?:0L;revision++}
+    private fun updateState(){lookup.clear();val activeUrls=urls().toSet();feeds.keys.retainAll(activeUrls);aggregate.retain(activeUrls);val active=activeUrls.mapNotNull{feeds[it]};loaded=active.any{it.parsed.programmes.isNotEmpty()};updatedAt=active.maxOfOrNull{it.time}?:0L;revision++}
     fun loadCache(){
         val before=feeds.toMap()
         urls().take(16).filterNot{feeds.containsKey(it)}.forEach{url->val f=file(url);if(f.exists()||File(f.path+".bak").exists())runCatching{
@@ -81,7 +82,8 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
                     }};reader.endObject();Feed(XmltvFeed(map,alias,names),time)
                 }
             }
-            synchronized(feeds){checkAggregate(url,value.parsed);if((feeds[url]?.time?:0)<=value.time)feeds[url]=value}
+            if(!aggregate.admit(url,programmeCount(value.parsed),epgTextWeight(value.parsed.programmes,value.parsed.aliases,value.parsed.displayNames)))throw ImportLimitException("节目单总节目数量超过上限")
+            synchronized(feeds){if((feeds[url]?.time?:0)<=value.time)feeds[url]=value}
         }}
         if(before!=feeds||feeds.keys.any{it !in urls()}||!loaded)updateState()
     }
@@ -116,9 +118,13 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
                 val stream=open(url,budget)?:error("无法打开节目单")
                 val parsed=stream.use { readXmltvFeed(budget.input(decodedInput(budget.input(it,ImportPolicy.EPG_WIRE_BYTES)),ImportPolicy.EPG_XML_BYTES), budget, ::normalize) }
                 if(parsed.programmes.isEmpty())error("节目单为空")
-                budget.check();synchronized(feeds){checkAggregate(url,parsed)}
-                val value=Feed(parsed,System.currentTimeMillis());saveCache(url,value,budget)
-                budget.check();feeds[url]=value
+                budget.check()
+                if(!aggregate.admit(url,programmeCount(parsed),epgTextWeight(parsed.programmes,parsed.aliases,parsed.displayNames)))throw ImportLimitException("节目单总节目数量超过上限")
+                val value=Feed(parsed,System.currentTimeMillis())
+                // Reserve first, then publish in memory; cache persistence must not reopen the cap race.
+                synchronized(feeds){feeds[url]=value}
+                saveCache(url,value,budget)
+                budget.check()
             }
             return RefreshOutcome(url,true,"")
         }catch(e:kotlinx.coroutines.CancellationException){throw e}
@@ -191,12 +197,7 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
         return programsFor(channel).filter { it.stop > start && it.start < end }
     }
 
-    private fun checkAggregate(url:String,parsed:XmltvFeed){
-        val active=urls().toSet()
-        val all=feeds.filterKeys{it!=url&&it in active}.values.map{it.parsed}+parsed
-        if(all.sumOf{p->p.programmes.values.sumOf{it.size}}>ImportPolicy.TOTAL_PROGRAMMES)throw ImportLimitException("节目单总节目数量超过上限")
-        if(all.sumOf{p->p.programmes.values.sumOf{list->list.sumOf{it.title.length.toLong()+it.desc.length}}+p.aliases.entries.sumOf{it.key.length.toLong()+it.value.length}+p.displayNames.entries.sumOf{it.key.length.toLong()+it.value.length}}>ImportPolicy.TEXT_CHARS*2L)throw ImportLimitException("节目单总文本量超过上限")
-    }
+    private fun programmeCount(feed:XmltvFeed):Int=feed.programmes.values.sumOf{it.size}
     private fun saveCache(url:String,feed:Feed,budget:ImportBudget){
         val f=file(url);f.parentFile?.mkdirs();val atomic=android.util.AtomicFile(f);val output=atomic.startWrite()
         try{
