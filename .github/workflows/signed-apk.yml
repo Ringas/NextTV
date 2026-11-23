@@ -164,12 +164,25 @@ jobs:
 
           badging=$("$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk")
           version_name=$(sed -n "s/^package:.*versionName='\([^']*\)'.*/\1/p" <<< "$badging")
+          version_code=$(sed -n "s/^package:.*versionCode='\([^']*\)'.*/\1/p" <<< "$badging")
           base_version=$(sed -n 's/^versionName=//p' version.properties)
+          release_number=$(sed -n 's/^releaseNumber=//p' version.properties)
           expected_version="$base_version"
           if [[ -n "$channel" ]]; then expected_version="$channel-$expected_version"; fi
           if [[ "$build_type" == "alpha" ]]; then expected_version="$expected_version-Alpha.$GITHUB_RUN_NUMBER"; fi
           if [[ "$version_name" != "$expected_version" ]]; then
             echo "::error::Expected versionName $expected_version, got $version_name."
+            exit 1
+          fi
+
+          expected_code=$((release_number * 100000))
+          if [[ "$build_type" == "alpha" ]]; then
+            expected_code=$((expected_code + GITHUB_RUN_NUMBER))
+          else
+            expected_code=$((expected_code + 99999))
+          fi
+          if [[ "$version_code" != "$expected_code" ]]; then
+            echo "::error::Expected versionCode $expected_code, got $version_code."
             exit 1
           fi
 

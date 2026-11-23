@@ -327,10 +327,12 @@ bash ./gradlew :app:packageNextTvRelease
 
 | 构建 | versionName | versionCode |
 | --- | --- | --- |
-| 正式版（main） | `1.4.1` | `releaseNumber × 100000` |
-| 正式版（dev） | `dev-1.4.1` | `releaseNumber × 100000` |
-| Alpha（main） | `1.4.1-Alpha.<run>` | `(releaseNumber - 1) × 100000 + run` |
-| Alpha（dev） | `dev-1.4.1-Alpha.<run>` | `(releaseNumber - 1) × 100000 + run` |
+| 正式版（main） | `1.4.1` | `releaseNumber × 100000 + 99999` |
+| 正式版（dev） | `dev-1.4.1` | `releaseNumber × 100000 + 99999` |
+| Alpha（main） | `1.4.1-Alpha.<run>` | `releaseNumber × 100000 + run` |
+| Alpha（dev） | `dev-1.4.1-Alpha.<run>` | `releaseNumber × 100000 + run` |
+
+正式版和 Alpha 共用同一个 `releaseNumber`。正式版升版时同步修改 `versionName` 和 `releaseNumber`，Alpha 的名称与 versionCode 会自动进入新版本区间，无需单独维护 Alpha 的版本基数。同一版本内正式版占用 `+99999`，因此正式包可以覆盖该版本的 Alpha；升到下一个 `releaseNumber` 后，新 Alpha 又高于上一版正式包。Alpha 的 run 取值范围为 `1..99998`。
 
 `nextTvChannel` 会把分支前缀同时写进 versionName（设置页会显示）和 APK 文件名：
 
@@ -350,7 +352,7 @@ bash ./gradlew :app:assembleRelease -PnextTvAlphaBuild=123 -PnextTvChannel=dev
 
 1. 用 JDK 17 + SDK 35 构建签名 APK；
 2. 校验 APK 证书 SHA-256 与预期发布证书一致；
-3. 校验 `versionName` 与分支前缀、Alpha 构建号一致；
+3. 校验 `versionName` 与分支前缀、Alpha 构建号一致，并校验对应的 `versionCode`；
 4. 上传构建产物，并创建/更新 `build-<sha>-<run>` Release（Alpha 为预发布，正式包为普通 Release）。
 
 需要在仓库 Secrets 中配置：
@@ -372,7 +374,7 @@ bash ./gradlew :app:assembleRelease -PnextTvAlphaBuild=123 -PnextTvChannel=dev
 - 每次 push 产出 Alpha 预发布包，用于真机验证；正式包从 Actions 手动触发 `build_type=formal`，本地等价命令是 `packageNextTvRelease`。
 - 非 `main` 分支的包名与 versionName 会带分支前缀，例如 `dev-1.4.1-Alpha.123`。
 - 正式发布后，把 `lastPublishedReleaseNumber` 更新为本次 `releaseNumber`，并递增下一次的 `releaseNumber`。
-- versionCode 随 `releaseNumber` 单调增长，保证新包总能覆盖旧包。
+- versionCode 以 `releaseNumber` 为基数单调增长；Alpha 与正式包共用该基数，正式版升版后 Alpha 自动同步。
 
 ---
 

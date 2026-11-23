@@ -11,14 +11,16 @@ require(baseVersionName.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+"))) {
     "versionName 必须使用 主版本.次版本.修订号 格式。"
 }
 val releaseNumber = nextTvVersion.getProperty("releaseNumber").toInt()
-// An Android upgrade must have a version code at least as high as the installed APK.
-// Reserve the last code in each range for the formal build.
+// Each releaseNumber owns a 100,000-code block. Alpha builds use +1..+99,998 and
+// the formal build reserves +99,999, so a formal APK always upgrades its own Alpha,
+// while the next releaseNumber lifts Alpha above the previously published formal APK.
 val versionCodeRange = 100_000
-require(releaseNumber in 1..(2_100_000_000 / versionCodeRange))
+val formalVersionOffset = versionCodeRange - 1
+require(releaseNumber in 1..((2_100_000_000 - formalVersionOffset) / versionCodeRange))
 val alphaBuild = providers.gradleProperty("nextTvAlphaBuild").orNull?.let {
     val buildNumber = it.toIntOrNull()
-    require(buildNumber != null && buildNumber in 1 until versionCodeRange) {
-        "nextTvAlphaBuild 必须在 1 到 ${versionCodeRange - 1} 之间。"
+    require(buildNumber != null && buildNumber in 1 until (versionCodeRange - 1)) {
+        "nextTvAlphaBuild 必须在 1 到 ${versionCodeRange - 2} 之间。"
     }
     buildNumber
 }
@@ -30,8 +32,8 @@ require(nextTvChannel.isEmpty() || nextTvChannel.matches(Regex("[a-z0-9][a-z0-9-
 }
 val nextTvChannelPrefix = if (nextTvChannel.isEmpty()) "" else "$nextTvChannel-"
 val nextTvVersionName = nextTvChannelPrefix + (alphaBuild?.let { "$baseVersionName-Alpha.$it" } ?: baseVersionName)
-val nextTvVersionCode = alphaBuild?.let { (releaseNumber - 1) * versionCodeRange + it }
-    ?: releaseNumber * versionCodeRange
+val nextTvVersionCode = alphaBuild?.let { releaseNumber * versionCodeRange + it }
+    ?: (releaseNumber * versionCodeRange + formalVersionOffset)
 val verifyReleaseVersion by tasks.registering {
     group = "verification"
     description = "Checks that the candidate uses the next formal release number."
