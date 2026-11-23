@@ -4,6 +4,13 @@ on:
   push:
     branches: ['**']
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'alpha or formal'
+        required: true
+        default: alpha
+        type: choice
+        options: [alpha, formal]
 
 permissions:
   contents: read
@@ -84,7 +91,6 @@ jobs:
     outputs:
       version_name: ${{ steps.apk.outputs.version_name }}
       asset_name: ${{ steps.apk.outputs.asset_name }}
-      branch_label: ${{ steps.apk.outputs.branch_label }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -117,43 +123,60 @@ jobs:
           printf '%s' "$KEYSTORE_B64" | base64 --decode > .signing/NextTV-release.p12
           printf '%s' "$SIGNING_PROPERTIES_B64" | base64 --decode > .signing/signing.properties
 
-      - name: Build and verify signed Alpha APK
+      - name: Build and verify signed APK
         id: apk
+        env:
+          BUILD_TYPE: ${{ github.event.inputs.build_type }}
         run: |
-          bash ./gradlew --no-daemon :app:packageNextTvRelease "-PnextTvAlphaBuild=$GITHUB_RUN_NUMBER"
+          build_type="${BUILD_TYPE:-alpha}"
+          if [[ "$build_type" != "alpha" && "$build_type" != "formal" ]]; then
+            echo "::error::Unknown build_type: $build_type"
+            exit 1
+          fi
+
+          # main keeps the plain version name; every other branch becomes a channel
+          # prefix that is embedded in versionName and therefore visible in settings.
+          branch="${GITHUB_REF_NAME}"
+          channel=""
+          if [[ "$branch" != "main" && "$branch" != "master" ]]; then
+            channel=$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//; s/_/-/g')
+            channel=${channel:0:32}
+            [[ -n "$channel" ]] || channel="branch"
+          fi
+
+          args=(--no-daemon :app:packageNextTvRelease)
+          if [[ "$build_type" == "alpha" ]]; then
+            args+=("-PnextTvAlphaBuild=$GITHUB_RUN_NUMBER")
+          fi
+          if [[ -n "$channel" ]]; then
+            args+=("-PnextTvChannel=$channel")
+          fi
+          bash ./gradlew "${args[@]}"
+
           apk=app/build/outputs/apk/release/app-release.apk
           certificate=$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk")
-          expected=19899ab2e33f7043ffec3d271182cfec5a72e4e4649620c8a1cda5768b5c38be
-          actual=$(awk -F ': ' '/certificate SHA-256 digest:/{print $2}' <<< "$certificate")
-          if [[ "$actual" != "$expected" ]]; then
+          expected_cert=19899ab2e33f7043ffec3d271182cfec5a72e4e4649620c8a1cda5768b5c38be
+          actual_cert=$(awk -F ': ' '/certificate SHA-256 digest:/{print $2}' <<< "$certificate")
+          if [[ "$actual_cert" != "$expected_cert" ]]; then
             echo '::error::The APK does not match the Next TV release certificate.'
             exit 1
           fi
+
           badging=$("$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk")
           version_name=$(sed -n "s/^package:.*versionName='\([^']*\)'.*/\1/p" <<< "$badging")
-          if [[ ! "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+-Alpha\.$GITHUB_RUN_NUMBER$ ]]; then
-            echo '::error::The APK version does not match the GitHub Alpha build number.'
+          base_version=$(sed -n 's/^versionName=//p' version.properties)
+          expected_version="$base_version"
+          if [[ -n "$channel" ]]; then expected_version="$channel-$expected_version"; fi
+          if [[ "$build_type" == "alpha" ]]; then expected_version="$expected_version-Alpha.$GITHUB_RUN_NUMBER"; fi
+          if [[ "$version_name" != "$expected_version" ]]; then
+            echo "::error::Expected versionName $expected_version, got $version_name."
             exit 1
           fi
-          # main keeps the plain version name; every other branch is prefixed with a
-          # filesystem-safe slug, e.g. dev-1.4.1-Alpha.5 or dev-1.4.1 for formal builds.
-          branch="${GITHUB_REF_NAME}"
-          if [[ "$branch" == "main" || "$branch" == "master" ]]; then
-            branch_label=""
-            branch_prefix=""
-          else
-            branch_label="$branch"
-            slug=$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//')
-            slug=${slug:0:32}
-            [[ -n "$slug" ]] || slug="branch"
-            branch_prefix="${slug}-"
-          fi
-          asset="Next-TV-${branch_prefix}${version_name}-signed.apk"
+
           printf 'version_name=%s\n' "$version_name" >> "$GITHUB_OUTPUT"
-          printf 'asset_name=%s\n' "$asset" >> "$GITHUB_OUTPUT"
-          printf 'branch_label=%s\n' "$branch_label" >> "$GITHUB_OUTPUT"
+          printf 'asset_name=Next-TV-%s-signed.apk\n' "$version_name" >> "$GITHUB_OUTPUT"
           mkdir -p deliverables
-          cp "$apk" "deliverables/${asset}"
+          cp "$apk" "deliverables/Next-TV-${version_name}-signed.apk"
 
       - name: Remove signing files
         if: always()
@@ -182,12 +205,12 @@ jobs:
           name: Next-TV-signed-${{ github.sha }}
           path: deliverables
 
-      - name: Publish signed APK as a pre-release
+      - name: Publish signed APK as a release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION_NAME: ${{ needs.build.outputs.version_name }}
           ASSET_NAME: ${{ needs.build.outputs.asset_name }}
-          BRANCH_LABEL: ${{ needs.build.outputs.branch_label }}
+          BUILD_TYPE: ${{ github.event.inputs.build_type }}
         run: |
           tag="build-${GITHUB_SHA}-${GITHUB_RUN_NUMBER}"
           asset="${ASSET_NAME}"
@@ -195,7 +218,7 @@ jobs:
           test -s "$apk"
 
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets,isPrerelease,isDraft > release.json; then
-            jq -e '.isPrerelease' release.json > /dev/null
+            if [[ "${BUILD_TYPE:-alpha}" == "alpha" ]]; then jq -e '.isPrerelease' release.json > /dev/null; fi
             if ! jq -e --arg name "$asset" '.assets | any(.name == $name and .size > 0)' release.json > /dev/null; then
               gh release upload "$tag" "$apk" --repo "$GITHUB_REPOSITORY"
             fi
@@ -203,10 +226,10 @@ jobs:
               gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest=false
             fi
           else
-            title="Next TV ${VERSION_NAME}"
-            if [[ -n "$BRANCH_LABEL" ]]; then title="Next TV ${BRANCH_LABEL} ${VERSION_NAME}"; fi
+            flags=(--latest=false)
+            if [[ "${BUILD_TYPE:-alpha}" == "alpha" ]]; then flags+=(--prerelease); fi
             gh release create "$tag" "$apk" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --title "$title" \
+              --target "$GITHUB_SHA" --title "Next TV ${VERSION_NAME}" \
               --notes "签名 APK 来自分支 \`${GITHUB_REF_NAME}\`、提交 \`${GITHUB_SHA}\`。构建记录：${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-              --prerelease --latest=false
+              "${flags[@]}"
           fi

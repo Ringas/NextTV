@@ -92,14 +92,14 @@ Next TV **不内置任何频道、订阅或直播源**，也不提供内容。�
 ## 下载与安装
 
 1. 打开 [GitHub Releases](https://github.com/Ringas/NextTV/releases)。
-2. 下载最新带 `-signed.apk` 的安装包（CI 自动构建，标题为 `Next TV x.y.z-Alpha.N`）。
+2. 下载最新带 `-signed.apk` 的安装包。push 自动产出 Alpha 包；正式包需要在 Actions 中手动触发。`main` 的文件名形如 `Next-TV-1.4.1-Alpha.N-signed.apk`，其他分支带前缀，例如 `Next-TV-dev-1.4.1-Alpha.N-signed.apk`。
 3. 把 APK 拷到电视/盒子（U 盘、局域网推送、`adb install` 均可），用设备上的文件管理器安装。
 4. 首次安装需在系统设置中允许“安装未知来源应用”。
 
 命令行安装：
 
 ```bash
-adb install -r Next-TV-1.4.1-Alpha.123-signed.apk
+adb install -r Next-TV-dev-1.4.1-Alpha.123-signed.apk
 ```
 
 CI 产出的 APK 使用项目发布证书签名，并在上传前校验证书 SHA-256 与版本号；如果证书不匹配，构建会直接失败。
@@ -327,23 +327,31 @@ bash ./gradlew :app:packageNextTvRelease
 
 | 构建 | versionName | versionCode |
 | --- | --- | --- |
-| 正式版 | `1.4.1` | `releaseNumber × 100000` |
-| Alpha 版（CI） | `1.4.1-Alpha.<run>` | `(releaseNumber - 1) × 100000 + run` |
+| 正式版（main） | `1.4.1` | `releaseNumber × 100000` |
+| 正式版（dev） | `dev-1.4.1` | `releaseNumber × 100000` |
+| Alpha（main） | `1.4.1-Alpha.<run>` | `(releaseNumber - 1) × 100000 + run` |
+| Alpha（dev） | `dev-1.4.1-Alpha.<run>` | `(releaseNumber - 1) × 100000 + run` |
 
-Alpha 构建通过 Gradle 属性指定：
+`nextTvChannel` 会把分支前缀同时写进 versionName（设置页会显示）和 APK 文件名：
 
 ```bash
-bash ./gradlew :app:assembleRelease -PnextTvAlphaBuild=123
+bash ./gradlew :app:assembleRelease -PnextTvAlphaBuild=123 -PnextTvChannel=dev
 ```
 
 ### 持续集成
 
-[`.github/workflows/signed-apk.yml`](.github/workflows/signed-apk.yml) 在每次 push（任意分支）与手动触发时：
+[`.github/workflows/signed-apk.yml`](.github/workflows/signed-apk.yml) 的行为：
+
+- 每次 push（任意分支）自动构建 **Alpha** 包；
+- 正式包只能通过 `workflow_dispatch` 手动触发，选择 `build_type=formal`；
+- `test` 与 `lint` job 必须先通过，否则不会进入签名构建和发布。
+
+构建流程：
 
 1. 用 JDK 17 + SDK 35 构建签名 APK；
 2. 校验 APK 证书 SHA-256 与预期发布证书一致；
-3. 校验 `versionName` 形如 `x.y.z-Alpha.<run>`；
-4. 上传构建产物，并创建/更新 `build-<sha>-<run>` 预发布 Release。
+3. 校验 `versionName` 与分支前缀、Alpha 构建号一致；
+4. 上传构建产物，并创建/更新 `build-<sha>-<run>` Release（Alpha 为预发布，正式包为普通 Release）。
 
 需要在仓库 Secrets 中配置：
 
@@ -361,7 +369,8 @@ bash ./gradlew :app:assembleRelease -PnextTvAlphaBuild=123
 ## 版本与发布
 
 - 版本遵循 `主版本.次版本.修订号`，`releaseNumber` 单调递增。
-- 每次 push 产出 Alpha 预发布包，用于真机验证；正式发布使用 `packageNextTvRelease`。
+- 每次 push 产出 Alpha 预发布包，用于真机验证；正式包从 Actions 手动触发 `build_type=formal`，本地等价命令是 `packageNextTvRelease`。
+- 非 `main` 分支的包名与 versionName 会带分支前缀，例如 `dev-1.4.1-Alpha.123`。
 - 正式发布后，把 `lastPublishedReleaseNumber` 更新为本次 `releaseNumber`，并递增下一次的 `releaseNumber`。
 - versionCode 随 `releaseNumber` 单调增长，保证新包总能覆盖旧包。
 

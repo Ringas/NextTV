@@ -22,7 +22,14 @@ val alphaBuild = providers.gradleProperty("nextTvAlphaBuild").orNull?.let {
     }
     buildNumber
 }
-val nextTvVersionName = alphaBuild?.let { "$baseVersionName-Alpha.$it" } ?: baseVersionName
+// Optional channel prefix for non-main builds, e.g. dev -> "dev-1.4.1-Alpha.7".
+// The prefix is part of versionName so the settings screen shows the branch too.
+val nextTvChannel = providers.gradleProperty("nextTvChannel").orNull?.trim()?.lowercase().orEmpty()
+require(nextTvChannel.isEmpty() || nextTvChannel.matches(Regex("[a-z0-9][a-z0-9-]{0,31}"))) {
+    "nextTvChannel 只能包含小写字母、数字和连字符，最长 32 个字符。"
+}
+val nextTvChannelPrefix = if (nextTvChannel.isEmpty()) "" else "$nextTvChannel-"
+val nextTvVersionName = nextTvChannelPrefix + (alphaBuild?.let { "$baseVersionName-Alpha.$it" } ?: baseVersionName)
 val nextTvVersionCode = alphaBuild?.let { (releaseNumber - 1) * versionCodeRange + it }
     ?: releaseNumber * versionCodeRange
 val verifyReleaseVersion by tasks.registering {
