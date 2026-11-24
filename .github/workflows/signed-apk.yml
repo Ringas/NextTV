@@ -46,8 +46,23 @@ jobs:
       - name: Run unit tests
         run: bash ./gradlew --no-daemon :app:testReleaseUnitTest
 
+      - name: Prefetch Robolectric runtime
+        run: |
+          # Robolectric fetches android-all on first use; pre-seed it so a
+          # transient Maven timeout cannot drop one of the six renders.
+          VERSION=15-robolectric-12650502-i7
+          DIR="$HOME/.m2/repository/org/robolectric/android-all-instrumented/$VERSION"
+          mkdir -p "$DIR"
+          for EXT in jar pom jar.sha512 pom.sha512; do
+            curl --retry 6 --retry-all-errors --retry-delay 2 -fL \
+              "https://repo1.maven.org/maven2/org/robolectric/android-all-instrumented/$VERSION/android-all-instrumented-$VERSION.$EXT" \
+              -o "$DIR/android-all-instrumented-$VERSION.$EXT"
+          done
+
       - name: Render design screenshots
         run: |
+          bash ./gradlew --no-daemon :app:testDebugUnitTest \
+            --tests com.nexttv.design.DesignScreenshots || \
           bash ./gradlew --no-daemon :app:testDebugUnitTest \
             --tests com.nexttv.design.DesignScreenshots
 
