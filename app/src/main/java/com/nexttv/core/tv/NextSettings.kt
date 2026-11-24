@@ -91,7 +91,8 @@ private typealias SettingsEntry = SettingsRowData
   category=="播放"->listOf(
    SettingsEntry(START_PAGE,if(p.startLive)LIVE_PAGE else HOME_PAGE,"「主页」打开频道首页。「直播」直接播放上次观看的频道，找不到时播放列表中的第一个频道。",{edit=START_PAGE}),
    SettingsEntry("换台预加载",listOf("关闭","下一台","上一台","上下台")[p.preloadMode],"提前准备相邻频道；「上下台」会同时预加载上一台和下一台，会增加网络与内存占用。",{edit="换台预加载"}),
-   SettingsEntry("换台保留画面",if(p.keepLastFrame)"开启"else"关闭","切换频道或线路时保留上一画面，直到新画面出现。",{p.keepLastFrame=!p.keepLastFrame;changed()},false))
+   SettingsEntry("换台保留画面",if(p.keepLastFrame)"开启"else"关闭","切换频道或线路时保留上一画面，直到新画面出现。",{p.keepLastFrame=!p.keepLastFrame;changed()},false),
+   SettingsEntry("时间显示",playerClockTitle(p.playerClockMode),"设置播放器右上角时间：隐藏、始终显示、每小时显示或每半小时显示。",{edit="时间显示"}))
   category=="频道与外观"->listOf(
    SettingsEntry("频道合并",if(p.mergeChannelsAcrossSources)"开启"else"关闭","将不同订阅中的同一频道合成多条播放线路，并汇总节目单。优先匹配频道标识，缺少标识时匹配无歧义的频道名。",{p.mergeChannelsAcrossSources=!p.mergeChannelsAcrossSources;scope.launch{app.channels.rebuildChannelsAsync();changed()}},false),
    SettingsEntry("频道布局",if(p.gridMode)"网格"else"列表","选择首页频道的展示方式。",{edit="频道布局"}),
@@ -130,7 +131,7 @@ private typealias SettingsEntry = SettingsRowData
      TvSurface(Modifier.fillMaxWidth().focusRequester(request).focusEdges(left=true,down=index==settingsCategories.lastIndex).focusProperties{left=FocusRequester.Cancel;right=FocusRequester.Cancel;if(index==0)up=navigation.top?:FocusRequester.Default;if(index==settingsCategories.lastIndex)down=FocusRequester.Cancel}.onPreviewKeyEvent{e->if(e.nativeKeyEvent.action==android.view.KeyEvent.ACTION_DOWN&&TvInput.action(e.nativeKeyEvent.keyCode)==InputAction.RIGHT){enterContent();true}else false},kind="setting",selected=category==name,onFocus={
       pendingRestore?.cancel();inContent=false;onContentFocus();navigation.row=key;navigation.group=name
       if(category!=name){category=name;subpage="";scope.launch{navigation.scroll.scrollTo(0)}}
-      explanation=when(name){"订阅与节目单"->"管理频道订阅与节目单。";"播放"->"设置启动方式与换台体验。";"频道与外观"->"调整频道展示与动态效果。";"高级"->"配置特殊订阅服务的网络要求。";else->""}
+      explanation=when(name){"订阅与节目单"->"管理频道订阅与节目单。";"播放"->"设置启动方式、换台体验与播放信息。";"频道与外观"->"调整频道展示与动态效果。";"高级"->"配置特殊订阅服务的网络要求。";else->""}
      },onClick={if(InteractionStyle.pointer)runCatching{request.requestFocus()}else enterContent()}){Row(Modifier.fillMaxWidth().height(bodyHeight).padding(horizontal=12.dp,vertical=10.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
       SettingsCategoryGlyph(index,Modifier.size(22.dp))
       AppText(name,Modifier.weight(1f),color=NextTvStyle.Text,fontSize=InteractionStyle.body,maxLines=2)
@@ -177,6 +178,7 @@ private typealias SettingsEntry = SettingsRowData
   "频道布局"->ChoiceDialog(edit,listOf(ChoiceOption("grid","网格"),ChoiceOption("list","列表")),if(p.gridMode)"grid"else"list",{dismissEdit()}){p.gridMode=it=="grid";changed();dismissEdit()}
   "界面主题"->ChoiceDialog(edit,listOf(ChoiceOption("dark","深色"),ChoiceOption("light","浅色")),if(p.lightGlass)"light"else"dark",{dismissEdit()}){p.lightGlass=it=="light";changed();dismissEdit()}
   "动态效果"->ChoiceDialog(edit,listOf(ChoiceOption("standard","标准"),ChoiceOption("reduced","减弱")),if(p.reduceMotion)"reduced"else"standard",{dismissEdit()}){p.reduceMotion=it=="reduced";changed();dismissEdit()}
+  "时间显示"->ChoiceDialog(edit,listOf(ChoiceOption("0","隐藏","不显示右上角时间"),ChoiceOption("1","始终显示","播放时始终显示右上角时间"),ChoiceOption("2","每小时显示","每小时整点显示 ${PLAYER_CLOCK_WINDOW_MS/1000} 秒"),ChoiceOption("3","每半小时显示","每小时 00 分和 30 分显示 ${PLAYER_CLOCK_WINDOW_MS/1000} 秒")),"${p.playerClockMode}",{dismissEdit()}){p.playerClockMode=it.toInt();changed();dismissEdit()}
   REQUEST_PARAMETERS->NetworkRequestDialog({dismissEdit()}){ua,ref->p.defaultUserAgent=ua;p.defaultReferer=ref;changed();dismissEdit()}
   "清除缓存"->TvDialog(edit,{dismissEdit()}){
    AppText("将删除频道、节目单、播放源备份和台标缓存，不会删除订阅、收藏或设置。当前占用 ${CacheStore.format(cacheBytes)}。",Modifier.weight(1f,false).appVerticalScroll(rememberScrollState()),color=NextTvStyle.Text,fontSize=InteractionStyle.body)

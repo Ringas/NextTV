@@ -2,12 +2,20 @@
 // Next TV — Compose for TV implementation.
 package com.nexttv.core.ui
 
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 object Ui {
 
     fun hhmm(millis: Long): String =
         ProgrammeTimeLabels.time(millis)
+
+    fun monthDay(millis: Long): String =
+        SimpleDateFormat("M月d日", Locale.CHINA).format(Date(millis))
+
+    fun weekday(millis: Long): String =
+        SimpleDateFormat("EEEE", Locale.CHINA).format(Date(millis))
 
     /** Playback clock for HUDs: mm:ss below an hour, h:mm:ss above. */
     fun playbackTime(millis: Long): String {

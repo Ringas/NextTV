@@ -61,6 +61,8 @@ class Prefs(context: Context) {
     var showChannelLogos by booleanSetting("show_channel_logos", true)
 
     var gridMode by booleanSetting("grid_mode", true)
+    /** 0 hidden, 1 always, 2 hourly, 3 half-hourly. Default is hidden per TV viewing preference. */
+    var playerClockMode by intSetting("player_clock_mode", 0)
 
     /** 上次选中的分组（空串表示"全部"） */
     var selectedGroup by textSetting("selected_group", "")
@@ -172,6 +174,10 @@ class Prefs(context: Context) {
 
     private fun secretTextSetting(key: String, fallback: String) = setting(
         key, { readSecret(it, fallback) }, { name, value -> writeSecret(name, value) }
+    )
+
+    private fun intSetting(key: String, fallback: Int) = setting(
+        key, { getInt(it, fallback) }, { name, value -> putInt(name, value) }
     )
 
     private fun booleanSetting(key: String, fallback: Boolean) = setting(

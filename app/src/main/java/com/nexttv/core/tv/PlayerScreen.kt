@@ -28,6 +28,7 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.*
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
@@ -215,7 +216,8 @@ import kotlin.math.roundToInt
   if(onLaunchReady==null&&engine.loading&&engine.error.isBlank())Column(Modifier.align(Alignment.Center).padding(horizontal=36.dp,vertical=24.dp),horizontalAlignment=Alignment.CenterHorizontally){if(app.prefs.reduceMotion)AppText("◌",fontSize=32.sp,color=androidx.compose.ui.graphics.Color.White)else androidx.compose.material3.CircularProgressIndicator(Modifier.size(42.dp),color=NextTvStyle.Accent);AppText("正在连接…",shadow=androidx.compose.ui.graphics.Shadow(Color.Black,androidx.compose.ui.geometry.Offset(0f,1f),4f),fontSize=InteractionStyle.body,color=androidx.compose.ui.graphics.Color.White,modifier=Modifier.padding(top=12.dp))}
   if(engine.error.isNotBlank())AppText(engine.error,textAlign=androidx.compose.ui.text.style.TextAlign.Center,color=NextTvStyle.Error,fontSize=InteractionStyle.body,modifier=Modifier.align(Alignment.Center).padding(horizontal=32.dp).widthIn(max=620.dp).glassReadingPanel(RoundedCornerShape(InteractionStyle.panelRadius)).padding(horizontal=28.dp,vertical=22.dp))
   if(bars&&dialog!="播放详情")PlayerBottomBar(engine,tick,actionsVisible,actionFocus,onActionFocus={actionFocused=it},onAction={perform(it)},modifier=Modifier.align(Alignment.BottomCenter).onSizeChanged{bottomPanelHeight=it.height})
-  if(!bars&&!side&&dialog.isBlank()&&digits.isBlank()&&engine.error.isBlank()&&engine.ready)PlayerPersistentHud(engine,tick,Modifier.align(Alignment.TopEnd).padding(top=18.dp,end=26.dp))
+  val clockMode=app.prefs.playerClockMode
+  if(!side&&dialog.isBlank()&&digits.isBlank()&&engine.error.isBlank()&&engine.ready&&playerClockVisible(clockMode,tick))PlayerPersistentHud(tick,Modifier.align(Alignment.TopEnd).padding(top=18.dp,end=26.dp))
   if(side)key(engine.current.sourceId,sideGeneration){ChannelSidePanel(engine.current,group,sideGeneration,onGroup={group=it},onSelect={if(it.id!=engine.current.id)engine.tune(it);side=false;root.requestFocus()},controller=browserController,onCloseAll={dismissOverlays()},playingReplay=engine.replay!=null,playingPaused=engine.ready&&!engine.player.playWhenReady,onProgram={c,p->if(engine.playReplay(c,p)){side=false;root.requestFocus()}else if(System.currentTimeMillis() in p.start until p.stop){engine.tune(c);side=false;root.requestFocus()}else if(p.desc.isNotBlank()){selectedProgram=p;dialog="节目详情"}else notice=if(p.start>System.currentTimeMillis())"节目尚未开始"else"该节目暂不支持回放"},modifier=Modifier.align(Alignment.CenterStart))}
   if(!actionsVisible)seekFeedback?.let{ReplaySeekOverlay(it,Modifier.align(Alignment.BottomCenter))}
   if(digits.isNotBlank())AppText(
@@ -258,12 +260,6 @@ import kotlin.math.roundToInt
   samples.map{sample->with(density){sample.maxOf{textMeasurer.measure(it,badgeStyle).size.width}.toDp()}+13.dp}
  }
  val timelineDuration=engine.player.duration.takeIf{it>0}?:current?.let{it.stop-it.start}?:0L
- val playbackPosition=engine.player.currentPosition.coerceAtLeast(0)
- val timeLine=when{
-  engine.replay!=null&&timelineDuration>0->Ui.playbackTime(playbackPosition)+" / "+Ui.playbackTime(timelineDuration)
-  engine.replay!=null->Ui.playbackTime(playbackPosition)+" / --:--"
-  else->"直播"
- }
  BoxWithConstraints(modifier.fillMaxWidth()){
   val panelWidth=maxWidth*playerPanelFraction(maxWidth.value)
   val bottomInset = (maxHeight * .035f).coerceIn(14.dp, 26.dp)
@@ -273,7 +269,7 @@ import kotlin.math.roundToInt
     val gap=14.dp
     val logoWidth=identityHeight*1.22f
     val identityWidth=factWidths.fold(0.dp){sum,v->sum+v}+9.dp+logoWidth+8.dp
-    val clockWidth=108.dp*scale
+    val clockWidth=112.dp*scale
     val programmeWidth=maxWidth-identityWidth-clockWidth-gap*2
     val identity:@Composable (Modifier)->Unit={m->
      Row(m.height(identityHeight),verticalAlignment=Alignment.CenterVertically){
@@ -282,7 +278,7 @@ import kotlin.math.roundToInt
        AppText(Ui.displayName(c.name),Modifier.fillMaxWidth().height(27.dp*scale),fontSize=17.sp,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
        Row(Modifier.padding(top=3.dp*scale).height(20.dp*scale),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically){
         val descriptions=listOf("线路 ${engine.routeIndex+1}，共 ${engine.routeCount} 条","分辨率 ${facts[1]}","声道 ${facts[2]}","接收速率 ${facts[3]}")
-        facts.forEachIndexed{i,value->Box(Modifier.width(factWidths[i]).fillMaxHeight().semantics(mergeDescendants=true){contentDescription=descriptions[i]},contentAlignment=Alignment.CenterStart){InfoBadge(value,tone=when{i==1&&(value.contains("4K")||value.contains("8K"))->BadgeTone.Warm;i==1->BadgeTone.Cool;i==2&&(engine.player.audioFormat?.channelCount?:0)>2->BadgeTone.Cool;else->BadgeTone.Neutral},modifier=Modifier.fillMaxWidth(),horizontalPadding=6.dp)}}
+        facts.forEachIndexed{i,value->Box(Modifier.width(factWidths[i]).fillMaxHeight().semantics(mergeDescendants=true){contentDescription=descriptions[i]},contentAlignment=Alignment.CenterStart){InfoBadge(value,tone=when{i==1&&(value.contains("4K")||value.contains("8K"))->BadgeTone.Warm;i==1->BadgeTone.Cool;i==2&&(engine.player.audioFormat?.channelCount?:0)>2->BadgeTone.Cool;else->BadgeTone.Neutral},modifier=Modifier.fillMaxWidth(),horizontalPadding=if(i==3)0.dp else 6.dp,bordered=i<3)}}
        }
       }
      }
@@ -299,8 +295,8 @@ import kotlin.math.roundToInt
      }
     }
     val clock:@Composable (Modifier)->Unit={m->Column(m.height(identityHeight),horizontalAlignment=Alignment.End,verticalArrangement=Arrangement.Center){
-      AppText(timeLine,fontSize=12.sp,fontWeight=FontWeight.Light,color=NextTvStyle.Muted,maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.55f),androidx.compose.ui.geometry.Offset(0f,1f),3f))
-      AppText(Ui.hhmm(now),Modifier.padding(top=2.dp*scale),fontSize=16.5.sp,fontWeight=FontWeight.Bold,color=NextTvStyle.Text,maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.45f),androidx.compose.ui.geometry.Offset(0f,1f),4f))
+      AppText(Ui.monthDay(now),fontSize=12.5.sp,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.45f),androidx.compose.ui.geometry.Offset(0f,1f),3f))
+      AppText(Ui.weekday(now),Modifier.padding(top=2.dp*scale),fontSize=11.sp,fontWeight=FontWeight.Medium,color=NextTvStyle.Muted,maxLines=1)
     }}
     if(programmeWidth<200.dp*scale)Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(9.dp)){
      Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){identity(Modifier.weight(1f));clock(Modifier.width(clockWidth).padding(start=8.dp))}
@@ -313,12 +309,15 @@ import kotlin.math.roundToInt
     Box(Modifier.fillMaxWidth().padding(top=7.dp).height(1.dp).background(NextTvStyle.PlayerInfoBorder,androidx.compose.foundation.shape.CircleShape))
     Row(Modifier.fillMaxWidth()
      .onGloballyPositioned{activity.quickActionsPointerRegion=it.boundsInWindow()}
-     .horizontalScroll(rememberScrollState(),flingBehavior=appFlingBehavior()).padding(vertical=6.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+     .horizontalScroll(rememberScrollState(),flingBehavior=appFlingBehavior()).padding(vertical=4.dp),horizontalArrangement=Arrangement.spacedBy(7.dp)){
      val actions=buildList{if(engine.replay!=null){add("播放暂停");add("返回直播")}else if(engine.routeCount>1)add("线路");add("音轨");add("画面适配");add("收藏");add("解码");add("详情");add("主页")}
+     val playing=engine.player.playWhenReady
+     val favorite=app.prefs.isFavorite(c)
      actions.forEachIndexed{i,id->key(id){
-      val label=when(id){"解码"->"解码方式";"线路"->"线路 ${engine.routeIndex+1}";"播放暂停"->if(engine.player.playWhenReady)"暂停"else"继续播放";"收藏"->if(app.prefs.isFavorite(c))"取消收藏"else"添加收藏";"画面适配"->listOf("画面 · 适应","画面 · 填充","画面 · 拉伸")[engine.aspect];else->id}
+      val label=when(id){"解码"->"解码方式";"线路"->"线路 ${engine.routeIndex+1}";"播放暂停"->if(playing)"暂停"else"继续播放";"收藏"->if(favorite)"取消收藏"else"添加收藏";"画面适配"->"画面适配";"返回直播"->"返回直播";else->id}
+      val description=when(id){"解码"->"解码方式";"线路"->"当前线路 ${engine.routeIndex+1}，共 ${engine.routeCount} 条";"播放暂停"->if(playing)"暂停播放"else"继续播放";"收藏"->if(favorite)"取消收藏"else"添加收藏";"画面适配"->listOf("画面适应","画面填充","画面拉伸")[engine.aspect];"返回直播"->"返回直播";else->id}
       val buttonRequest=if(i==0)action else remember(id){FocusRequester()}
-      TvButton(label,Modifier.focusRequester(buttonRequest).focusEdges(up=engine.replay==null,down=true,left=i==0,right=i==actions.lastIndex).focusProperties{up=if(engine.replay!=null)replaySeek else FocusRequester.Cancel;down=FocusRequester.Cancel;if(i==0)left=FocusRequester.Cancel;if(i==actions.lastIndex)right=FocusRequester.Cancel},kind="action",onFocus={replayActionReturn[0]=buttonRequest},onClick={onAction(id)})
+      QuickActionTile(id,label,description,playing,favorite,Modifier.focusRequester(buttonRequest).focusEdges(up=engine.replay==null,down=true,left=i==0,right=i==actions.lastIndex).focusProperties{up=if(engine.replay!=null)replaySeek else FocusRequester.Cancel;down=FocusRequester.Cancel;if(i==0)left=FocusRequester.Cancel;if(i==actions.lastIndex)right=FocusRequester.Cancel},onFocus={replayActionReturn[0]=buttonRequest},onClick={onAction(id)})
      }}
     }
    }
@@ -326,29 +325,41 @@ import kotlin.math.roundToInt
  }
 }
 
-/** Marco Movie style frameless persistent HUD: thin elapsed/total + divider + condensed wall clock. */
-@Composable private fun PlayerPersistentHud(engine:PlaybackSession,now:Long,modifier:Modifier){
- val duration=engine.player.duration.takeIf{it>0}?:(engine.replay?.let{it.stop-it.start}?:0L)
- val progress=when{
-  engine.replay==null->"直播"
-  duration>0->Ui.playbackTime(engine.player.currentPosition)+" / "+Ui.playbackTime(duration)
-  else->"--:-- / --:--"
+@Composable private fun QuickActionTile(id:String,label:String,description:String,playing:Boolean,favorite:Boolean,modifier:Modifier,onFocus:()->Unit,onClick:()->Unit){
+ TvSurface(modifier.width(62.dp).height(52.dp).semantics(mergeDescendants=true){contentDescription=description},kind="action",onFocus=onFocus,onClick=onClick){
+  Column(Modifier.align(Alignment.Center),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
+   ControlIcon(glyphForAction(id,playing,favorite),Modifier.size(20.dp))
+   AppText(label,Modifier.padding(top=1.dp),fontSize=9.sp,fontWeight=FontWeight.Medium,color=LocalContentColor.current,maxLines=1,overflow=TextOverflow.Clip)
+  }
  }
- Row(modifier.semantics{contentDescription="$progress，当前时间 ${Ui.hhmm(now)}"},verticalAlignment=Alignment.CenterVertically){
-  AppText(progress,fontSize=12.2.sp,fontWeight=FontWeight.Light,color=Color(0xD6DCE6F4),maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.75f),androidx.compose.ui.geometry.Offset(0f,1f),4f))
-  Box(Modifier.padding(horizontal=10.dp).width(1.dp).height(12.5.dp).background(Color(0x52FFFFFF)))
-  AppText(Ui.hhmm(now),fontSize=16.5.sp,fontWeight=FontWeight.Bold,color=Color.White,maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.82f),androidx.compose.ui.geometry.Offset(0f,1f),5f))
- }
+}
+
+private fun glyphForAction(id:String,playing:Boolean,favorite:Boolean):ControlGlyph=when(id){
+ "播放暂停"->if(playing)ControlGlyph.Pause else ControlGlyph.Play
+ "返回直播"->ControlGlyph.Live
+ "线路"->ControlGlyph.Route
+ "音轨"->ControlGlyph.Audio
+ "画面适配"->ControlGlyph.Aspect
+ "收藏"->if(favorite)ControlGlyph.FavoriteOn else ControlGlyph.Favorite
+ "解码"->ControlGlyph.Codec
+ "详情"->ControlGlyph.Info
+ "主页"->ControlGlyph.Home
+ else->ControlGlyph.Info
+}
+
+/** Optional frameless wall clock; visibility is controlled by the Time display menu. */
+@Composable private fun PlayerPersistentHud(now:Long,modifier:Modifier){
+ AppText(Ui.hhmm(now),modifier.semantics{contentDescription="当前时间 ${Ui.hhmm(now)}"},fontSize=17.sp,fontWeight=FontWeight.Bold,color=Color.White,maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.82f),androidx.compose.ui.geometry.Offset(0f,1f),5f))
 }
 
 private enum class BadgeTone{Neutral,Warm,Cool,Live}
 
-@Composable private fun InfoBadge(value:String,tone:BadgeTone=BadgeTone.Neutral,modifier:Modifier=Modifier,fontSize:androidx.compose.ui.unit.TextUnit=10.sp,horizontalPadding:Dp=6.dp){
+@Composable private fun InfoBadge(value:String,tone:BadgeTone=BadgeTone.Neutral,modifier:Modifier=Modifier,fontSize:androidx.compose.ui.unit.TextUnit=10.sp,horizontalPadding:Dp=6.dp,bordered:Boolean=true){
  val shape=RoundedCornerShape(4.5.dp)
  val fill=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmFill;BadgeTone.Cool->NextTvStyle.SpecCoolFill;BadgeTone.Live->NextTvStyle.AccentBadge;else->NextTvStyle.SpecNeutralFill}
  val stroke=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmStroke;BadgeTone.Cool->NextTvStyle.SpecCoolStroke;BadgeTone.Live->NextTvStyle.AccentText.copy(alpha=.45f);else->NextTvStyle.SpecNeutralStroke}
  val ink=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmText;BadgeTone.Cool->NextTvStyle.SpecCoolText;BadgeTone.Live->NextTvStyle.AccentText;else->NextTvStyle.Muted}
- Box(modifier.height(19.dp*LocalDensity.current.fontScale).background(fill,shape).border(.75.dp,stroke,shape).padding(horizontal=horizontalPadding),contentAlignment=Alignment.Center){
-  AppText(value,fontSize=fontSize,fontWeight=FontWeight.Bold,color=ink,maxLines=1)
+ Box(modifier.height(19.dp*LocalDensity.current.fontScale).then(if(bordered)Modifier.background(fill,shape).border(.75.dp,stroke,shape)else Modifier).padding(horizontal=horizontalPadding),contentAlignment=Alignment.Center){
+  AppText(value,fontSize=fontSize,fontWeight=FontWeight.Bold,color=if(bordered)ink else NextTvStyle.Muted,maxLines=1)
  }
 }

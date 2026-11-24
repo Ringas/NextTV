@@ -4,6 +4,8 @@ package com.nexttv
 import com.nexttv.core.ui.Ui
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.util.Calendar
+import java.util.TimeZone
 
 class PlayerHudFormatTest {
     @Test fun playbackClockUsesCompactMinutesBelowAnHour() {
@@ -16,5 +18,20 @@ class PlayerHudFormatTest {
         assertEquals("1:00:00", Ui.playbackTime(3_600_000))
         assertEquals("2:03:04", Ui.playbackTime(7_384_000))
         assertEquals("0:00", Ui.playbackTime(-5_000))
+    }
+
+    @Test fun playerInfoShowsChineseDateAndWeekday() {
+        val old = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"))
+        try {
+            val now = Calendar.getInstance().apply {
+                set(2026, Calendar.NOVEMBER, 24, 10, 30, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            assertEquals("11月24日", Ui.monthDay(now))
+            assertEquals("星期二", Ui.weekday(now))
+        } finally {
+            TimeZone.setDefault(old)
+        }
     }
 }
