@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.unit.dp
 
 /** Shared translucent glass finish. Cached gradients only: no backdrop capture, blur or refraction. */
 internal fun Modifier.glassPanel(shape:Shape):Modifier = background(NextTvStyle.Panel,shape)
@@ -20,13 +21,13 @@ private fun Modifier.glassHighlight(shape:Shape):Modifier = drawWithCache {
  onDrawBehind{drawOutline(outline,light)}
 }
 
-/** Animate the panel's actual contour, never scale its corner radii. No layout per animation frame. */
-internal fun Modifier.glassPanelExtent(extent:()->Float):Modifier = drawWithCache {
- val radius=com.nexttv.core.tv.InteractionStyle.panelRadius.toPx()
-
+/** Player browser rail: the same flat dark card, hairline border and corner radius as the info bar. */
+internal fun Modifier.playerSidebarPanel(extent:()->Float):Modifier = drawWithCache {
+ val radius=24.dp.toPx()
  onDrawBehind{
   val area=androidx.compose.ui.geometry.Size(extent().coerceAtLeast(radius*2),size.height)
   val corners=androidx.compose.ui.geometry.CornerRadius(radius,radius)
-  drawRoundRect(NextTvStyle.Panel,size=area,cornerRadius=corners)
+  drawRoundRect(NextTvStyle.PlayerInfoPanel,size=area,cornerRadius=corners)
+  drawRoundRect(NextTvStyle.PlayerInfoBorder,size=area,cornerRadius=corners,style=androidx.compose.ui.graphics.drawscope.Stroke(.75.dp.toPx()))
  }
 }

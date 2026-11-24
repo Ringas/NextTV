@@ -39,7 +39,21 @@ import kotlinx.coroutines.flow.first
 
 /** Same header rhythm in every browser column, including enlarged system fonts. */
 @Composable private fun BrowserHeading(text:String,centered:Boolean=false){
- AppText(text,Modifier.fillMaxWidth().semantics{heading()}.padding(start=if(centered)0.dp else 12.dp,bottom=10.dp).heightIn(min=24.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale).wrapContentHeight(Alignment.CenterVertically),fontSize=if(centered)InteractionStyle.caption else InteractionStyle.subheading,fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold,color=if(centered)NextTvStyle.Muted else NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis,textAlign=if(centered)androidx.compose.ui.text.style.TextAlign.Center else androidx.compose.ui.text.style.TextAlign.Start)
+ val scale=androidx.compose.ui.platform.LocalDensity.current.fontScale
+ Column(Modifier.fillMaxWidth().padding(start=if(centered)0.dp else 12.dp,bottom=8.dp)){
+  AppText(text,Modifier.fillMaxWidth().semantics{heading()}.heightIn(min=24.dp*scale).wrapContentHeight(Alignment.CenterVertically),fontSize=if(centered)InteractionStyle.caption else 14.sp,fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold,color=if(centered)NextTvStyle.Muted else NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis,textAlign=if(centered)androidx.compose.ui.text.style.TextAlign.Center else androidx.compose.ui.text.style.TextAlign.Start)
+  if(!centered)Box(Modifier.fillMaxWidth().padding(top=7.dp).height(.75.dp).background(NextTvStyle.PlayerInfoBorder))
+ }
+}
+
+/** Programme status pill matching the info bar's badges: flat fill, hairline stroke, 4.5 dp corners. */
+@Composable private fun BrowserBadge(text:String,accent:Boolean){
+ val shape=RoundedCornerShape(4.5.dp)
+ val fill=if(accent)NextTvStyle.AccentBadge else NextTvStyle.SpecNeutralFill
+ val stroke=if(accent)NextTvStyle.AccentText.copy(alpha=.45f)else NextTvStyle.SpecNeutralStroke
+ Box(Modifier.height(19.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale).background(fill,shape).border(.75.dp,stroke,shape).padding(horizontal=6.dp),contentAlignment=Alignment.Center){
+  AppText(text,fontSize=10.sp,fontWeight=androidx.compose.ui.text.font.FontWeight.Bold,color=if(accent)NextTvStyle.AccentText else NextTvStyle.Muted,maxLines=1)
+ }
 }
 
 /** Move once when the target is clipped, then let the mounted item take focus. */
@@ -169,10 +183,10 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
   val browserDensity=androidx.compose.ui.platform.LocalDensity.current
   val panelWidth=channelWidth+when(navigation.pane.wire){"groups"->groupWidth;"epg"->epgWidth+dateWidth;else->0.dp}
   val panelExtent=animateFloatAsState(panelWidth.value,if(reduced)snap()else tween(160,easing=FastOutSlowInEasing),label="browser-panel")
-  Box(Modifier.width(panelWidth).fillMaxHeight().glassPanelExtent{with(browserDensity){panelExtent.value.dp.toPx()}})
+  Box(Modifier.width(panelWidth).fillMaxHeight().playerSidebarPanel{with(browserDensity){panelExtent.value.dp.toPx()}})
   if(navigation.pane.wire!="epg")AnimatedVisibility(visible=navigation.pane.wire=="groups",enter=fadeIn(tween(if(reduced)0 else 120)),exit=fadeOut(tween(if(reduced)0 else 100))){Column(Modifier.width(groupWidth).fillMaxHeight().padding(12.dp)){
    BrowserHeading(app.channels.sources.firstOrNull{it.id==sourceId}?.name?:"订阅")
-   LazyColumn(flingBehavior=appFlingBehavior(),state=groupList,modifier=Modifier.continuousWheel(groupList),contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){itemsIndexed(categories){i,g->TvButton(g?:"全部频道",Modifier.fillMaxWidth().focusEdges(up=i==0,down=i==categories.lastIndex).focusProperties{canFocus=navigation.region.wire=="groups";if(i==0)up=FocusRequester.Cancel;if(i==categories.lastIndex)down=FocusRequester.Cancel}.focusRequester(groupRequests[i]),selected=g==activeGroup,kind="side",onFocus={if(navigation.region==BrowserRegion.GROUPS){groupFocus=i;if(activeGroup!=g){activeGroup=g;onGroup(g);candidateId=sourceChannels.firstOrNull{g==null||it.groupName==g}?.id.orEmpty();scope.launch{list.scrollToItem(0)}}}},onClick={groupFocus=i;activeGroup=g;onGroup(g);candidateId=sourceChannels.firstOrNull{g==null||it.groupName==g}?.id.orEmpty();navigation=BrowserNavigation.Groups})}}
+   LazyColumn(flingBehavior=appFlingBehavior(),state=groupList,modifier=Modifier.continuousWheel(groupList),contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){itemsIndexed(categories){i,g->TvButton(g?:"全部频道",Modifier.fillMaxWidth().focusEdges(up=i==0,down=i==categories.lastIndex).focusProperties{canFocus=navigation.region.wire=="groups";if(i==0)up=FocusRequester.Cancel;if(i==categories.lastIndex)down=FocusRequester.Cancel}.focusRequester(groupRequests[i]),selected=g==activeGroup,kind="playerRow",onFocus={if(navigation.region==BrowserRegion.GROUPS){groupFocus=i;if(activeGroup!=g){activeGroup=g;onGroup(g);candidateId=sourceChannels.firstOrNull{g==null||it.groupName==g}?.id.orEmpty();scope.launch{list.scrollToItem(0)}}}},onClick={groupFocus=i;activeGroup=g;onGroup(g);candidateId=sourceChannels.firstOrNull{g==null||it.groupName==g}?.id.orEmpty();navigation=BrowserNavigation.Groups})}}
   }
   }
   Column(Modifier.offset{IntOffset(with(browserDensity){anchorPosition.value.dp.roundToPx()},0)}.width(channelWidth).fillMaxHeight().padding(start=12.dp,top=12.dp,end=hintWidth+2.dp,bottom=12.dp)){
@@ -180,7 +194,7 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
    LazyColumn(flingBehavior=appFlingBehavior(),state=list,modifier=Modifier.continuousWheel(list),contentPadding=PaddingValues(start=12.dp,end=8.dp,top=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
     itemsIndexed(channels,key={_,it->it.id}){index,c->val request=remember(c.id){FocusRequester()}
      DisposableEffect(c.id){requests[c.id]=request;onDispose{if(requests[c.id]===request)requests.remove(c.id)}}
-     TvSurface(Modifier.fillMaxWidth().semantics{stateDescription=if(c.id==current.id)if(playingPaused)"已暂停"else if(playingReplay)"正在播放回放"else"正在播放直播"else if(c.id==candidate.id)"正在浏览"else""}.heightIn(min=64.dp).focusEdges(up=index==0,down=index==channels.lastIndex).focusProperties{canFocus=navigation.region.wire=="channels";if(index==0)up=FocusRequester.Cancel;if(index==channels.lastIndex)down=FocusRequester.Cancel}.focusRequester(request),kind="side",selected=c.id==candidate.id&&!InteractionStyle.pointer,onFocus={if(navigation.region.wire=="channels")candidateId=c.id},onClick={onSelect(c)}){
+     TvSurface(Modifier.fillMaxWidth().semantics{stateDescription=if(c.id==current.id)if(playingPaused)"已暂停"else if(playingReplay)"正在播放回放"else"正在播放直播"else if(c.id==candidate.id)"正在浏览"else""}.heightIn(min=64.dp).focusEdges(up=index==0,down=index==channels.lastIndex).focusProperties{canFocus=navigation.region.wire=="channels";if(index==0)up=FocusRequester.Cancel;if(index==channels.lastIndex)down=FocusRequester.Cancel}.focusRequester(request),kind="playerRow",selected=c.id==candidate.id&&!InteractionStyle.pointer,onFocus={if(navigation.region.wire=="channels")candidateId=c.id},onClick={onSelect(c)}){
       Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically){
        if(showLogos)PlayerLogo(c,Modifier.width(widths.logo.dp).height(38.dp))
        Column(Modifier.weight(1f).padding(start=if(showLogos)10.dp else 0.dp)){
@@ -188,7 +202,7 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
         val program=app.epg.nowNext(c).first
         AppText(program?.title?:"暂无节目信息",fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1,overflow=TextOverflow.Ellipsis)
         val progress=programmeProgress(program,now)
-        Box(Modifier.fillMaxWidth().padding(top=5.dp).height(2.dp).background(NextTvStyle.Stroke,RoundedCornerShape(2.dp))){Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(NextTvStyle.Accent,RoundedCornerShape(2.dp)))}
+        Box(Modifier.fillMaxWidth().padding(top=5.dp).height(3.dp).background(NextTvStyle.PlayerProgressTrack,RoundedCornerShape(2.dp))){Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(NextTvStyle.PlayerProgressFill,RoundedCornerShape(2.dp)))}
        }
       }
      }
@@ -205,10 +219,10 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
      val request=remember(p.start){FocusRequester()};DisposableEffect(p.start,request){epgRequests[p.start]=request;onDispose{if(epgRequests[p.start]===request)epgRequests.remove(p.start)}}
      val live=now in p.start until p.stop
      val badge=if(live)"直播中"else if(p.stop<=now&&candidate.playbackRoutes.any{replayAddress(it,p,now)!=null})"回放"else""
-     TvSurface(Modifier.fillMaxWidth().heightIn(min=48.dp).focusRequester(request).focusEdges(up=index==0,down=index==programs.lastIndex).focusProperties{canFocus=navigation.region.wire=="epg";if(index==0)up=FocusRequester.Cancel;if(index==programs.lastIndex)down=FocusRequester.Cancel},kind="side",selected=live,onFocus={if(navigation.region.wire=="epg")epgFocusStart=p.start},onClick={onProgram(candidate,p)}){
+     TvSurface(Modifier.fillMaxWidth().heightIn(min=48.dp).focusRequester(request).focusEdges(up=index==0,down=index==programs.lastIndex).focusProperties{canFocus=navigation.region.wire=="epg";if(index==0)up=FocusRequester.Cancel;if(index==programs.lastIndex)down=FocusRequester.Cancel},kind="playerRow",selected=live,onFocus={if(navigation.region.wire=="epg")epgFocusStart=p.start},onClick={onProgram(candidate,p)}){
       BoxWithConstraints(Modifier.fillMaxWidth().align(Alignment.Center).padding(horizontal=10.dp,vertical=8.dp)){
        val compact=maxWidth<280.dp||androidx.compose.ui.platform.LocalConfiguration.current.fontScale>1.2f
-       val status:@Composable ()->Unit={if(badge.isNotBlank())AppText(badge,fontSize=InteractionStyle.caption,color=if(live)NextTvStyle.Text else NextTvStyle.Muted,fontWeight=if(live)androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,maxLines=1)}
+       val status:@Composable ()->Unit={if(badge.isNotBlank())BrowserBadge(badge,live)}
        if(compact)Column(Modifier.fillMaxWidth()){
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){AppText(Ui.hhmm(p.start),fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1);status()}
         AppText(p.title,Modifier.fillMaxWidth().padding(top=2.dp),fontSize=InteractionStyle.body,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
@@ -224,7 +238,7 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
     BrowserHeading("日期",centered=true)
     LazyColumn(flingBehavior=appFlingBehavior(),state=dateList,modifier=Modifier.continuousWheel(dateList),contentPadding=PaddingValues(horizontal=if(largeNarrowDate)2.dp else 6.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){items(days,key={it}){day->
      val date=remember(day){java.util.Calendar.getInstance().apply{add(java.util.Calendar.DAY_OF_YEAR,day)}.time}
-     TvSurface(Modifier.fillMaxWidth().heightIn(min=60.dp).focusRequester(dateRequests.getValue(day)).focusEdges(up=day==days.firstOrNull(),down=day==days.lastOrNull()).focusProperties{canFocus=navigation.region.wire=="dates";if(day==days.firstOrNull())up=FocusRequester.Cancel;if(day==days.lastOrNull())down=FocusRequester.Cancel},kind="side",selected=day==epgDay,onFocus={if(navigation.region==BrowserRegion.DATES)dateFocus=day},onClick={dateFocus=day;epgDay=day;focusEpg()}){
+     TvSurface(Modifier.fillMaxWidth().heightIn(min=60.dp).focusRequester(dateRequests.getValue(day)).focusEdges(up=day==days.firstOrNull(),down=day==days.lastOrNull()).focusProperties{canFocus=navigation.region.wire=="dates";if(day==days.firstOrNull())up=FocusRequester.Cancel;if(day==days.lastOrNull())down=FocusRequester.Cancel},kind="playerRow",selected=day==epgDay,onFocus={if(navigation.region==BrowserRegion.DATES)dateFocus=day},onClick={dateFocus=day;epgDay=day;focusEpg()}){
       Column(Modifier.fillMaxWidth().padding(vertical=10.dp),horizontalAlignment=Alignment.CenterHorizontally){
        AppText(if(day==0)"今天"else java.text.SimpleDateFormat("EEE",java.util.Locale.SIMPLIFIED_CHINESE).format(date),fontSize=InteractionStyle.body,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
        AppText(java.text.SimpleDateFormat("MM-dd",java.util.Locale.ROOT).format(date),fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.Center)

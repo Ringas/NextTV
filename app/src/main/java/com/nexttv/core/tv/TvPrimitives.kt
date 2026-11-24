@@ -115,24 +115,24 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
  val interactions=remember{MutableInteractionSource()}
  val hovered by interactions.collectIsHoveredAsState()
  val pressed by interactions.collectIsPressedAsState()
- val radius=when(kind){"setting","side"->InteractionStyle.sideRadius;"card","list","source"->InteractionStyle.cardRadius;"nav"->InteractionStyle.pillInnerRadius;"quick"->InteractionStyle.badgeRadius;else->InteractionStyle.radius}
+ val radius=when(kind){"setting","side"->InteractionStyle.sideRadius;"card","list","source"->InteractionStyle.cardRadius;"nav"->InteractionStyle.pillInnerRadius;"quick","playerRow"->InteractionStyle.badgeRadius;else->InteractionStyle.radius}
  // Navigation has exactly one shared moving capsule; never paint a second focus fill.
  val background=when{
   kind=="nav"->Color.Transparent
   !enabled->NextTvStyle.DisabledSurface
   pressed->NextTvStyle.Pressed
   visibleFocus||(hovered&&InteractionStyle.pointer)->NextTvStyle.Focus
-  selected->NextTvStyle.Selected
+  selected->if(kind=="playerRow")NextTvStyle.SpecNeutralFill else NextTvStyle.Selected
   kind=="source"->NextTvStyle.Surface
   kind=="quick"->NextTvStyle.SpecNeutralFill
-  card||kind=="setting"||kind=="side"||kind=="choice"->Color.Transparent
+  card||kind=="setting"||kind=="side"||kind=="playerRow"||kind=="choice"->Color.Transparent
   else->NextTvStyle.Button
  }
  val foreground=when{
   !enabled->NextTvStyle.Disabled
   kind=="danger"->NextTvStyle.Error
   kind=="nav"->if(selected||visibleFocus)NextTvStyle.Text else NextTvStyle.Muted
-  kind=="quick"->if(visibleFocus)NextTvStyle.Text else NextTvStyle.Muted
+  kind=="quick"->NextTvStyle.Text
   else->NextTvStyle.Text
  }
  val reduced=com.nexttv.core.App.get().prefs.reduceMotion
@@ -158,8 +158,8 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
      if(secondary){event.changes.forEach{it.consume()};if(event.type==PointerEventType.Release)secondary=false}
     }
    }
-  }.semantics{if(kind=="nav"||kind=="side"||selected)this.selected=selected}.then(if(focusReturn==null)Modifier.focusRequester(ownFocus)else Modifier).focusProperties{canFocus=enabled}.onFocusChanged{focused=it.isFocused;if(!it.hasFocus){holdJob?.cancel();holding=false};if(it.isFocused){rememberReturnTarget();if(FocusAudit.frame!=null)FocusAudit.generation++;onFocus?.invoke()}}
-  .then(if(kind=="card"||kind=="list")Modifier else Modifier.graphicsLayer()).drawWithContent{drawContent();if(visibleFocus)FocusAudit.frame?.invoke(FocusAudit.generation,android.os.SystemClock.uptimeMillis())}.drawWithCache{val outline=shape.createOutline(size,layoutDirection,this);val gloss=Brush.verticalGradient(listOf(Color(0x0CFFFFFF),Color.Transparent));onDrawBehind{val paintedFill=if(visibleFocus)background.copy(alpha=background.alpha*(.8f+.2f*emphasis.value))else background;drawOutline(outline,paintedFill);if(paintedFill.alpha>0f&&kind!="nav")drawOutline(outline,gloss)}}
+  }.semantics{if(kind=="nav"||kind=="side"||kind=="playerRow"||selected)this.selected=selected}.then(if(focusReturn==null)Modifier.focusRequester(ownFocus)else Modifier).focusProperties{canFocus=enabled}.onFocusChanged{focused=it.isFocused;if(!it.hasFocus){holdJob?.cancel();holding=false};if(it.isFocused){rememberReturnTarget();if(FocusAudit.frame!=null)FocusAudit.generation++;onFocus?.invoke()}}
+  .then(if(kind=="card"||kind=="list")Modifier else Modifier.graphicsLayer()).drawWithContent{drawContent();if(visibleFocus)FocusAudit.frame?.invoke(FocusAudit.generation,android.os.SystemClock.uptimeMillis())}.drawWithCache{val outline=shape.createOutline(size,layoutDirection,this);val gloss=Brush.verticalGradient(listOf(Color(0x0CFFFFFF),Color.Transparent));onDrawBehind{val paintedFill=if(visibleFocus)background.copy(alpha=background.alpha*(.8f+.2f*emphasis.value))else background;drawOutline(outline,paintedFill);if(paintedFill.alpha>0f&&kind!="nav"&&kind!="playerRow")drawOutline(outline,gloss);if(kind=="playerRow"&&(visibleFocus||selected)){val ink=if(visibleFocus)NextTvStyle.Text.copy(alpha=.55f)else NextTvStyle.Text.copy(alpha=.28f);drawOutline(outline,ink,style=androidx.compose.ui.graphics.drawscope.Stroke(width=.75.dp.toPx()))}}}
   .hoverable(interactions,enabled=enabled)
   .combinedClickable(enabled=enabled,role=if(kind=="nav")androidx.compose.ui.semantics.Role.Tab else if(kind=="choice")null else androidx.compose.ui.semantics.Role.Button,interactionSource=interactions,indication=null,onClick={shortAction()},onLongClick=onLongClick?.let{{longAction?.invoke()}},onLongClickLabel=longClickLabel?:if(onLongClick!=null)"更多操作"else null)){
   CompositionLocalProvider(LocalContentColor provides foreground,LocalAppForeground provides foreground,LocalSurfaceFocused provides visibleFocus){content()}

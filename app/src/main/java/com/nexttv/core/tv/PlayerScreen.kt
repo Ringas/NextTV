@@ -28,7 +28,6 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.*
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
@@ -328,7 +327,7 @@ import kotlin.math.roundToInt
 @Composable private fun QuickActionButton(label:String,description:String,modifier:Modifier,onFocus:()->Unit,onClick:()->Unit){
  TvSurface(modifier.widthIn(min=76.dp).height(34.dp).border(.75.dp,NextTvStyle.PlayerInfoBorder,RoundedCornerShape(InteractionStyle.badgeRadius)).semantics(mergeDescendants=true){contentDescription=description},kind="quick",onFocus=onFocus,onClick=onClick){
   Box(Modifier.align(Alignment.Center).padding(horizontal=12.dp),contentAlignment=Alignment.Center){
-   AppText(label,fontSize=12.sp,fontWeight=FontWeight.Medium,color=LocalContentColor.current,maxLines=1,overflow=TextOverflow.Clip,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+   AppText(label,fontSize=12.5.sp,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Clip,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
   }
  }
 }
