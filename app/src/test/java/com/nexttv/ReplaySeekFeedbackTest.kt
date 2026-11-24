@@ -2,6 +2,7 @@ package com.nexttv
 import com.nexttv.core.tv.replaySeekTarget
 import com.nexttv.core.tv.replayElapsed
 import com.nexttv.core.tv.replayHoldMultiplier
+import com.nexttv.core.tv.replaySeekAmount
 import org.junit.Assert.*
 import org.junit.Test
 class ReplaySeekFeedbackTest {
@@ -14,5 +15,13 @@ class ReplaySeekFeedbackTest {
   assertEquals(2,replayHoldMultiplier(700));assertEquals(2,replayHoldMultiplier(1599))
   assertEquals(4,replayHoldMultiplier(1600));assertEquals(4,replayHoldMultiplier(2999))
   assertEquals(8,replayHoldMultiplier(3000))
+ }
+ @Test fun seekAmountUsesReadableUnits(){
+  assertEquals("10 秒",replaySeekAmount(10000))
+  assertEquals("1 分",replaySeekAmount(60000))
+  assertEquals("1 分 30 秒",replaySeekAmount(90000))
+  assertEquals("1 小时",replaySeekAmount(3600000))
+  assertEquals("1 小时 1 分 1 秒",replaySeekAmount(3661000))
+  assertEquals("1 分 30 秒",replaySeekAmount(-90000))
  }
 }

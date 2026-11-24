@@ -347,7 +347,7 @@ import kotlin.math.roundToInt
 
 /** Optional frameless wall clock; visibility is controlled by the Time display menu. */
 @Composable private fun PlayerPersistentHud(now:Long,modifier:Modifier){
- AppText(Ui.hhmm(now),modifier.semantics{contentDescription="当前时间 ${Ui.hhmm(now)}"},fontSize=17.sp,fontWeight=FontWeight.Bold,color=Color.White,maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.82f),androidx.compose.ui.geometry.Offset(0f,1f),5f))
+ AppText(Ui.hhmm(now),modifier.semantics{contentDescription="当前时间 ${Ui.hhmm(now)}"},fontSize=22.sp,fontWeight=FontWeight.Bold,color=Color.White,maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.82f),androidx.compose.ui.geometry.Offset(0f,1f),5f))
 }
 
 private enum class BadgeTone{Neutral,Warm,Cool,Live}
