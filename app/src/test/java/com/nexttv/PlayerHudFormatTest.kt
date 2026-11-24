@@ -30,6 +30,7 @@ class PlayerHudFormatTest {
             }.timeInMillis
             assertEquals("11月24日", Ui.monthDay(now))
             assertEquals("星期二", Ui.weekday(now))
+            assertEquals("星期二 11月24日", "${Ui.weekday(now)} ${Ui.monthDay(now)}")
             assertEquals("10:30", Ui.hhmm(now))
         } finally {
             TimeZone.setDefault(old)

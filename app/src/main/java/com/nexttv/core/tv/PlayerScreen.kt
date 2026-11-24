@@ -295,9 +295,8 @@ import kotlin.math.roundToInt
      }
     }
     val clock:@Composable (Modifier)->Unit={m->Column(m.height(identityHeight),horizontalAlignment=Alignment.End,verticalArrangement=Arrangement.Center){
-      AppText(Ui.monthDay(now),fontSize=12.sp,fontWeight=FontWeight.Medium,color=NextTvStyle.Muted,maxLines=1)
-      AppText(Ui.weekday(now),Modifier.padding(top=1.dp*scale),fontSize=11.sp,fontWeight=FontWeight.Medium,color=NextTvStyle.Muted,maxLines=1)
-      AppText(Ui.hhmm(now),Modifier.padding(top=1.dp*scale),fontSize=18.sp,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.35f),androidx.compose.ui.geometry.Offset(0f,1f),3f))
+      AppText(Ui.hhmm(now),fontSize=20.sp,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.35f),androidx.compose.ui.geometry.Offset(0f,1f),3f))
+      AppText("${Ui.weekday(now)} ${Ui.monthDay(now)}",Modifier.padding(top=1.dp*scale),fontSize=11.sp,fontWeight=FontWeight.Medium,color=NextTvStyle.Muted,maxLines=1)
     }}
     if(programmeWidth<200.dp*scale)Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(9.dp)){
      Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){identity(Modifier.weight(1f));clock(Modifier.width(clockWidth).padding(start=8.dp))}
