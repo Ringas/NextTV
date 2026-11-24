@@ -319,7 +319,7 @@ import com.nexttv.observeGridDraws
  if(key.down&&key.action==InputAction.LEFT&&playing==null&&restoringHome){runCatching{nav[0].requestFocus()};true}else if(key.down&&key.action==InputAction.DOWN&&navFocused&&playing==null&&!sources&&dialog.isBlank()){enterContent();true}else false}.onGloballyPositioned{firstFrameReady=true}.focusRequester(returnAnchor).focusProperties{canFocus=returningToTop}.focusable().background(NextTvStyle.Home)){
 
   if(playing!=null){PlayerScreen(playing!!,onLaunchReady=onLaunchReady,onHome={resetCategory();playing=null;tab=0;restoringHome=true;revision++},onClose={current->if(app.prefs.startLive){onExit();return@PlayerScreen};if(tab==1)favoriteRestore.value=if(app.prefs.isFavorite(current))current.id else app.channels.channels.filter{app.prefs.isFavorite(it)}.minByOrNull{kotlin.math.abs(it.number-current.number)}?.id.orEmpty() else channelRestore.value=current.id;resetCategory();restoringHome=true;playing=null;revision++});return@Box}
-  if(channelDigits.isNotBlank())AppText(channelDigits,Modifier.align(Alignment.TopEnd).padding(20.dp),fontSize=24.sp,color=NextTvStyle.Text)
+  if(channelDigits.isNotBlank())AppText(channelDigits,Modifier.align(Alignment.TopEnd).padding(20.dp),fontSize=InteractionStyle.display,color=NextTvStyle.Text)
   Column(Modifier.fillMaxSize().padding(top=safeInsets.vertical.dp+58.dp)){
    when{
     sources->SourcesScreen(onBack={closeSources()},onChanged={revision++})

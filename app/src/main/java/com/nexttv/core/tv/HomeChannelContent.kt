@@ -63,7 +63,7 @@ internal fun HomeChannelTile(
             LaunchedEffect(channel.id) { withFrameNanos {}; favoriteAction.requestFocus() }
             Box(
                 Modifier.matchParentSize().onGloballyPositioned { onMenuBounds(it.boundsInWindow()) }
-                    .glassPanel(RoundedCornerShape(InteractionStyle.cardRadius)).padding(12.dp),
+                    .panelSurface(RoundedCornerShape(InteractionStyle.cardRadius)).padding(12.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 TvButton(

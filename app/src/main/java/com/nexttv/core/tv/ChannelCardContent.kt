@@ -55,7 +55,7 @@ private fun ChannelNumberBadge(channel: Channel) {
     .border(.75.dp, NextTvStyle.PlayerInfoBorder, RoundedCornerShape(InteractionStyle.badgeRadius)),
    contentAlignment = Alignment.Center,
   ) {
-   CardText(number, 11, NextTvStyle.Text, bold = true)
+   CardText(number, 10, NextTvStyle.Text, bold = true)
   }
  }
 }
@@ -93,7 +93,7 @@ private fun ChannelNumberBadge(channel: Channel) {
     ) {
      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
       CardText(Ui.displayName(c.name), 14, NextTvStyle.Text, bold = true)
-      CardText(caption, 11, NextTvStyle.Muted)
+      CardText(caption, 12, NextTvStyle.Muted)
      }
      ChannelNumberBadge(c)
     }

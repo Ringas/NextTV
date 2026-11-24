@@ -80,15 +80,7 @@ object NextTvStyle {
  val Error get()=tone(0xFFFFB4AB,0xFFA32B22)
  val TabActive get()=tone(0xFFF2F2F7,0xFF1C1C1E)
  val OnTabActive get()=tone(0xFF101114,0xFFFFFFFF)
- // tvOS 27 fusion, reduced: only the floating functional layer gets a wash,
- // a dark edge and a quiet specular line. Opacity stays high for legibility.
- val GlassReadingTop get()=tone(0xFA1C2129,0xFFFFFFFF)
- val GlassReadingBottom get()=tone(0xF3171A20,0xFFFAFBFD)
- val PlayerGlassTop get()=tone(0xF21A1D24,0xFAFFFFFF)
- val PlayerGlassBottom get()=tone(0xE6161920,0xFFF7F9FC)
- val GlassSpecular get()=tone(0x33FFFFFF,0x14FFFFFF)
- val GlassEdge get()=tone(0x59000000,0x241E2C3D)
- val GlassShadow get()=tone(0x59000000,0x2633455A)
+ // Flat surfaces share one graphite fill and one hairline; no glass tokens remain.
  val Panel get()=tone(0xF2181A21,0xFFFAFFFFFF)
  val Home get()=tone(0xFF0F1116,0xFFF3F6FA)
  val Decelerate=Easing {1f-(1f-it)*(1f-it)}
@@ -117,12 +109,13 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
  val interactions=remember{MutableInteractionSource()}
  val hovered by interactions.collectIsHoveredAsState()
  val pressed by interactions.collectIsPressedAsState()
- val radius=when(kind){"setting","side"->InteractionStyle.sideRadius;"card","list","source"->InteractionStyle.cardRadius;"nav"->InteractionStyle.pillInnerRadius;"quick","playerRow"->InteractionStyle.badgeRadius;"button","action","chip","danger"->InteractionStyle.controlRadius;else->InteractionStyle.radius}
+ val radius=when(kind){"setting","side"->InteractionStyle.sideRadius;"card","list","source"->InteractionStyle.cardRadius;"nav"->InteractionStyle.tabRadius;"quick","playerRow"->InteractionStyle.badgeRadius;"button","action","chip","danger"->InteractionStyle.controlRadius;else->InteractionStyle.radius}
  // Navigation has exactly one shared moving capsule; never paint a second focus fill.
  val background=when{
   kind=="nav"->Color.Transparent
   !enabled->NextTvStyle.DisabledSurface
   pressed->NextTvStyle.Pressed
+  kind=="setting"&&selected->NextTvStyle.TabActive
   visibleFocus||(hovered&&InteractionStyle.pointer)->NextTvStyle.Focus
   selected->if(kind=="playerRow")NextTvStyle.SpecNeutralFill else NextTvStyle.Selected
   kind=="source"->NextTvStyle.Surface
@@ -133,6 +126,7 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
  val foreground=when{
   !enabled->NextTvStyle.Disabled
   kind=="danger"->NextTvStyle.Error
+  kind=="setting"&&selected->NextTvStyle.OnTabActive
   kind=="nav"->if(selected||visibleFocus)NextTvStyle.Text else NextTvStyle.Muted
   kind=="quick"->NextTvStyle.Text
   else->NextTvStyle.Text
@@ -161,7 +155,7 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
     }
    }
   }.semantics{if(kind=="nav"||kind=="side"||kind=="playerRow"||selected)this.selected=selected}.then(if(focusReturn==null)Modifier.focusRequester(ownFocus)else Modifier).focusProperties{canFocus=enabled}.onFocusChanged{focused=it.isFocused;if(!it.hasFocus){holdJob?.cancel();holding=false};if(it.isFocused){rememberReturnTarget();if(FocusAudit.frame!=null)FocusAudit.generation++;onFocus?.invoke()}}
-  .then(if(kind=="card"||kind=="list")Modifier else Modifier.graphicsLayer()).drawWithContent{drawContent();if(visibleFocus)FocusAudit.frame?.invoke(FocusAudit.generation,android.os.SystemClock.uptimeMillis())}.drawWithCache{val outline=shape.createOutline(size,layoutDirection,this);val line=when(kind){"button","action","chip","danger","source"->NextTvStyle.PlayerInfoBorder;"setting","choice"->if(selected)NextTvStyle.PlayerInfoBorder else Color.Transparent;else->Color.Transparent};onDrawBehind{val paintedFill=if(visibleFocus)background.copy(alpha=background.alpha*(.8f+.2f*emphasis.value))else background;drawOutline(outline,paintedFill);if(kind=="playerRow"&&selected){drawOutline(outline,NextTvStyle.Text.copy(alpha=.28f),style=androidx.compose.ui.graphics.drawscope.Stroke(width=.75.dp.toPx()))}else if(line.alpha>0f)drawOutline(outline,line,style=androidx.compose.ui.graphics.drawscope.Stroke(width=.75.dp.toPx()))}}
+  .then(if(kind=="card"||kind=="list")Modifier else Modifier.graphicsLayer()).drawWithContent{drawContent();if(visibleFocus)FocusAudit.frame?.invoke(FocusAudit.generation,android.os.SystemClock.uptimeMillis())}.drawWithCache{val outline=shape.createOutline(size,layoutDirection,this);val line=when(kind){"button","action","chip","danger","source"->NextTvStyle.PlayerInfoBorder;"choice"->if(selected)NextTvStyle.PlayerInfoBorder else Color.Transparent;else->Color.Transparent};onDrawBehind{val paintedFill=if(visibleFocus)background.copy(alpha=background.alpha*(.8f+.2f*emphasis.value))else background;drawOutline(outline,paintedFill);if(kind=="playerRow"&&selected){drawOutline(outline,NextTvStyle.Text.copy(alpha=.28f),style=androidx.compose.ui.graphics.drawscope.Stroke(width=.75.dp.toPx()))}else if(line.alpha>0f)drawOutline(outline,line,style=androidx.compose.ui.graphics.drawscope.Stroke(width=.75.dp.toPx()))}}
   .hoverable(interactions,enabled=enabled)
   .combinedClickable(enabled=enabled,role=if(kind=="nav")androidx.compose.ui.semantics.Role.Tab else if(kind=="choice")null else androidx.compose.ui.semantics.Role.Button,interactionSource=interactions,indication=null,onClick={shortAction()},onLongClick=onLongClick?.let{{longAction?.invoke()}},onLongClickLabel=longClickLabel?:if(onLongClick!=null)"更多操作"else null)){
   CompositionLocalProvider(LocalContentColor provides foreground,LocalAppForeground provides foreground,LocalSurfaceFocused provides visibleFocus){content()}
@@ -204,7 +198,7 @@ internal val LocalStableDialogHost=staticCompositionLocalOf{false}
   }
   CenteredDialogContent({if(session.disposed)activity?.continueBackAfterDialog()else latestDismiss()}){
    Box(Modifier.graphicsLayer { alpha = reveal.value }
-    .glassReadingPanel(RoundedCornerShape(InteractionStyle.panelRadius))) {
+    .readingSurface(RoundedCornerShape(InteractionStyle.panelRadius))) {
     CompositionLocalProvider(LocalStableDialogHost provides true) { content() }
    }
   }
@@ -278,7 +272,7 @@ internal val LocalStableDialogHost=staticCompositionLocalOf{false}
    onDispose{if(window!=null&&window.callback===callback&&original!=null)window.callback=original}
   }
   androidx.activity.compose.BackHandler{if(imeHiding){if(imeSettled)latestDismiss()else dismissAfterIme=true}else if(imeVisible){hideInput()}else latestDismiss()}
-  Column(Modifier.semantics{isTraversalGroup=true;paneTitle=title}.onPreInterceptKeyBeforeSoftKeyboard{handleKey(it.nativeKeyEvent)}.onPreviewKeyEvent{handleKey(it.nativeKeyEvent)}.width(minOf(width,(androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp-48.dp).coerceAtLeast(240.dp))).heightIn(max=(androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp-48.dp).coerceIn(160.dp,480.dp)).then(if(embedded)Modifier else Modifier.glassReadingPanel(RoundedCornerShape(InteractionStyle.panelRadius))).padding(22.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+  Column(Modifier.semantics{isTraversalGroup=true;paneTitle=title}.onPreInterceptKeyBeforeSoftKeyboard{handleKey(it.nativeKeyEvent)}.onPreviewKeyEvent{handleKey(it.nativeKeyEvent)}.width(minOf(width,(androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp-48.dp).coerceAtLeast(240.dp))).heightIn(max=(androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp-48.dp).coerceIn(160.dp,480.dp)).then(if(embedded)Modifier else Modifier.readingSurface(RoundedCornerShape(InteractionStyle.panelRadius))).padding(22.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
    AppText(title,Modifier.semantics{heading()},color=NextTvStyle.Text,fontSize=InteractionStyle.heading*titleScale,fontWeight=FontWeight.Bold,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
    content()
   }

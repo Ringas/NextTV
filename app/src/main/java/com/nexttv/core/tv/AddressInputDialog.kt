@@ -57,7 +57,7 @@ import kotlinx.coroutines.*
    Box(Modifier.size(if(compact)144.dp else 180.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(InteractionStyle.radius)).background(androidx.compose.ui.graphics.Color.White),contentAlignment=Alignment.Center){
     val rendered=bitmap
     if(rendered!=null)Image(rendered.asImageBitmap(),"$fieldLabel 输入二维码",Modifier.fillMaxSize())
-    else AppText(if(status.isBlank())"正在生成二维码…"else"请手动输入",textAlign=androidx.compose.ui.text.style.TextAlign.Center,fontSize=12.sp,color=NextTvStyle.QrInk)
+    else AppText(if(status.isBlank())"正在生成二维码…"else"请手动输入",textAlign=androidx.compose.ui.text.style.TextAlign.Center,fontSize=InteractionStyle.caption,color=NextTvStyle.QrInk)
    }
    }
    val form:@Composable ()->Unit={

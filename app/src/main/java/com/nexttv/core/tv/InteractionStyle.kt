@@ -14,17 +14,21 @@ object InteractionStyle {
  val focusMillis=120
  val title=30.sp
  val heading=20.sp
- val panelRadius=16.dp
- val cardRadius=12.dp
- val pillRadius=28.dp
- val pillInnerRadius=23.dp
- val controlRadius=12.dp
  val subheading=16.sp
- val badgeRadius=6.dp
- val sideRadius=12.dp
- val radius=12.dp
  val body=14.sp
  val caption=12.sp
+ val captionSmall=11.sp
+ val micro=10.sp
+ val displayLarge=46.sp
+ val display=24.sp
+ val displaySmall=22.sp
+ val panelRadius=16.dp
+ val cardRadius=12.dp
+ val controlRadius=12.dp
+ val sideRadius=12.dp
+ val radius=12.dp
+ val badgeRadius=6.dp
+ val tabRadius=9.dp
 }
 
 internal fun homeColumnCount(widthDp:Int,grid:Boolean,heightDp:Int=Int.MAX_VALUE):Int=if(!grid)1 else if(heightDp<480&&widthDp in 600..899)3 else when{widthDp<720->2;widthDp<900->3;else->4}

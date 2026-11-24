@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
    val host=androidx.activity.compose.LocalActivity.current as? TvActivity
    val sample by rememberUpdatedState({org.json.JSONObject().put("tab",tab).put("x",x.value).put("target",target).put("scale",1f).put("width",width).put("height",46f).put("motionOff",reduced).put("homeCompositions",homeCompositions())})
    DisposableEffect(host){host?.navigationDiagnostics={sample()};onDispose{host?.navigationDiagnostics=null}}
-   Box(Modifier.align(Alignment.CenterStart).width(with(density){width.toDp()}).height(34.dp).graphicsLayer{translationX=x.value}.background(if(focused)NextTvStyle.TabActive else NextTvStyle.TabActive.copy(alpha=.88f),RoundedCornerShape(9.dp)))
+   Box(Modifier.align(Alignment.CenterStart).width(with(density){width.toDp()}).height(34.dp).graphicsLayer{translationX=x.value}.background(if(focused)NextTvStyle.TabActive else NextTvStyle.TabActive.copy(alpha=.88f),RoundedCornerShape(InteractionStyle.tabRadius)))
   }
   Row(Modifier.fillMaxHeight()){listOf("频道","收藏","设置").forEachIndexed{i,label->
    TvSurface(Modifier.fillMaxHeight().focusRequester(requests[i]).focusEdges(up=true,left=i==0,right=i==2).focusProperties{up=FocusRequester.Cancel;left=if(i==0)FocusRequester.Cancel else requests[i-1];right=if(i==2)FocusRequester.Cancel else requests[i+1]}.onGloballyPositioned{val value=it.positionInParent().x to it.size.width.toFloat();if(positions[i]!=value)positions[i]=value},kind="nav",selected=tab==i,focusReturn=requests[i],onFocus={onSelect(i)},onClick={onSelect(i);requests[i].requestFocus()}){
