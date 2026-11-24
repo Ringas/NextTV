@@ -1,18 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package com.nexttv.core.tv
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.nexttv.R
 
 data class SettingsRowData(
     val title: String,
@@ -48,7 +52,12 @@ fun SettingsRowContent(
             )
         }
         if (entry.action != null && entry.disclosure) {
-            AppText("›", color = NextTvStyle.Disabled, fontSize = 18.sp)
+            Image(
+                painterResource(R.drawable.ic_settings_disclosure),
+                contentDescription = null,
+                modifier = Modifier.size(13.dp),
+                colorFilter = ColorFilter.tint(NextTvStyle.Disabled)
+            )
         }
     }
 }

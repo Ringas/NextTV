@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="20dp" android:height="20dp"
+    android:width="24dp" android:height="24dp"
     android:viewportWidth="24" android:viewportHeight="24">
-    <path android:pathData="M4.4,5.8 Q4.4,4.4 5.8,4.4 L9.2,4.4 Q10.6,4.4 10.6,5.8 L10.6,9.2 Q10.6,10.6 9.2,10.6 L5.8,10.6 Q4.4,10.6 4.4,9.2 Z M13.4,5.8 Q13.4,4.4 14.8,4.4 L18.2,4.4 Q19.6,4.4 19.6,5.8 L19.6,9.2 Q19.6,10.6 18.2,10.6 L14.8,10.6 Q13.4,10.6 13.4,9.2 Z M4.4,14.8 Q4.4,13.4 5.8,13.4 L9.2,13.4 Q10.6,13.4 10.6,14.8 L10.6,18.2 Q10.6,19.6 9.2,19.6 L5.8,19.6 Q4.4,19.6 4.4,18.2 Z"
-        android:strokeColor="#FFFFFF" android:strokeWidth="1.8"
+    <!-- Half-filled circle: theme/appearance without a paint-palette cliché. -->
+    <path android:pathData="M12,4.0 A8.0,8.0 0 0,1 12,20.0 A8.0,8.0 0 0,1 12,4.0"
+        android:strokeColor="#FFFFFF" android:strokeWidth="2.0"
         android:strokeLineCap="round" android:strokeLineJoin="round" />
-    <path android:pathData="M14.8,13.4 L18.2,13.4 Q19.6,13.4 19.6,14.8 L19.6,18.2 Q19.6,19.6 18.2,19.6 L14.8,19.6 Q13.4,19.6 13.4,18.2 L13.4,14.8 Q13.4,13.4 14.8,13.4 Z"
-        android:fillColor="#FFFFFF" android:fillAlpha="0.9" />
+    <path android:pathData="M12,4.8 A7.2,7.2 0 0,1 12,19.2 L12,4.8 Z"
+        android:fillColor="#FFFFFF" android:fillAlpha="0.82" />
 </vector>
