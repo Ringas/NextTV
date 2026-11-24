@@ -295,8 +295,9 @@ import kotlin.math.roundToInt
      }
     }
     val clock:@Composable (Modifier)->Unit={m->Column(m.height(identityHeight),horizontalAlignment=Alignment.End,verticalArrangement=Arrangement.Center){
-      AppText(Ui.monthDay(now),fontSize=12.5.sp,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.45f),androidx.compose.ui.geometry.Offset(0f,1f),3f))
-      AppText(Ui.weekday(now),Modifier.padding(top=2.dp*scale),fontSize=11.sp,fontWeight=FontWeight.Medium,color=NextTvStyle.Muted,maxLines=1)
+      AppText(Ui.monthDay(now),fontSize=12.sp,fontWeight=FontWeight.Medium,color=NextTvStyle.Muted,maxLines=1)
+      AppText(Ui.weekday(now),Modifier.padding(top=1.dp*scale),fontSize=11.sp,fontWeight=FontWeight.Medium,color=NextTvStyle.Muted,maxLines=1)
+      AppText(Ui.hhmm(now),Modifier.padding(top=1.dp*scale),fontSize=18.sp,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.35f),androidx.compose.ui.geometry.Offset(0f,1f),3f))
     }}
     if(programmeWidth<200.dp*scale)Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(9.dp)){
      Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){identity(Modifier.weight(1f));clock(Modifier.width(clockWidth).padding(start=8.dp))}
@@ -317,7 +318,7 @@ import kotlin.math.roundToInt
       val label=when(id){"解码"->"解码方式";"线路"->"线路 ${engine.routeIndex+1}";"播放暂停"->if(playing)"暂停"else"继续播放";"收藏"->if(favorite)"取消收藏"else"添加收藏";"画面适配"->"画面适配";"返回直播"->"返回直播";else->id}
       val description=when(id){"解码"->"解码方式";"线路"->"当前线路 ${engine.routeIndex+1}，共 ${engine.routeCount} 条";"播放暂停"->if(playing)"暂停播放"else"继续播放";"收藏"->if(favorite)"取消收藏"else"添加收藏";"画面适配"->listOf("画面适应","画面填充","画面拉伸")[engine.aspect];"返回直播"->"返回直播";else->id}
       val buttonRequest=if(i==0)action else remember(id){FocusRequester()}
-      QuickActionTile(id,label,description,playing,favorite,Modifier.focusRequester(buttonRequest).focusEdges(up=engine.replay==null,down=true,left=i==0,right=i==actions.lastIndex).focusProperties{up=if(engine.replay!=null)replaySeek else FocusRequester.Cancel;down=FocusRequester.Cancel;if(i==0)left=FocusRequester.Cancel;if(i==actions.lastIndex)right=FocusRequester.Cancel},onFocus={replayActionReturn[0]=buttonRequest},onClick={onAction(id)})
+      QuickActionButton(label,description,Modifier.focusRequester(buttonRequest).focusEdges(up=engine.replay==null,down=true,left=i==0,right=i==actions.lastIndex).focusProperties{up=if(engine.replay!=null)replaySeek else FocusRequester.Cancel;down=FocusRequester.Cancel;if(i==0)left=FocusRequester.Cancel;if(i==actions.lastIndex)right=FocusRequester.Cancel},onFocus={replayActionReturn[0]=buttonRequest},onClick={onAction(id)})
      }}
     }
    }
@@ -325,26 +326,12 @@ import kotlin.math.roundToInt
  }
 }
 
-@Composable private fun QuickActionTile(id:String,label:String,description:String,playing:Boolean,favorite:Boolean,modifier:Modifier,onFocus:()->Unit,onClick:()->Unit){
- TvSurface(modifier.width(62.dp).height(52.dp).semantics(mergeDescendants=true){contentDescription=description},kind="action",onFocus=onFocus,onClick=onClick){
-  Column(Modifier.align(Alignment.Center),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
-   ControlIcon(glyphForAction(id,playing,favorite),Modifier.size(20.dp))
-   AppText(label,Modifier.padding(top=1.dp),fontSize=9.sp,fontWeight=FontWeight.Medium,color=LocalContentColor.current,maxLines=1,overflow=TextOverflow.Clip)
+@Composable private fun QuickActionButton(label:String,description:String,modifier:Modifier,onFocus:()->Unit,onClick:()->Unit){
+ TvSurface(modifier.widthIn(min=76.dp).height(34.dp).border(.75.dp,NextTvStyle.PlayerInfoBorder,RoundedCornerShape(InteractionStyle.badgeRadius)).semantics(mergeDescendants=true){contentDescription=description},kind="quick",onFocus=onFocus,onClick=onClick){
+  Box(Modifier.align(Alignment.Center).padding(horizontal=12.dp),contentAlignment=Alignment.Center){
+   AppText(label,fontSize=12.sp,fontWeight=FontWeight.Medium,color=LocalContentColor.current,maxLines=1,overflow=TextOverflow.Clip,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
   }
  }
-}
-
-private fun glyphForAction(id:String,playing:Boolean,favorite:Boolean):ControlGlyph=when(id){
- "播放暂停"->if(playing)ControlGlyph.Pause else ControlGlyph.Play
- "返回直播"->ControlGlyph.Live
- "线路"->ControlGlyph.Route
- "音轨"->ControlGlyph.Audio
- "画面适配"->ControlGlyph.Aspect
- "收藏"->if(favorite)ControlGlyph.FavoriteOn else ControlGlyph.Favorite
- "解码"->ControlGlyph.Codec
- "详情"->ControlGlyph.Info
- "主页"->ControlGlyph.Home
- else->ControlGlyph.Info
 }
 
 /** Optional frameless wall clock; visibility is controlled by the Time display menu. */

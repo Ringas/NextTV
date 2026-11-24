@@ -115,7 +115,7 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
  val interactions=remember{MutableInteractionSource()}
  val hovered by interactions.collectIsHoveredAsState()
  val pressed by interactions.collectIsPressedAsState()
- val radius=when(kind){"setting","side"->InteractionStyle.sideRadius;"card","list","source"->InteractionStyle.cardRadius;"nav"->InteractionStyle.pillInnerRadius;else->InteractionStyle.radius}
+ val radius=when(kind){"setting","side"->InteractionStyle.sideRadius;"card","list","source"->InteractionStyle.cardRadius;"nav"->InteractionStyle.pillInnerRadius;"quick"->InteractionStyle.badgeRadius;else->InteractionStyle.radius}
  // Navigation has exactly one shared moving capsule; never paint a second focus fill.
  val background=when{
   kind=="nav"->Color.Transparent
@@ -124,6 +124,7 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
   visibleFocus||(hovered&&InteractionStyle.pointer)->NextTvStyle.Focus
   selected->NextTvStyle.Selected
   kind=="source"->NextTvStyle.Surface
+  kind=="quick"->NextTvStyle.SpecNeutralFill
   card||kind=="setting"||kind=="side"||kind=="choice"->Color.Transparent
   else->NextTvStyle.Button
  }
@@ -131,6 +132,7 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
   !enabled->NextTvStyle.Disabled
   kind=="danger"->NextTvStyle.Error
   kind=="nav"->if(selected||visibleFocus)NextTvStyle.Text else NextTvStyle.Muted
+  kind=="quick"->if(visibleFocus)NextTvStyle.Text else NextTvStyle.Muted
   else->NextTvStyle.Text
  }
  val reduced=com.nexttv.core.App.get().prefs.reduceMotion
