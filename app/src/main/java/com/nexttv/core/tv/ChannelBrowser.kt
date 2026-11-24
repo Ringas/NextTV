@@ -47,11 +47,11 @@ import kotlinx.coroutines.flow.first
 }
 
 /** Programme status pill matching the info bar's badges: flat fill, hairline stroke, 4.5 dp corners. */
-@Composable private fun BrowserBadge(text:String,accent:Boolean){
+@Composable private fun BrowserBadge(text:String,accent:Boolean,modifier:Modifier=Modifier){
  val shape=RoundedCornerShape(4.5.dp)
  val fill=if(accent)NextTvStyle.AccentBadge else NextTvStyle.SpecNeutralFill
  val stroke=if(accent)NextTvStyle.AccentText.copy(alpha=.45f)else NextTvStyle.SpecNeutralStroke
- Box(Modifier.height(19.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale).background(fill,shape).border(.75.dp,stroke,shape).padding(horizontal=6.dp),contentAlignment=Alignment.Center){
+ Box(modifier.height(19.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale).background(fill,shape).border(.75.dp,stroke,shape).padding(horizontal=6.dp),contentAlignment=Alignment.Center){
   AppText(text,fontSize=10.sp,fontWeight=androidx.compose.ui.text.font.FontWeight.Bold,color=if(accent)NextTvStyle.AccentText else NextTvStyle.Muted,maxLines=1)
  }
 }
@@ -222,7 +222,8 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
      TvSurface(Modifier.fillMaxWidth().heightIn(min=48.dp).focusRequester(request).focusEdges(up=index==0,down=index==programs.lastIndex).focusProperties{canFocus=navigation.region.wire=="epg";if(index==0)up=FocusRequester.Cancel;if(index==programs.lastIndex)down=FocusRequester.Cancel},kind="playerRow",selected=live,onFocus={if(navigation.region.wire=="epg")epgFocusStart=p.start},onClick={onProgram(candidate,p)}){
       BoxWithConstraints(Modifier.fillMaxWidth().align(Alignment.Center).padding(horizontal=10.dp,vertical=8.dp)){
        val compact=maxWidth<280.dp||androidx.compose.ui.platform.LocalConfiguration.current.fontScale>1.2f
-       val status:@Composable ()->Unit={if(badge.isNotBlank())BrowserBadge(badge,live)}
+       val statusWidth=(48f*androidx.compose.ui.platform.LocalDensity.current.fontScale).dp
+       val status:@Composable ()->Unit={if(badge.isNotBlank())BrowserBadge(badge,live,Modifier.widthIn(min=statusWidth))}
        if(compact)Column(Modifier.fillMaxWidth()){
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){AppText(Ui.hhmm(p.start),fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1);status()}
         AppText(p.title,Modifier.fillMaxWidth().padding(top=2.dp),fontSize=InteractionStyle.body,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
