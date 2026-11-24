@@ -71,8 +71,7 @@ internal fun HomeHeader(
             AppText(subtitle, fontSize = InteractionStyle.body, color = NextTvStyle.Muted, modifier = Modifier.padding(top = 4.dp), maxLines = 1)
         }
         if (showCategory) {
-            TvButton(
-                "分类",
+            TvSurface(
                 Modifier
                     .semantics { contentDescription = "频道分类：$title" }
                     .focusRequester(first)
@@ -82,10 +81,15 @@ internal fun HomeHeader(
                         right = FocusRequester.Cancel
                         down = categoryDown
                     },
+                kind = "text",
                 onFocus = onFocus,
                 focusReturn = first,
                 onClick = onCategoryClick
-            )
+            ) {
+                Box(Modifier.heightIn(min = 40.dp).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
+                    AppText("分类  ›", color = NextTvStyle.Ivory, fontSize = InteractionStyle.body, maxLines = 1)
+                }
+            }
         }
     }
 }

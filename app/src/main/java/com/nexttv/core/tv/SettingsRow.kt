@@ -39,13 +39,14 @@ fun SettingsRowContent(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        AppText(entry.title, Modifier.weight(1f), color = NextTvStyle.Text, fontSize = InteractionStyle.body, maxLines = 2)
+        val focused = LocalSurfaceFocused.current
+        AppText(entry.title, Modifier.weight(1f), color = if (focused) NextTvStyle.Ivory else NextTvStyle.Text, fontSize = InteractionStyle.body, maxLines = 2)
         if (entry.value.isNotBlank()) {
             AppText(
                 entry.value,
                 if (category == "关于") Modifier.weight(1.5f)
                 else Modifier.widthIn(max = if (narrow) 94.dp else 144.dp),
-                color = NextTvStyle.Muted,
+                color = if (focused) NextTvStyle.Ivory else NextTvStyle.Muted,
                 fontSize = InteractionStyle.caption,
                 textAlign = TextAlign.End,
                 maxLines = if (category == "关于") Int.MAX_VALUE else 2
@@ -56,7 +57,7 @@ fun SettingsRowContent(
                 painterResource(R.drawable.ic_settings_disclosure),
                 contentDescription = null,
                 modifier = Modifier.size(13.dp),
-                colorFilter = ColorFilter.tint(NextTvStyle.Disabled)
+                colorFilter = ColorFilter.tint(if (focused) NextTvStyle.Ivory else NextTvStyle.Disabled)
             )
         }
     }

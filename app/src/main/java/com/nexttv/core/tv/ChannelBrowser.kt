@@ -46,15 +46,15 @@ import kotlinx.coroutines.flow.first
  }
 }
 
-/** Programme status: live is the accent pill, replay is quiet secondary text. */
-@Composable private fun BrowserBadge(text:String,accent:Boolean,quiet:Boolean=false){
- val shape=RoundedCornerShape(InteractionStyle.badgeRadius)
- val fill=if(accent)NextTvStyle.AccentBadge else NextTvStyle.SpecNeutralFill
- val stroke=if(accent)NextTvStyle.AccentText.copy(alpha=.45f)else NextTvStyle.SpecNeutralStroke
- val decoration=if(quiet)Modifier else Modifier.background(fill,shape).border(.75.dp,stroke,shape)
- val sizing=if(quiet)Modifier else Modifier.height(19.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale)
- Box(sizing.then(decoration).padding(horizontal=if(quiet)2.dp else 6.dp),contentAlignment=Alignment.Center){
-  AppText(if(quiet)"· $text" else text,fontSize=InteractionStyle.micro,fontWeight=if(quiet)androidx.compose.ui.text.font.FontWeight.Medium else androidx.compose.ui.text.font.FontWeight.Bold,color=if(accent)NextTvStyle.AccentText else NextTvStyle.Muted.copy(alpha=if(quiet).72f else 1f),maxLines=1)
+/** Programme status: live is a red dot and plain text; replay is quiet secondary text. */
+@Composable private fun BrowserBadge(text:String,accent:Boolean){
+ if(accent){
+  Row(Modifier.height(19.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale).padding(horizontal=2.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)){
+   Box(Modifier.size(5.dp).background(NextTvStyle.Live,RoundedCornerShape(50)))
+   AppText(if(text=="直播中")"直播" else text,fontSize=InteractionStyle.micro,fontWeight=androidx.compose.ui.text.font.FontWeight.Bold,color=NextTvStyle.Live,maxLines=1)
+  }
+ }else{
+  AppText("· $text",Modifier.padding(horizontal=2.dp),fontSize=InteractionStyle.micro,fontWeight=androidx.compose.ui.text.font.FontWeight.Medium,color=NextTvStyle.Muted.copy(alpha=.72f),maxLines=1)
  }
 }
 
@@ -196,7 +196,7 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
    LazyColumn(flingBehavior=appFlingBehavior(),state=list,modifier=Modifier.continuousWheel(list),contentPadding=PaddingValues(start=12.dp,end=8.dp,top=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
     itemsIndexed(channels,key={_,it->it.id}){index,c->val request=remember(c.id){FocusRequester()}
      DisposableEffect(c.id){requests[c.id]=request;onDispose{if(requests[c.id]===request)requests.remove(c.id)}}
-     TvSurface(Modifier.fillMaxWidth().semantics{stateDescription=if(c.id==current.id)if(playingPaused)"已暂停"else if(playingReplay)"正在播放回放"else"正在播放直播"else if(c.id==candidate.id)"正在浏览"else""}.heightIn(min=64.dp).focusEdges(up=index==0,down=index==channels.lastIndex).focusProperties{canFocus=navigation.region.wire=="channels";if(index==0)up=FocusRequester.Cancel;if(index==channels.lastIndex)down=FocusRequester.Cancel}.focusRequester(request),kind="playerRow",selected=c.id==candidate.id&&!InteractionStyle.pointer,onFocus={if(navigation.region.wire=="channels")candidateId=c.id},onClick={onSelect(c)}){
+     TvSurface(Modifier.fillMaxWidth().semantics{stateDescription=if(c.id==current.id)if(playingPaused)"已暂停"else if(playingReplay)"正在播放回放"else"正在播放直播"else if(c.id==candidate.id)"正在浏览"else""}.heightIn(min=64.dp).focusEdges(up=index==0,down=index==channels.lastIndex).focusProperties{canFocus=navigation.region.wire=="channels";if(index==0)up=FocusRequester.Cancel;if(index==channels.lastIndex)down=FocusRequester.Cancel}.focusRequester(request),kind="channelRow",selected=c.id==candidate.id&&!InteractionStyle.pointer,onFocus={if(navigation.region.wire=="channels")candidateId=c.id},onClick={onSelect(c)}){
       Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically){
        if(showLogos)PlayerLogo(c,Modifier.width(widths.logo.dp).height(38.dp))
        Column(Modifier.weight(1f).padding(start=if(showLogos)10.dp else 0.dp)){
@@ -225,7 +225,7 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
       Row(Modifier.fillMaxWidth().align(Alignment.Center).padding(horizontal=10.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically){
        AppText(Ui.hhmm(p.start),Modifier.width(48.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale),fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End,fontFeatureSettings="tnum")
        AppText(p.title,Modifier.weight(1f).padding(start=10.dp,end=10.dp),fontSize=InteractionStyle.body,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
-       if(badge.isNotBlank())BrowserBadge(badge,live,quiet=!live)
+       if(badge.isNotBlank())BrowserBadge(badge,live)
       }
      }
     }}

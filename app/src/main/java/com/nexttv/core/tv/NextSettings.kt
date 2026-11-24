@@ -109,7 +109,7 @@ private typealias SettingsEntry = SettingsRowData
  fun enterContent(){scope.launch{withFrameNanos{};entries.firstOrNull{it.action!=null}?.let{contentRequests["$category/${it.title}"]?.requestFocus()}}}
  val configuration=LocalConfiguration.current
  val narrow=configuration.screenWidthDp<800
- val bodyHeight=(32f*LocalDensity.current.fontScale.coerceAtLeast(1f)+24f).dp
+ val bodyHeight=(28f*LocalDensity.current.fontScale.coerceAtLeast(1f)+18f).dp
  // A bounded reading canvas keeps values beside their labels on wide televisions.
  // Short windows retain scrolling, rather than shrinking typography or focus targets.
  BoxWithConstraints(Modifier.fillMaxSize(),contentAlignment=Alignment.TopCenter){
@@ -119,28 +119,29 @@ private typealias SettingsEntry = SettingsRowData
   Column(Modifier.weight(if(narrow).36f else .31f).fillMaxHeight()){
    // Align the first category with the first content row, without repeating the selected tab title.
    Spacer(Modifier.height((InteractionStyle.heading.value*1.4f*LocalDensity.current.fontScale).dp+28.dp))
-   Column(Modifier.fillMaxWidth().appVerticalScroll(rememberScrollState()).padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+   Column(Modifier.fillMaxWidth().appVerticalScroll(rememberScrollState()).padding(12.dp),verticalArrangement=Arrangement.spacedBy(2.dp)){
     settingsCategories.forEachIndexed{index,name->
      val key="分类/$name";val request=categories.getValue(name)
      DisposableEffect(key,request){navigation.rows[key]=request;onDispose{navigation.rows.remove(key)}}
-     TvSurface(Modifier.fillMaxWidth().focusRequester(request).focusEdges(left=true,down=index==settingsCategories.lastIndex).focusProperties{left=FocusRequester.Cancel;right=FocusRequester.Cancel;if(index==0)up=navigation.top?:FocusRequester.Default;if(index==settingsCategories.lastIndex)down=FocusRequester.Cancel}.onPreviewKeyEvent{e->if(e.nativeKeyEvent.action==android.view.KeyEvent.ACTION_DOWN&&TvInput.action(e.nativeKeyEvent.keyCode)==InputAction.RIGHT){enterContent();true}else false},kind="setting",selected=category==name,onFocus={
+     TvSurface(Modifier.fillMaxWidth().focusRequester(request).focusEdges(left=true,down=index==settingsCategories.lastIndex).focusProperties{left=FocusRequester.Cancel;right=FocusRequester.Cancel;if(index==0)up=navigation.top?:FocusRequester.Default;if(index==settingsCategories.lastIndex)down=FocusRequester.Cancel}.onPreviewKeyEvent{e->if(e.nativeKeyEvent.action==android.view.KeyEvent.ACTION_DOWN&&TvInput.action(e.nativeKeyEvent.keyCode)==InputAction.RIGHT){enterContent();true}else false},kind="category",selected=category==name,onFocus={
       pendingRestore?.cancel();inContent=false;onContentFocus();navigation.row=key;navigation.group=name
       if(category!=name){category=name;subpage="";scope.launch{navigation.scroll.scrollTo(0)}}
       explanation=when(name){"订阅与节目单"->"管理频道订阅与节目单。";"播放"->"设置启动方式、换台体验与播放信息。";"频道与外观"->"调整频道展示与动态效果。";"高级"->"配置特殊订阅服务的网络要求。";else->""}
      },onClick={if(InteractionStyle.pointer)runCatching{request.requestFocus()}else enterContent()}){Row(Modifier.fillMaxWidth().height(bodyHeight).padding(horizontal=12.dp,vertical=10.dp),verticalAlignment=Alignment.CenterVertically){
-      AppText(name,Modifier.weight(1f),color=if(category==name)NextTvStyle.OnTabActive else NextTvStyle.Muted,fontSize=InteractionStyle.body,fontWeight=if(category==name)FontWeight.SemiBold else FontWeight.Normal,maxLines=2)
+      AppText(name,Modifier.weight(1f),color=if(category==name)NextTvStyle.Ivory else NextTvStyle.Muted,fontSize=InteractionStyle.body,fontWeight=if(category==name)FontWeight.SemiBold else FontWeight.Normal,maxLines=2)
      }}
     }
    }
   }
   Column(Modifier.weight(if(narrow).64f else .69f).fillMaxHeight()){
-   AppText(subpage.ifBlank{category},Modifier.padding(start=12.dp,bottom=18.dp),color=NextTvStyle.Text,fontSize=InteractionStyle.heading,fontWeight=FontWeight.SemiBold,maxLines=1)
+   AppText(subpage.ifBlank{category},Modifier.padding(start=12.dp,bottom=8.dp),color=NextTvStyle.Text,fontSize=InteractionStyle.heading,fontWeight=FontWeight.SemiBold,maxLines=1)
+   AppText(when(category){"订阅与节目单"->"管理频道订阅、节目单来源与自动更新。";"播放"->"设置启动方式、换台体验和播放信息。";"频道与外观"->"调整频道展示、主题与动态效果。";"高级"->"配置网络请求、协议限制与缓存。";else->"应用版本与设备信息。"},Modifier.padding(start=12.dp,bottom=16.dp),color=NextTvStyle.Muted,fontSize=InteractionStyle.caption,maxLines=2)
    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()){
    val availableHeight=maxHeight
    // Explanation travels with the card, without drifting to the screen's bottom edge.
    Column(Modifier.fillMaxWidth()){
    val helpHeight=(InteractionStyle.caption.value*1.4f*LocalDensity.current.fontScale*2+24).dp.coerceAtLeast(64.dp)
-   Column(Modifier.fillMaxWidth().heightIn(max=(availableHeight-helpHeight).coerceAtLeast(bodyHeight)).panelSurface(RoundedCornerShape(InteractionStyle.panelRadius)).padding(12.dp).onGloballyPositioned{navigation.viewport=it}.appVerticalScroll(navigation.scroll).padding(vertical=10.dp)){
+   Column(Modifier.fillMaxWidth().heightIn(max=(availableHeight-helpHeight).coerceAtLeast(bodyHeight)).padding(horizontal=12.dp).onGloballyPositioned{navigation.viewport=it}.appVerticalScroll(navigation.scroll).padding(vertical=10.dp)){
     entries.forEachIndexed{index,entry->
      val key="$category/${entry.title}";val request=remember(key){FocusRequester()}
      DisposableEffect(key,request){if(entry.action!=null){contentRequests[key]=request;navigation.rows[key]=request};onDispose{contentRequests.remove(key);navigation.rows.remove(key);navigation.coordinates.remove(key)}}

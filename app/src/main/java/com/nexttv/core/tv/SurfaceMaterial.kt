@@ -4,21 +4,38 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 
 /**
- * APTV/iPlayTV direction: one flat dark surface, one hairline border, no glass,
- * no shadow and no nested material. Used by content panels, dialogs and player chrome.
+ * Nocturne: content brings the colour, chrome stays graphite. One flat fill and one
+ * hairline per surface. Glass and gloss are not part of the system.
  */
 internal fun Modifier.panelSurface(shape: Shape): Modifier =
     background(NextTvStyle.Panel, shape).border(.75.dp, NextTvStyle.PlayerInfoBorder, shape)
 
-/** Dialogs and transient notices share the same flat surface as the rest of the app. */
+/** Transient notices and replay feedback: flat, hairline, no lift. */
 internal fun Modifier.readingSurface(shape: Shape): Modifier = panelSurface(shape)
 
-/** Floating player bar: flat panel over video, radius from the shared 16/12/6 scale. */
-internal fun Modifier.playerBarSurface(shape: Shape): Modifier = panelSurface(shape)
+/** Modal sheets are the only layer allowed a soft shadow, so they read above the scrim. */
+internal fun Modifier.dialogSurface(shape: Shape): Modifier =
+    shadow(18.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = .35f), spotColor = Color.Black.copy(alpha = .45f))
+        .background(NextTvStyle.Surface, shape)
+        .border(.75.dp, NextTvStyle.PlayerInfoBorder, shape)
+
+/** Player chrome: a full-width cinematic scrim instead of an opaque rounded panel. */
+internal fun Modifier.playerScrim(): Modifier = drawBehind {
+    drawRect(
+        Brush.verticalGradient(
+            0f to Color.Transparent,
+            .28f to Color.Black.copy(alpha = .35f),
+            1f to Color.Black.copy(alpha = .9f)
+        )
+    )
+}
 
 /** Player browser rail: full-height flat surface with one vertical hairline. */
 internal fun Modifier.playerSidebarSurface(extent: () -> Float): Modifier = drawBehind {

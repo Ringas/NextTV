@@ -54,7 +54,7 @@ internal fun HomeChannelTile(
             },
         kind = if (columns == 1) "list" else "card",
         focusReturn = request, onFocus = onFocus, onLongClick = onLongClick,
-        longClickLabel = "收藏操作", onClick = onClick,
+        longClickLabel = "收藏操作", focusRing = false, onClick = onClick,
     ) {
         ChannelCardContent(channel, caption, favorite, tab != 1, columns == 1,
             preview = previewSlot != null, previewRunning = previewRunning, previewSlot = previewSlot ?: 0)

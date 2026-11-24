@@ -227,7 +227,10 @@ import kotlin.math.roundToInt
   Box(Modifier.fillMaxSize().pointerInput(Unit){awaitPointerEventScope{var secondaryHeld=false;while(true){val event=awaitPointerEvent(PointerEventPass.Initial);if(event.type==PointerEventType.Press&&event.buttons.isSecondaryPressed){secondaryHeld=true;showBars(true)};if(secondaryHeld){event.changes.forEach{it.consume()};if(event.type==PointerEventType.Release)secondaryHeld=false};if(actionsVisible&&(event.type==PointerEventType.Press||event.type==PointerEventType.Scroll))deadline=System.currentTimeMillis()+InteractionStyle.actionsMillis}}}.pointerInput(side,bars){detectTapGestures(onLongPress={showBars(true)},onTap={if(side||actionsVisible)dismissOverlays()else openSide()})})
   if(onLaunchReady==null&&engine.loading&&engine.error.isBlank())Column(Modifier.align(Alignment.Center).padding(horizontal=36.dp,vertical=24.dp),horizontalAlignment=Alignment.CenterHorizontally){if(app.prefs.reduceMotion)AppText("◌",fontSize=InteractionStyle.title,color=androidx.compose.ui.graphics.Color.White)else androidx.compose.material3.CircularProgressIndicator(Modifier.size(42.dp),color=NextTvStyle.Accent);AppText("正在连接…",shadow=androidx.compose.ui.graphics.Shadow(Color.Black,androidx.compose.ui.geometry.Offset(0f,1f),4f),fontSize=InteractionStyle.body,color=androidx.compose.ui.graphics.Color.White,modifier=Modifier.padding(top=12.dp))}
   if(engine.error.isNotBlank())AppText(engine.error,textAlign=androidx.compose.ui.text.style.TextAlign.Center,color=NextTvStyle.Error,fontSize=InteractionStyle.body,modifier=Modifier.align(Alignment.Center).padding(horizontal=32.dp).widthIn(max=620.dp).readingSurface(RoundedCornerShape(InteractionStyle.panelRadius)).padding(horizontal=28.dp,vertical=22.dp))
-  if(bars&&dialog!="播放详情")PlayerBottomBar(engine,tick,actionsVisible,actionFocus,onActionFocus={actionFocused=it},onAction={perform(it)},modifier=Modifier.align(Alignment.BottomCenter).onSizeChanged{bottomPanelHeight=it.height})
+  if(bars&&dialog!="播放详情"){
+  Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height((LocalConfiguration.current.screenHeightDp*.42f).dp).playerScrim())
+  PlayerBottomBar(engine,tick,actionsVisible,actionFocus,onActionFocus={actionFocused=it},onAction={perform(it)},modifier=Modifier.align(Alignment.BottomCenter).onSizeChanged{bottomPanelHeight=it.height})
+ }
   val clockMode=app.prefs.playerClockMode
   if(!side&&dialog.isBlank()&&digits.isBlank()&&engine.error.isBlank()&&engine.ready&&playerClockVisible(clockMode,tick))PlayerPersistentHud(tick,Modifier.align(Alignment.TopEnd).padding(top=18.dp,end=26.dp))
   if(side)key(engine.current.sourceId,sideGeneration){ChannelSidePanel(engine.current,group,sideGeneration,onGroup={group=it},onSelect={if(it.id!=engine.current.id)engine.tune(it);side=false;root.requestFocus()},controller=browserController,onCloseAll={dismissOverlays()},playingReplay=engine.replay!=null,playingPaused=engine.ready&&!engine.player.playWhenReady,onProgram={c,p->if(engine.playReplay(c,p)){side=false;root.requestFocus()}else if(System.currentTimeMillis() in p.start until p.stop){engine.tune(c);side=false;root.requestFocus()}else if(p.desc.isNotBlank()){selectedProgram=p;dialog="节目详情"}else notice=if(p.start>System.currentTimeMillis())"节目尚未开始"else"该节目暂不支持回放"},modifier=Modifier.align(Alignment.CenterStart))}
@@ -276,7 +279,7 @@ import kotlin.math.roundToInt
   val panelWidth=maxWidth*playerPanelFraction(maxWidth.value)
   val bottomInset = (maxHeight * .035f).coerceIn(14.dp, 26.dp)
   val infoPadding = (maxHeight * .017f).coerceIn(9.dp, 12.dp)
-  Column(Modifier.align(Alignment.BottomCenter).width(panelWidth).padding(bottom=bottomInset).replayTimelineInput(replayInput,engine.replay!=null&&actionsVisible).onFocusChanged{onActionFocus(it.hasFocus)}.focusGroup().playerBarSurface(RoundedCornerShape(InteractionStyle.panelRadius)).padding(horizontal=20.dp).padding(top=infoPadding,bottom=if(actionsVisible)9.dp else infoPadding)){
+  Column(Modifier.align(Alignment.BottomCenter).width(panelWidth).padding(bottom=bottomInset).replayTimelineInput(replayInput,engine.replay!=null&&actionsVisible).onFocusChanged{onActionFocus(it.hasFocus)}.focusGroup().padding(horizontal=20.dp).padding(top=infoPadding,bottom=if(actionsVisible)9.dp else infoPadding)){
    BoxWithConstraints(Modifier.fillMaxWidth()){
     val gap=14.dp
     val logoWidth=identityHeight*1.22f
@@ -299,7 +302,8 @@ import kotlin.math.roundToInt
      Column(m){
       AppText(current?.title?:"暂无节目信息",Modifier.fillMaxWidth().height(27.dp*scale),fontSize=InteractionStyle.heading,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
       Row(Modifier.fillMaxWidth().padding(top=3.dp*scale).height(20.dp*scale),verticalAlignment=Alignment.CenterVertically){
-       if(current!=null){InfoBadge(if(engine.ready&&!engine.player.playWhenReady)"已暂停"else if(engine.replay!=null)"回放中"else"直播中",tone=BadgeTone.Live);AppText("${Ui.hhmm(current.start)}–${Ui.hhmm(current.stop)}"+(next?.let{" · 接下来 ${Ui.hhmm(it.start)} ${it.title}"}?:""),Modifier.weight(1f).padding(start=7.dp),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,overflow=TextOverflow.Ellipsis)}
+       if(current!=null){val liveNow=engine.replay==null&&!(engine.ready&&!engine.player.playWhenReady)
+       InfoBadge(if(engine.ready&&!engine.player.playWhenReady)"已暂停"else if(engine.replay!=null)"回放中"else"直播中",tone=if(liveNow)BadgeTone.Live else BadgeTone.Neutral);AppText("${Ui.hhmm(current.start)}–${Ui.hhmm(current.stop)}"+(next?.let{" · 接下来 ${Ui.hhmm(it.start)} ${it.title}"}?:""),Modifier.weight(1f).padding(start=7.dp),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,overflow=TextOverflow.Ellipsis)}
       }
       val progress=if(engine.replay!=null)playbackFraction(engine.player.currentPosition,timelineDuration)else programmeProgress(current,now)
       if(engine.replay!=null)ReplayTimeline(engine.player.currentPosition,timelineDuration,actionsVisible,replaySeek,replayInput,returnToAction={runCatching{replayActionReturn[0].requestFocus()}},onSeek={engine.seekReplay(it)},modifier=Modifier.fillMaxWidth().padding(top=5.dp).height(3.dp))
@@ -338,9 +342,9 @@ import kotlin.math.roundToInt
 }
 
 @Composable private fun QuickActionButton(label:String,description:String,modifier:Modifier,onFocus:()->Unit,onClick:()->Unit){
- TvSurface(modifier.widthIn(min=76.dp).height(34.dp).border(.75.dp,NextTvStyle.PlayerInfoBorder,RoundedCornerShape(InteractionStyle.badgeRadius)).semantics(mergeDescendants=true){contentDescription=description},kind="quick",onFocus=onFocus,onClick=onClick){
-  Box(Modifier.align(Alignment.Center).padding(horizontal=12.dp),contentAlignment=Alignment.Center){
-   AppText(label,fontSize=InteractionStyle.caption,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Clip,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+ TvSurface(modifier.widthIn(min=58.dp).heightIn(min=40.dp).semantics(mergeDescendants=true){contentDescription=description},kind="text",onFocus=onFocus,onClick=onClick){
+  Box(Modifier.align(Alignment.Center).padding(horizontal=10.dp),contentAlignment=Alignment.Center){
+   AppText(label,fontSize=InteractionStyle.caption,fontWeight=FontWeight.Medium,maxLines=1,overflow=TextOverflow.Clip,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
   }
  }
 }
@@ -356,8 +360,12 @@ private enum class BadgeTone{Neutral,Warm,Cool,Live}
  val shape=RoundedCornerShape(InteractionStyle.badgeRadius)
  val fill=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmFill;BadgeTone.Cool->NextTvStyle.SpecCoolFill;BadgeTone.Live->NextTvStyle.AccentBadge;else->NextTvStyle.SpecNeutralFill}
  val stroke=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmStroke;BadgeTone.Cool->NextTvStyle.SpecCoolStroke;BadgeTone.Live->NextTvStyle.AccentText.copy(alpha=.45f);else->NextTvStyle.SpecNeutralStroke}
- val ink=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmText;BadgeTone.Cool->NextTvStyle.SpecCoolText;BadgeTone.Live->NextTvStyle.AccentText;else->NextTvStyle.Muted}
- Box(modifier.height(19.dp*LocalDensity.current.fontScale).then(if(bordered)Modifier.background(fill,shape).border(.75.dp,stroke,shape)else Modifier).padding(horizontal=horizontalPadding),contentAlignment=Alignment.Center){
+ val ink=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmText;BadgeTone.Cool->NextTvStyle.SpecCoolText;BadgeTone.Live->NextTvStyle.Live;else->NextTvStyle.Muted}
+ val height=19.dp*LocalDensity.current.fontScale
+ if(tone==BadgeTone.Live)Row(modifier.height(height).padding(horizontal=horizontalPadding),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)){
+  Box(Modifier.size(5.dp).background(NextTvStyle.Live,RoundedCornerShape(50)))
+  AppText(value,fontSize=fontSize,fontWeight=FontWeight.Bold,color=NextTvStyle.Live,maxLines=1)
+ }else Box(modifier.height(height).then(if(bordered)Modifier.background(fill,shape).border(.75.dp,stroke,shape)else Modifier).padding(horizontal=horizontalPadding),contentAlignment=Alignment.Center){
   AppText(value,fontSize=fontSize,fontWeight=FontWeight.Bold,color=if(bordered)ink else NextTvStyle.Muted,maxLines=1)
  }
 }

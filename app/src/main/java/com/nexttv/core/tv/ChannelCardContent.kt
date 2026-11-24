@@ -7,8 +7,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -19,7 +22,7 @@ import androidx.compose.ui.unit.*
 import com.nexttv.core.data.Channel
 import com.nexttv.core.ui.Ui
 
-private val artworkBrushes = listOf(
+private val artworkColors = listOf(
  Color(0xFF4B6C8C) to Color(0xFF89A7C2),
  Color(0xFF587E68) to Color(0xFF93AE9B),
  Color(0xFF87654A) to Color(0xFFB79E86),
@@ -28,7 +31,24 @@ private val artworkBrushes = listOf(
  Color(0xFF527B77) to Color(0xFF87AAA6),
  Color(0xFF7A6F55) to Color(0xFFA9A08B),
  Color(0xFF5D6E8C) to Color(0xFF8C9EB8),
-).map { (base, highlight) -> Brush.linearGradient(listOf(base, highlight)) }
+)
+private val artworkBrushes = artworkColors.map { (base, highlight) -> Brush.linearGradient(listOf(base, highlight)) }
+
+private fun artworkIndex(c: Channel): Int = (if (c.number > 0) c.number - 1 else c.id.hashCode() and Int.MAX_VALUE)
+
+/** One stable artwork tint per channel, shared by cards and the ambient home backdrop. */
+internal fun channelArtworkBrush(c: Channel): Brush = artworkBrushes[artworkIndex(c) % artworkBrushes.size]
+internal fun channelArtworkColors(c: Channel): Pair<Color, Color> = artworkColors[artworkIndex(c) % artworkColors.size]
+
+/** A low-saturation wash pulled from the first visible channel; never a full-bleed poster. */
+@Composable internal fun HomeBackdrop(channel: Channel?) {
+ val colors = remember(channel?.id) { channel?.let(::channelArtworkColors) ?: (Color(0xFF4B6C8C) to Color(0xFF89A7C2)) }
+ Box(Modifier.fillMaxSize().drawBehind {
+  drawRect(Brush.radialGradient(listOf(colors.first.copy(alpha = .26f), Color.Transparent), center = Offset(size.width * .18f, -size.height * .08f), radius = size.width * .62f))
+  drawRect(Brush.radialGradient(listOf(colors.second.copy(alpha = .12f), Color.Transparent), center = Offset(size.width * .84f, 0f), radius = size.width * .5f))
+  drawRect(Brush.verticalGradient(listOf(Color.Transparent, NextTvStyle.Home.copy(alpha = .92f)), startY = size.height * .4f))
+ })
+}
 
 @Composable
 private fun CardText(text: String, size: Int, color: Color, modifier: Modifier = Modifier, bold: Boolean = false) {
@@ -70,30 +90,30 @@ private fun ChannelNumberBadge(channel: Channel) {
   }
   if(favorite&&showFavorite)AppText("★",Modifier.padding(end=8.dp),fontSize=InteractionStyle.caption,color=NextTvStyle.AccentText)
   ChannelNumberBadge(c)
- } else Column(Modifier.padding(6.dp)) {
-  val paletteIndex = if (c.number > 0) c.number - 1 else c.id.hashCode() and Int.MAX_VALUE
+ } else Column(Modifier.fillMaxWidth()) {
+  val focused = LocalSurfaceFocused.current
   val density = LocalDensity.current
   val systemScale = androidx.compose.ui.platform.LocalConfiguration.current.fontScale
   androidx.compose.runtime.CompositionLocalProvider(LocalDensity provides Density(density.density, systemScale)) {
    Column {
     val artworkShape = RoundedCornerShape(InteractionStyle.cardRadius)
     Box(Modifier.fillMaxWidth().heightIn(min = 80.dp).aspectRatio(16f / 9f).clip(artworkShape)
-     .background(artworkBrushes[paletteIndex % artworkBrushes.size])
-     .border(.75.dp, NextTvStyle.PlayerInfoBorder, artworkShape), contentAlignment = Alignment.Center) {
+     .background(channelArtworkBrush(c))
+     .border(if(focused) InteractionStyle.focusRing else .75.dp, if(focused) NextTvStyle.Ivory.copy(alpha=.92f) else NextTvStyle.PlayerInfoBorder, artworkShape), contentAlignment = Alignment.Center) {
      ChannelArtwork(c, Modifier.fillMaxSize())
      if (preview) ChannelPreview(c, previewRunning, previewSlot, Modifier.fillMaxSize())
      if (favorite && showFavorite) {
-      CardText("★", 12, Color(0xFFFFD469), Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 6.dp))
+      CardText("★", 13, Color(0xFFFFD469), Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 6.dp))
      }
     }
     Row(
-     Modifier.fillMaxWidth().padding(top = 7.dp, start = 2.dp, end = 2.dp),
+     Modifier.fillMaxWidth().padding(top = 8.dp, start = 6.dp, end = 6.dp),
      horizontalArrangement = Arrangement.spacedBy(6.dp),
      verticalAlignment = Alignment.CenterVertically
     ) {
-     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-      CardText(Ui.displayName(c.name), 14, NextTvStyle.Text, bold = true)
-      CardText(caption, 12, NextTvStyle.Muted)
+     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      CardText(Ui.displayName(c.name), 16, NextTvStyle.Text, bold = true)
+      CardText(caption, 13, NextTvStyle.Muted)
      }
      ChannelNumberBadge(c)
     }

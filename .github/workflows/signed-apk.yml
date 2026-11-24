@@ -91,9 +91,9 @@ jobs:
 
   build:
     needs: [test, lint]
-    # Secrets are restored only for the two trusted branches. Pull requests and
+    # Secrets are restored only for the trusted release branches. Pull requests and
     # feature branches still run test/lint, but never receive signing material.
-    if: github.ref_name == 'main' || github.ref_name == 'dev'
+    if: github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'beta'
     environment: release-signing
     runs-on: ubuntu-24.04
     timeout-minutes: 30
