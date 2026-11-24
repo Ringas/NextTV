@@ -46,13 +46,14 @@ import kotlinx.coroutines.flow.first
  }
 }
 
-/** Programme status pill matching the info bar's badges: flat fill, hairline stroke, 4.5 dp corners. */
-@Composable private fun BrowserBadge(text:String,accent:Boolean){
- val shape=RoundedCornerShape(4.5.dp)
+/** Programme status: live is the accent pill, replay is quiet secondary text. */
+@Composable private fun BrowserBadge(text:String,accent:Boolean,quiet:Boolean=false){
+ val shape=RoundedCornerShape(InteractionStyle.badgeRadius)
  val fill=if(accent)NextTvStyle.AccentBadge else NextTvStyle.SpecNeutralFill
  val stroke=if(accent)NextTvStyle.AccentText.copy(alpha=.45f)else NextTvStyle.SpecNeutralStroke
- Box(Modifier.height(19.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale).background(fill,shape).border(.75.dp,stroke,shape).padding(horizontal=6.dp),contentAlignment=Alignment.Center){
-  AppText(text,fontSize=10.sp,fontWeight=androidx.compose.ui.text.font.FontWeight.Bold,color=if(accent)NextTvStyle.AccentText else NextTvStyle.Muted,maxLines=1)
+ val decoration=if(quiet)Modifier else Modifier.background(fill,shape).border(.75.dp,stroke,shape)
+ Box(Modifier.height(19.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale).then(decoration).padding(horizontal=if(quiet)2.dp else 6.dp),contentAlignment=Alignment.Center){
+  AppText(text,fontSize=10.sp,fontWeight=if(quiet)androidx.compose.ui.text.font.FontWeight.Medium else androidx.compose.ui.text.font.FontWeight.Bold,color=if(accent)NextTvStyle.AccentText else NextTvStyle.Muted.copy(alpha=if(quiet).72f else 1f),maxLines=1)
  }
 }
 
@@ -221,9 +222,9 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
      val badge=if(live)"直播中"else if(p.stop<=now&&candidate.playbackRoutes.any{replayAddress(it,p,now)!=null})"回放"else""
      TvSurface(Modifier.fillMaxWidth().heightIn(min=48.dp).focusRequester(request).focusEdges(up=index==0,down=index==programs.lastIndex).focusProperties{canFocus=navigation.region.wire=="epg";if(index==0)up=FocusRequester.Cancel;if(index==programs.lastIndex)down=FocusRequester.Cancel},kind="playerRow",selected=live,onFocus={if(navigation.region.wire=="epg")epgFocusStart=p.start},onClick={onProgram(candidate,p)}){
       Row(Modifier.fillMaxWidth().align(Alignment.Center).padding(horizontal=10.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically){
-       AppText(Ui.hhmm(p.start),Modifier.widthIn(min=42.dp),fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1)
+       AppText(Ui.hhmm(p.start),Modifier.width(44.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale),fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1,fontFeatureSettings="tnum")
        AppText(p.title,Modifier.weight(1f).padding(start=8.dp,end=10.dp),fontSize=InteractionStyle.body,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
-       if(badge.isNotBlank())BrowserBadge(badge,live)
+       if(badge.isNotBlank())BrowserBadge(badge,live,quiet=!live)
       }
      }
     }}

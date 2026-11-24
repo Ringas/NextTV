@@ -353,7 +353,7 @@ import kotlin.math.roundToInt
 private enum class BadgeTone{Neutral,Warm,Cool,Live}
 
 @Composable private fun InfoBadge(value:String,tone:BadgeTone=BadgeTone.Neutral,modifier:Modifier=Modifier,fontSize:androidx.compose.ui.unit.TextUnit=10.sp,horizontalPadding:Dp=6.dp,bordered:Boolean=true){
- val shape=RoundedCornerShape(4.5.dp)
+ val shape=RoundedCornerShape(InteractionStyle.badgeRadius)
  val fill=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmFill;BadgeTone.Cool->NextTvStyle.SpecCoolFill;BadgeTone.Live->NextTvStyle.AccentBadge;else->NextTvStyle.SpecNeutralFill}
  val stroke=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmStroke;BadgeTone.Cool->NextTvStyle.SpecCoolStroke;BadgeTone.Live->NextTvStyle.AccentText.copy(alpha=.45f);else->NextTvStyle.SpecNeutralStroke}
  val ink=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmText;BadgeTone.Cool->NextTvStyle.SpecCoolText;BadgeTone.Live->NextTvStyle.AccentText;else->NextTvStyle.Muted}

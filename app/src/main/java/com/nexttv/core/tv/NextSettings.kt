@@ -233,7 +233,7 @@ private typealias SettingsEntry = SettingsRowData
   3->R.drawable.ic_settings_advanced
   else->R.drawable.ic_settings_about
  }
- Box(modifier.glassTint(if(selected)NextTvStyle.AccentBadge else NextTvStyle.ChannelNumber,RoundedCornerShape(10.dp)),contentAlignment=Alignment.Center){
+ Box(modifier.background(if(selected)NextTvStyle.AccentBadge else NextTvStyle.ChannelNumber,RoundedCornerShape(InteractionStyle.badgeRadius)).border(.75.dp,NextTvStyle.PlayerInfoBorder,RoundedCornerShape(InteractionStyle.badgeRadius)),contentAlignment=Alignment.Center){
   Image(painterResource(icon),null,Modifier.size(18.dp),colorFilter=ColorFilter.tint(if(selected)NextTvStyle.AccentText else NextTvStyle.Text))
  }
 }

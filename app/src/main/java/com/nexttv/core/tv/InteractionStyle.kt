@@ -15,12 +15,12 @@ object InteractionStyle {
  val title=30.sp
  val heading=20.sp
  val panelRadius=24.dp
- val cardRadius=20.dp
+ val cardRadius=16.dp
  val pillRadius=28.dp
  val pillInnerRadius=23.dp
- val controlRadius=18.dp
+ val controlRadius=16.dp
  val subheading=16.sp
- val badgeRadius=10.dp
+ val badgeRadius=8.dp
  val sideRadius=16.dp
  val radius=16.dp
  val body=14.sp

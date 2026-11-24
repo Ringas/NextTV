@@ -1,5 +1,7 @@
 package com.nexttv.core.tv
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
@@ -12,8 +14,8 @@ import androidx.compose.ui.unit.dp
  * tvOS 27 Liquid Glass, reduced to the part that survives on a TV:
  * a tinted vertical wash, a darker edge and a narrow specular highlight.
  *
- * It is deliberately kept off content cards and list text. Only navigation,
- * playback chrome, dialogs and focused controls receive the material.
+ * It is deliberately kept off content cards, list text and settings bodies.
+ * Only navigation, playback chrome and dialogs receive the material.
  */
 private fun Modifier.liquidGlass(
     shape: Shape,
@@ -44,19 +46,19 @@ private fun Modifier.liquidGlass(
     }
 }
 
-/** Settings and menu surfaces: restrained glass with a soft ambient lift. */
+/** Settings and content-adjacent menus: flat graphite card, hairline only. */
 internal fun Modifier.glassPanel(shape: Shape): Modifier =
-    liquidGlass(shape, NextTvStyle.GlassTop, NextTvStyle.GlassBottom, 12.dp)
+    background(NextTvStyle.Panel, shape).border(.75.dp, NextTvStyle.PlayerInfoBorder, shape)
 
-/** Dialogs, reading panels and transient notices stay more opaque for legibility. */
+/** Dialogs, reading panels and transient notices stay glassy but with a lighter lift. */
 internal fun Modifier.glassReadingPanel(shape: Shape): Modifier =
-    liquidGlass(shape, NextTvStyle.GlassReadingTop, NextTvStyle.GlassReadingBottom, 20.dp)
+    liquidGlass(shape, NextTvStyle.GlassReadingTop, NextTvStyle.GlassReadingBottom, 14.dp)
 
 /** Floating playback info bar above video: glass, but never a heavy gloss card. */
 internal fun Modifier.playerInfoPanel(shape: Shape): Modifier =
-    liquidGlass(shape, NextTvStyle.PlayerGlassTop, NextTvStyle.PlayerGlassBottom, 16.dp)
+    liquidGlass(shape, NextTvStyle.PlayerGlassTop, NextTvStyle.PlayerGlassBottom, 10.dp)
 
-/** Navigation and its moving selection capsule. The outer pill floats; the inner one stays quiet. */
+/** Outer navigation pill only: the moving selection capsule stays flat. */
 internal fun Modifier.glassTint(color: Color, shape: Shape, elevation: Dp = 0.dp): Modifier =
     liquidGlass(
         shape,
