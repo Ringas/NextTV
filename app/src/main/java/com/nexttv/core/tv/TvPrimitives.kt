@@ -78,9 +78,8 @@ object NextTvStyle {
  val SpecCoolStroke get()=tone(0x7F5AC8FA,0xFF7EA9D8)
  val SpecCoolText get()=tone(0xFFA9CCFF,0xFF0B4F9E)
  val Error get()=tone(0xFFFFB4AB,0xFFA32B22)
- val Nav get()=tone(0xF21B2028,0xF2FBFCFE)
- val NavActive get()=tone(0xF2262E39,0xF2EDF2F8)
- val NavFocused get()=tone(0xF235414F,0xF2E1EBF8)
+ val TabActive get()=tone(0xFFF2F2F7,0xFF1C1C1E)
+ val OnTabActive get()=tone(0xFF101114,0xFFFFFFFF)
  // tvOS 27 fusion, reduced: only the floating functional layer gets a wash,
  // a dark edge and a quiet specular line. Opacity stays high for legibility.
  val GlassReadingTop get()=tone(0xFA1C2129,0xFFFFFFFF)

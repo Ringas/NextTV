@@ -14,12 +14,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.*
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.*
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import com.nexttv.BuildConfig
-import com.nexttv.R
 import com.nexttv.core.App
 import com.nexttv.core.data.CacheStore
 import kotlinx.coroutines.*
@@ -130,9 +127,8 @@ private typealias SettingsEntry = SettingsRowData
       pendingRestore?.cancel();inContent=false;onContentFocus();navigation.row=key;navigation.group=name
       if(category!=name){category=name;subpage="";scope.launch{navigation.scroll.scrollTo(0)}}
       explanation=when(name){"订阅与节目单"->"管理频道订阅与节目单。";"播放"->"设置启动方式、换台体验与播放信息。";"频道与外观"->"调整频道展示与动态效果。";"高级"->"配置特殊订阅服务的网络要求。";else->""}
-     },onClick={if(InteractionStyle.pointer)runCatching{request.requestFocus()}else enterContent()}){Row(Modifier.fillMaxWidth().height(bodyHeight).padding(horizontal=12.dp,vertical=10.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
-      SettingsCategoryGlyph(index,category==name,Modifier.size(28.dp))
-      AppText(name,Modifier.weight(1f),color=NextTvStyle.Text,fontSize=InteractionStyle.body,maxLines=2)
+     },onClick={if(InteractionStyle.pointer)runCatching{request.requestFocus()}else enterContent()}){Row(Modifier.fillMaxWidth().height(bodyHeight).padding(horizontal=12.dp,vertical=10.dp),verticalAlignment=Alignment.CenterVertically){
+      AppText(name,Modifier.weight(1f),color=if(category==name)NextTvStyle.Text else NextTvStyle.Muted,fontSize=InteractionStyle.body,fontWeight=if(category==name)FontWeight.SemiBold else FontWeight.Normal,maxLines=2)
      }}
     }
    }
@@ -144,7 +140,7 @@ private typealias SettingsEntry = SettingsRowData
    // Explanation travels with the card, without drifting to the screen's bottom edge.
    Column(Modifier.fillMaxWidth()){
    val helpHeight=(InteractionStyle.caption.value*1.4f*LocalDensity.current.fontScale*2+24).dp.coerceAtLeast(64.dp)
-   Column(Modifier.fillMaxWidth().heightIn(max=(availableHeight-helpHeight).coerceAtLeast(bodyHeight)).padding(horizontal=4.dp,vertical=4.dp).onGloballyPositioned{navigation.viewport=it}.appVerticalScroll(navigation.scroll).padding(vertical=6.dp)){
+   Column(Modifier.fillMaxWidth().heightIn(max=(availableHeight-helpHeight).coerceAtLeast(bodyHeight)).glassPanel(RoundedCornerShape(InteractionStyle.panelRadius)).padding(12.dp).onGloballyPositioned{navigation.viewport=it}.appVerticalScroll(navigation.scroll).padding(vertical=10.dp)){
     entries.forEachIndexed{index,entry->
      val key="$category/${entry.title}";val request=remember(key){FocusRequester()}
      DisposableEffect(key,request){if(entry.action!=null){contentRequests[key]=request;navigation.rows[key]=request};onDispose{contentRequests.remove(key);navigation.rows.remove(key);navigation.coordinates.remove(key)}}
@@ -224,16 +220,4 @@ private typealias SettingsEntry = SettingsRowData
  }
 }
 
-/** Monochrome category symbols share one 24-unit grid, 1.8 stroke and the global tile material. */
-@Composable private fun SettingsCategoryGlyph(index:Int,selected:Boolean,modifier:Modifier=Modifier){
- val icon=when(index){
-  0->R.drawable.ic_settings_sources
-  1->R.drawable.ic_settings_playback
-  2->R.drawable.ic_settings_appearance
-  3->R.drawable.ic_settings_advanced
-  else->R.drawable.ic_settings_about
- }
- Box(modifier.background(if(selected)NextTvStyle.AccentBadge else NextTvStyle.ChannelNumber,RoundedCornerShape(InteractionStyle.badgeRadius)).border(.75.dp,NextTvStyle.PlayerInfoBorder,RoundedCornerShape(InteractionStyle.badgeRadius)),contentAlignment=Alignment.Center){
-  Image(painterResource(icon),null,Modifier.size(18.dp),colorFilter=ColorFilter.tint(if(selected)NextTvStyle.AccentText else NextTvStyle.Text))
- }
-}
+/** Settings categories are plain text, matching iPlayTV's category rail. */

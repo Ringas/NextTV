@@ -51,8 +51,8 @@ private fun ChannelNumberBadge(channel: Channel) {
   Box(
    Modifier.size(24.dp * systemScale.coerceAtLeast(1f))
     .semantics { contentDescription = "频道号 $number" }
-    .background(NextTvStyle.ChannelNumber, RoundedCornerShape(8.dp))
-    .border(.75.dp, NextTvStyle.PlayerInfoBorder, RoundedCornerShape(8.dp)),
+    .background(NextTvStyle.ChannelNumber, RoundedCornerShape(InteractionStyle.badgeRadius))
+    .border(.75.dp, NextTvStyle.PlayerInfoBorder, RoundedCornerShape(InteractionStyle.badgeRadius)),
    contentAlignment = Alignment.Center,
   ) {
    CardText(number, 11, NextTvStyle.Text, bold = true)
@@ -76,24 +76,25 @@ private fun ChannelNumberBadge(channel: Channel) {
   val systemScale = androidx.compose.ui.platform.LocalConfiguration.current.fontScale
   androidx.compose.runtime.CompositionLocalProvider(LocalDensity provides Density(density.density, systemScale)) {
    Column {
-    Box(Modifier.fillMaxWidth().heightIn(min = 80.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(16.dp))
-     .background(artworkBrushes[paletteIndex % artworkBrushes.size]), contentAlignment = Alignment.Center) {
+    val artworkShape = RoundedCornerShape(InteractionStyle.cardRadius)
+    Box(Modifier.fillMaxWidth().heightIn(min = 80.dp).aspectRatio(16f / 9f).clip(artworkShape)
+     .background(artworkBrushes[paletteIndex % artworkBrushes.size])
+     .border(.75.dp, NextTvStyle.PlayerInfoBorder, artworkShape), contentAlignment = Alignment.Center) {
      ChannelArtwork(c, Modifier.fillMaxSize())
      if (preview) ChannelPreview(c, previewRunning, previewSlot, Modifier.fillMaxSize())
-     Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha = .66f))
-      .padding(horizontal = 9.dp, vertical = 4.dp)) {
-      CardText(caption, 11, Color(0xFFF2F5FA))
-     }
      if (favorite && showFavorite) {
       CardText("★", 12, Color(0xFFFFD469), Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 6.dp))
      }
     }
     Row(
-     Modifier.fillMaxWidth().padding(top = 8.dp, start = 2.dp, end = 2.dp),
+     Modifier.fillMaxWidth().padding(top = 7.dp, start = 2.dp, end = 2.dp),
      horizontalArrangement = Arrangement.spacedBy(6.dp),
      verticalAlignment = Alignment.CenterVertically
     ) {
-     CardText(Ui.displayName(c.name), 14, NextTvStyle.Text, Modifier.weight(1f), bold = true)
+     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+      CardText(Ui.displayName(c.name), 14, NextTvStyle.Text, bold = true)
+      CardText(caption, 11, NextTvStyle.Muted)
+     }
      ChannelNumberBadge(c)
     }
    }
