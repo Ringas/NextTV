@@ -9,6 +9,16 @@ object Ui {
     fun hhmm(millis: Long): String =
         ProgrammeTimeLabels.time(millis)
 
+    /** Playback clock for HUDs: mm:ss below an hour, h:mm:ss above. */
+    fun playbackTime(millis: Long): String {
+        val total = (millis.coerceAtLeast(0L) / 1000L)
+        val hours = total / 3600L
+        val minutes = (total % 3600L) / 60L
+        val seconds = total % 60L
+        return if (hours > 0) "$hours:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}"
+        else "$minutes:${seconds.toString().padStart(2, '0')}"
+    }
+
     /** 台标文字缩写：CCTV-1综合 -> C1，广东卫视 -> 广东卫 */
     private val cctvShortPattern=Regex("""(?i)cctv[-\s]?(\d+\+?|4k|8k)""")
     private val shortWhitespacePattern=Regex("""\s+""")

@@ -12,7 +12,7 @@ internal fun browserWidths(width:Float,showLogos:Boolean,fontScale:Float=1f):Bro
     return BrowserWidths(group,channel-if(showLogos)0f else logo+10f,
         width*(.30f+.01f*compact),width*(.08f+.03f*compact),logo)
 }
-internal fun playerPanelFraction(width:Float):Float = .70f+.18f*((960f-width)/480f).coerceIn(0f,1f)
+internal fun playerPanelFraction(width:Float):Float = .82f+.035f*((960f-width)/480f).coerceIn(0f,1f)
 
 internal data class HomeSafeInsets(val horizontal:Float,val vertical:Float)
 /** Reference tvOS 1920×1080 safe region, expressed as ratios of the Android logical window. */
