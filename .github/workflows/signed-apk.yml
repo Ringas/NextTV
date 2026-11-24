@@ -24,7 +24,7 @@ defaults:
 jobs:
   test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -45,6 +45,19 @@ jobs:
 
       - name: Run unit tests
         run: bash ./gradlew --no-daemon :app:testReleaseUnitTest
+
+      - name: Render design screenshots
+        run: |
+          bash ./gradlew --no-daemon :app:testDebugUnitTest \
+            --tests com.nexttv.design.DesignScreenshots
+
+      - name: Upload design screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: design-screens-${{ github.sha }}
+          path: app/build/outputs/design-screens
+          if-no-files-found: ignore
 
       - name: Compile instrumentation tests
         run: bash ./gradlew --no-daemon :app:assembleDebugAndroidTest

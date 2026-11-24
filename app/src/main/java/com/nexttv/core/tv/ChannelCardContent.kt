@@ -18,6 +18,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.*
 import com.nexttv.core.data.Channel
 import com.nexttv.core.ui.Ui
@@ -51,14 +53,15 @@ internal fun channelArtworkColors(c: Channel): Pair<Color, Color> = artworkColor
 }
 
 @Composable
-private fun CardText(text: String, size: Int, color: Color, modifier: Modifier = Modifier, bold: Boolean = false) {
+private fun CardText(text: String, size: Int, color: Color, modifier: Modifier = Modifier, bold: Boolean = false, letterSpacing: TextUnit = 0.sp) {
  androidx.compose.foundation.text.BasicText(
   text, modifier, maxLines = 1, overflow = TextOverflow.Ellipsis,
   style = androidx.compose.ui.text.TextStyle(
    color = color, fontSize = size.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
    fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
    platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true),
-   lineHeight = size.sp * if (bold) 1.2f else 1.35f
+   lineHeight = size.sp * if (bold) 1.2f else 1.35f,
+   letterSpacing = letterSpacing
   )
  )
 }
@@ -82,6 +85,15 @@ private fun ChannelNumberBadge(channel: Channel) {
  }
 }
 
+/** Short, artwork-style channel mark: Latin call sign if present, else the first four CJK characters. */
+internal fun channelCoverMark(name: String): String {
+ val latin = name.takeWhile { it.code < 128 }.trim()
+  .replace('-', ' ')
+  .replace(Regex("\\s+"), " ")
+ if (latin.length >= 2) return latin.uppercase()
+ return Ui.displayName(name).take(4)
+}
+
 /** Keep the same artwork tint each time a channel enters the viewport. */
 @Composable internal fun ChannelCardContent(c:Channel,caption:String,favorite:Boolean,showFavorite:Boolean,list:Boolean,preview:Boolean=false,previewRunning:Boolean=false,previewSlot:Int=0){
  if(list)Row(Modifier.fillMaxWidth().heightIn(min=76.dp).padding(horizontal=16.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically){
@@ -102,10 +114,13 @@ private fun ChannelNumberBadge(channel: Channel) {
     Box(Modifier.fillMaxWidth().heightIn(min = 80.dp).aspectRatio(16f / 9f).clip(artworkShape)
      .background(channelArtworkBrush(c))
      .border(if(focused) InteractionStyle.focusRing else .75.dp, if(focused) NextTvStyle.Ivory.copy(alpha=.92f) else NextTvStyle.PlayerInfoBorder, artworkShape), contentAlignment = Alignment.Center) {
-     ChannelArtwork(c, Modifier.fillMaxSize())
+     ChannelLogo(c, Modifier.fillMaxSize(), showFallback = false)
+     CardText(c.groupName, 10, Color.White.copy(alpha=.55f), Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 11.dp), letterSpacing = .08.sp)
+     CardText(channelCoverMark(c.name), 20, Color.White.copy(alpha=.94f), Modifier.align(Alignment.BottomStart).padding(start = 14.dp, bottom = 12.dp), bold = true)
+     CardText(c.number.toString().padStart(2, '0'), 12, Color.White.copy(alpha=.42f), Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 10.dp), letterSpacing = .08.sp)
      if (preview) ChannelPreview(c, previewRunning, previewSlot, Modifier.fillMaxSize())
      if (favorite && showFavorite) {
-      CardText("★", 13, Color(0xFFFFD469), Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 6.dp))
+      CardText("★", 13, Color(0xFFFFD469), Modifier.align(Alignment.TopEnd).padding(end = 8.dp, top = 6.dp))
      }
     }
     Row(
@@ -117,7 +132,6 @@ private fun ChannelNumberBadge(channel: Channel) {
       CardText(Ui.displayName(c.name), 16, NextTvStyle.Text, bold = true)
       CardText(caption, 13, NextTvStyle.Muted)
      }
-     ChannelNumberBadge(c)
     }
    }
   }

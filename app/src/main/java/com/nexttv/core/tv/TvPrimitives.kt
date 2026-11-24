@@ -254,7 +254,7 @@ internal val LocalStableDialogHost=staticCompositionLocalOf{false}
 
 }
 
-@Composable fun TvDialog(title:String,onDismiss:()->Unit,onKeyboardDismiss:(()->Unit)?=null,width:Dp=520.dp,onKeyboardNavigate:((Int)->Boolean)?=null,keyboardSession:Int=0,titleScale:Float=1f,content:@Composable ColumnScope.()->Unit){
+@Composable fun TvDialog(title:String,onDismiss:()->Unit,onKeyboardDismiss:(()->Unit)?=null,width:Dp=520.dp,onKeyboardNavigate:((Int)->Boolean)?=null,keyboardSession:Int=0,titleScale:Float=1f,titleTrailing:(@Composable RowScope.()->Unit)?=null,content:@Composable ColumnScope.()->Unit){
  val embedded=LocalStableDialogHost.current
  val inWindow=LocalInWindowModal.current||LocalModalController.current!=null
  val session=remember{DialogWindowSession()}
@@ -319,7 +319,10 @@ internal val LocalStableDialogHost=staticCompositionLocalOf{false}
   }
   androidx.activity.compose.BackHandler{if(imeHiding){if(imeSettled)latestDismiss()else dismissAfterIme=true}else if(imeVisible){hideInput()}else latestDismiss()}
   Column(Modifier.semantics{isTraversalGroup=true;paneTitle=title}.onPreInterceptKeyBeforeSoftKeyboard{handleKey(it.nativeKeyEvent)}.onPreviewKeyEvent{handleKey(it.nativeKeyEvent)}.width(minOf(width,(androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp-48.dp).coerceAtLeast(240.dp))).heightIn(max=(androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp-48.dp).coerceIn(160.dp,480.dp)).then(if(embedded)Modifier else Modifier.dialogSurface(RoundedCornerShape(InteractionStyle.panelRadius))).padding(22.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
-   AppText(title,Modifier.semantics{heading()},color=NextTvStyle.Text,fontSize=InteractionStyle.heading*titleScale,fontWeight=FontWeight.Bold,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+   Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top){
+    AppText(title,Modifier.weight(1f).semantics{heading()},color=NextTvStyle.Text,fontSize=InteractionStyle.heading*titleScale,fontWeight=FontWeight.Bold,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+    titleTrailing?.invoke(this)
+   }
    content()
   }
  }

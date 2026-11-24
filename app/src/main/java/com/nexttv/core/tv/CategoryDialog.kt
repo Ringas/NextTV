@@ -36,7 +36,10 @@ internal fun CategoryDialog(
         withFrameNanos {}
         requests[choices.getOrNull(selected)?.id]?.requestFocus()
     }
-    TvDialog("频道分类", onDismiss, width = 410.dp) {
+    TvDialog(
+        "频道分类", onDismiss, width = 410.dp,
+        titleTrailing = { AppText("返回", Modifier.padding(start = 12.dp, top = 4.dp), fontSize = InteractionStyle.captionSmall, color = NextTvStyle.Muted) },
+    ) {
         Row(
             Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -46,8 +49,6 @@ internal fun CategoryDialog(
                 fontSize = InteractionStyle.captionSmall,
                 color = NextTvStyle.Muted,
             )
-            Spacer(Modifier.weight(1f))
-            AppText("返回", fontSize = InteractionStyle.captionSmall, color = NextTvStyle.Muted)
         }
         Column(
             Modifier.fillMaxWidth().heightIn(max = 320.dp)
@@ -97,7 +98,7 @@ internal fun CategoryDialog(
         ) {
             AppText("确认进入分类", fontSize = InteractionStyle.captionSmall, color = NextTvStyle.Muted)
             Spacer(Modifier.weight(1f))
-            AppText("返回关闭", fontSize = InteractionStyle.captionSmall, color = NextTvStyle.Muted)
+            AppText("长按无操作 · 返回关闭", fontSize = InteractionStyle.captionSmall, color = NextTvStyle.Muted)
         }
     }
 }

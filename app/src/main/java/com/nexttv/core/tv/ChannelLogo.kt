@@ -22,7 +22,7 @@ import com.nexttv.core.ui.Ui
 
 /** Shared channel mark for home grid, lists, and player chrome. */
 @Composable
-fun ChannelLogo(channel: Channel, modifier: Modifier = Modifier) {
+fun ChannelLogo(channel: Channel, modifier: Modifier = Modifier, showFallback: Boolean = true) {
     val context = LocalContext.current
     var logo by remember(channel.logo) { mutableStateOf<Bitmap?>(LogoLoader.cached(channel.logo)) }
     DisposableEffect(channel.logo) {
@@ -37,7 +37,7 @@ fun ChannelLogo(channel: Channel, modifier: Modifier = Modifier) {
                 Modifier.fillMaxSize().padding(10.dp),
                 contentScale = ContentScale.Fit
             )
-        } else {
+        } else if (showFallback) {
             AppText(
                 Ui.shortName(channel.name),
                 fontSize = 34.sp,

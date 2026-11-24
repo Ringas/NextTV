@@ -341,7 +341,7 @@ import kotlin.math.roundToInt
  }
 }
 
-@Composable private fun QuickActionButton(label:String,description:String,modifier:Modifier,onFocus:()->Unit,onClick:()->Unit){
+@Composable internal fun QuickActionButton(label:String,description:String,modifier:Modifier,onFocus:()->Unit,onClick:()->Unit){
  TvSurface(modifier.widthIn(min=58.dp).heightIn(min=34.dp).semantics(mergeDescendants=true){contentDescription=description},kind="text",onFocus=onFocus,onClick=onClick){
   Box(Modifier.align(Alignment.Center).padding(horizontal=10.dp),contentAlignment=Alignment.Center){
    AppText(label,fontSize=InteractionStyle.caption,fontWeight=FontWeight.Medium,maxLines=1,overflow=TextOverflow.Clip,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
@@ -354,9 +354,9 @@ import kotlin.math.roundToInt
  AppText(Ui.hhmm(now),modifier.semantics{contentDescription="当前时间 ${Ui.hhmm(now)}"},fontSize=InteractionStyle.displaySmall,fontWeight=FontWeight.Bold,color=Color.White,maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.82f),androidx.compose.ui.geometry.Offset(0f,1f),5f))
 }
 
-private enum class BadgeTone{Neutral,Warm,Cool,Live}
+internal enum class BadgeTone{Neutral,Warm,Cool,Live}
 
-@Composable private fun InfoBadge(value:String,tone:BadgeTone=BadgeTone.Neutral,modifier:Modifier=Modifier,fontSize:androidx.compose.ui.unit.TextUnit=InteractionStyle.micro,horizontalPadding:Dp=6.dp,bordered:Boolean=true){
+@Composable internal fun InfoBadge(value:String,tone:BadgeTone=BadgeTone.Neutral,modifier:Modifier=Modifier,fontSize:androidx.compose.ui.unit.TextUnit=InteractionStyle.micro,horizontalPadding:Dp=6.dp,bordered:Boolean=true){
  val shape=RoundedCornerShape(InteractionStyle.badgeRadius)
  val fill=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmFill;BadgeTone.Cool->NextTvStyle.SpecCoolFill;BadgeTone.Live->NextTvStyle.AccentBadge;else->NextTvStyle.SpecNeutralFill}
  val stroke=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmStroke;BadgeTone.Cool->NextTvStyle.SpecCoolStroke;BadgeTone.Live->NextTvStyle.AccentText.copy(alpha=.45f);else->NextTvStyle.SpecNeutralStroke}

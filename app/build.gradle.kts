@@ -71,6 +71,7 @@ android {
  compileOptions { isCoreLibraryDesugaringEnabled = true; sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  kotlinOptions { jvmTarget = "17" }
  buildFeatures { compose = true; buildConfig = true }
+ testOptions { unitTests { isIncludeAndroidResources = true } }
  buildTypes {
   getByName("debug") { if(nextTvSigningFile.exists())signingConfig=signingConfigs.getByName("Next TV") }
   getByName("release") {
@@ -90,6 +91,11 @@ dependencies {
  implementation("com.google.zxing:core:3.5.3")
  testImplementation("junit:junit:4.13.2")
  testImplementation("org.json:json:20240303")
+ testImplementation(platform("androidx.compose:compose-bom:2026.02.00"))
+ testImplementation("androidx.compose.ui:ui-test-junit4")
+ testImplementation("androidx.test:core:1.6.1")
+ testImplementation("org.robolectric:robolectric:4.14.1")
+ debugImplementation("androidx.compose.ui:ui-test-manifest")
  implementation(platform("androidx.compose:compose-bom:2026.02.00"))
  implementation("androidx.activity:activity-compose:1.10.1")
  implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")

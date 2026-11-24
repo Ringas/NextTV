@@ -6,6 +6,8 @@ import android.view.KeyEvent as K
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.*
@@ -59,13 +61,16 @@ import kotlinx.coroutines.flow.first
 }
 
 /** One rail, channel stack on top and the programme stack underneath. */
-@Composable private fun ProgrammeSideSheet(width:Dp,candidate:Channel,channels:List<Channel>,list:LazyListState,requests:MutableMap<String,FocusRequester>,programs:List<Program>,epgList:LazyListState,epgRequests:MutableMap<Long,FocusRequester>,days:List<Int>,dateList:LazyListState,dateRequests:Map<Int,FocusRequester>,epgDay:Int,now:Long,onChannelFocus:(Channel)->Unit,onChannelClick:(Channel)->Unit,onProgramFocus:(Program)->Unit,onProgramClick:(Channel,Program)->Unit,onDate:(Int)->Unit){
+@Composable internal fun ProgrammeSideSheet(width:Dp,candidate:Channel,channels:List<Channel>,list:LazyListState,requests:MutableMap<String,FocusRequester>,programs:List<Program>,epgList:LazyListState,epgRequests:MutableMap<Long,FocusRequester>,days:List<Int>,dateList:LazyListState,dateRequests:Map<Int,FocusRequester>,epgDay:Int,now:Long,onChannelFocus:(Channel)->Unit,onChannelClick:(Channel)->Unit,onProgramFocus:(Program)->Unit,onProgramClick:(Channel,Program)->Unit,onDate:(Int)->Unit){
  val scale=androidx.compose.ui.platform.LocalDensity.current.fontScale
  val density=androidx.compose.ui.platform.LocalDensity.current
  Box(Modifier.width(width).fillMaxHeight().playerSidebarSurface{with(density){width.toPx()}}){
   Column(Modifier.fillMaxSize().padding(horizontal=12.dp,vertical=12.dp)){
-   Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.Top){
-    Column(Modifier.weight(1f)){
+   Row(Modifier.fillMaxWidth().padding(start=10.dp),verticalAlignment=Alignment.Top){
+    Box(Modifier.padding(top=2.dp).width(34.dp).height(28.dp).clip(RoundedCornerShape(6.dp)).background(Brush.linearGradient(listOf(Color(0xFF6C8CA6),Color(0xFF95AFC2)))),contentAlignment=Alignment.Center){
+     PlayerLogo(candidate,Modifier.fillMaxSize())
+    }
+    Column(Modifier.weight(1f).padding(start=8.dp)){
      AppText("频道与节目单",fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1)
      AppText(Ui.displayName(candidate.name),fontSize=InteractionStyle.display,fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis)
     }
@@ -90,7 +95,7 @@ import kotlinx.coroutines.flow.first
     Spacer(Modifier.weight(1f))
     LazyRow(flingBehavior=appFlingBehavior(),state=dateList,modifier=Modifier.continuousWheel(dateList),horizontalArrangement=Arrangement.spacedBy(8.dp),contentPadding=PaddingValues(start=4.dp,end=2.dp)){
      items(days,key={it}){day->
-      val date=remember(day){java.util.Calendar.getInstance().apply{add(java.util.Calendar.DAY_OF_YEAR,day)}.time}
+      val date=remember(day,now){java.util.Calendar.getInstance().apply{timeInMillis=now;add(java.util.Calendar.DAY_OF_YEAR,day)}.time}
       val label=when(day){0->"今天 "+java.text.SimpleDateFormat("EEE",java.util.Locale.SIMPLIFIED_CHINESE).format(date);1->"明天 "+java.text.SimpleDateFormat("EEE",java.util.Locale.SIMPLIFIED_CHINESE).format(date);else->java.text.SimpleDateFormat("EEE MM-dd",java.util.Locale.SIMPLIFIED_CHINESE).format(date)}
       TvSurface(Modifier.focusRequester(dateRequests.getValue(day)).focusEdges(left=day==days.firstOrNull(),right=day==days.lastOrNull()),kind="text",selected=day==epgDay,onClick={onDate(day)}){
        Box(Modifier.padding(horizontal=2.dp,vertical=3.dp)){
@@ -317,7 +322,7 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
    Column(Modifier.offset{IntOffset(with(browserDensity){(anchorPosition.value.dp+channelWidth+epgWidth).roundToPx()},0)}.width(dateWidth).fillMaxHeight().padding(vertical=12.dp,horizontal=if(largeNarrowDate)2.dp else 4.dp)){
     BrowserHeading("日期",centered=true)
     LazyColumn(flingBehavior=appFlingBehavior(),state=dateList,modifier=Modifier.continuousWheel(dateList),contentPadding=PaddingValues(horizontal=if(largeNarrowDate)2.dp else 6.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){items(days,key={it}){day->
-     val date=remember(day){java.util.Calendar.getInstance().apply{add(java.util.Calendar.DAY_OF_YEAR,day)}.time}
+     val date=remember(day,now){java.util.Calendar.getInstance().apply{timeInMillis=now;add(java.util.Calendar.DAY_OF_YEAR,day)}.time}
      TvSurface(Modifier.fillMaxWidth().heightIn(min=60.dp).focusRequester(dateRequests.getValue(day)).focusEdges(up=day==days.firstOrNull(),down=day==days.lastOrNull()).focusProperties{canFocus=navigation.region.wire=="dates";if(day==days.firstOrNull())up=FocusRequester.Cancel;if(day==days.lastOrNull())down=FocusRequester.Cancel},kind="playerRow",selected=day==epgDay,onFocus={if(navigation.region==BrowserRegion.DATES)dateFocus=day},onClick={dateFocus=day;epgDay=day;focusEpg()}){
       Column(Modifier.fillMaxWidth().padding(vertical=10.dp),horizontalAlignment=Alignment.CenterHorizontally){
        AppText(if(day==0)"今天"else java.text.SimpleDateFormat("EEE",java.util.Locale.SIMPLIFIED_CHINESE).format(date),fontSize=InteractionStyle.body,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
