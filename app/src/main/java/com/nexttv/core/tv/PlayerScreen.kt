@@ -96,17 +96,30 @@ import kotlin.math.roundToInt
  var seekEpoch by remember{mutableIntStateOf(0)}
  var bottomPanelHeight by remember{mutableIntStateOf(0)}
  val touchDragOrigin = remember(engine.current.id, engine.replay?.start) { longArrayOf(0L) }
- fun seek(delta:Long){
+ fun seek(delta:Long,multiplier:Int=1,chain:Boolean=false){
   val replay=engine.replay?:return
   val duration=engine.player.duration.takeIf{it>0}?:((replay.stop-replay.start).coerceAtLeast(1))
-  val position=engine.player.currentPosition
+  val previous=seekFeedback
+  val position=if(chain&&previous!=null&&(previous.delta>0)==(delta>0))previous.target else engine.player.currentPosition
   val target=replaySeekTarget(position,delta,duration)
   val effective=target-position
   if(effective==0L){notice=if(delta<0)"已到节目开头"else"已到节目结尾";return}
-  val previous=seekFeedback
   val accumulated=if(previous!=null&&(previous.delta>0)==(delta>0))previous.delta+effective else effective
-  engine.seekReplay(target);seekFeedback=ReplaySeekFeedback(target,duration,accumulated);seekEpoch++
+  engine.seekReplay(target);seekFeedback=ReplaySeekFeedback(target,duration,accumulated,multiplier);seekEpoch++
   if(!actionsVisible){bars=false;side=false;runCatching{root.requestFocus()}}
+ }
+ val replayHold=remember(engine.current.id,engine.replay?.start){longArrayOf(0L,0L,0L)}
+ fun seekStep(direction:Int,repeated:Boolean){
+  val now=android.os.SystemClock.elapsedRealtime()
+  if(!repeated||replayHold[0]!=direction.toLong()){
+   replayHold[0]=direction.toLong();replayHold[1]=now;replayHold[2]=now
+   seek(direction*REPLAY_SEEK_STEP_MS,1)
+   return
+  }
+  if(now-replayHold[2]<REPLAY_SEEK_HOLD_INTERVAL_MS)return
+  val multiplier=replayHoldMultiplier(now-replayHold[1])
+  replayHold[2]=now
+  seek(direction*REPLAY_SEEK_STEP_MS*multiplier,multiplier,true)
  }
  LaunchedEffect(seekEpoch){if(seekFeedback!=null){delay(2200);seekFeedback=null}}
  LaunchedEffect(engine.current.id,engine.replay?.start){seekFeedback=null}
@@ -169,7 +182,7 @@ import kotlin.math.roundToInt
      if (start) touchDragOrigin[0] = engine.player.currentPosition
      val duration = engine.player.duration.takeIf { it > 0 } ?: (replay.stop - replay.start).coerceAtLeast(1)
      val origin = touchDragOrigin[0]
-     val target = replaySeekTarget(origin, steps * 30000L, duration)
+     val target = replaySeekTarget(origin, steps * REPLAY_SEEK_STEP_MS, duration)
      seekFeedback = ReplaySeekFeedback(target, duration, target - origin)
      seekEpoch++
      if (finish && target != origin) engine.seekReplay(target)
@@ -183,7 +196,7 @@ import kotlin.math.roundToInt
   val key=TvKey(event.nativeKeyEvent)
   if(dialog.isNotBlank())return@onPreviewKeyEvent false
   if(key.up&&consumeOkUp&&key.action==InputAction.CONFIRM){consumeOkUp=false;if(!longOk)openSide();longOk=false;return@onPreviewKeyEvent true}
-  if(!key.down)return@onPreviewKeyEvent false
+  if(!key.down){if(key.action==InputAction.LEFT||key.action==InputAction.RIGHT||key.action==InputAction.SEEK_FORWARD||key.action==InputAction.SEEK_BACKWARD)replayHold[0]=0;return@onPreviewKeyEvent false}
   if(key.escape){back();return@onPreviewKeyEvent true}
   if(key.action==InputAction.MENU){showBars(true);return@onPreviewKeyEvent true}
   if(key.action==InputAction.INFO){if(!bars)showBars(false);return@onPreviewKeyEvent true}
@@ -200,11 +213,11 @@ import kotlin.math.roundToInt
   when(key.action){
    InputAction.UP,InputAction.PREVIOUS_CHANNEL->{engine.zap(-1);true}
    InputAction.DOWN,InputAction.NEXT_CHANNEL->{engine.zap(1);true}
-   InputAction.LEFT,InputAction.RIGHT->{val direction=key.horizontal!!;if(engine.replay!=null){seek((if ((context as TvActivity).pointerNavigation) -direction else direction)*30000L)}else if(engine.switchRoute(direction))notice="线路 ${engine.routeIndex+1}";true}
+   InputAction.LEFT,InputAction.RIGHT->{val direction=key.horizontal!!;if(engine.replay!=null){seekStep((if ((context as TvActivity).pointerNavigation) -direction else direction),key.repeated)}else if(engine.switchRoute(direction))notice="线路 ${engine.routeIndex+1}";true}
    InputAction.CONFIRM->{consumeOkUp=true;longOk=false;true}
    InputAction.PLAY_PAUSE->{notice=if(engine.player.togglePlaybackIntent())"继续播放"else"已暂停";true}
-   InputAction.SEEK_FORWARD->{seek(30000);true}
-   InputAction.SEEK_BACKWARD->{seek(-30000);true}
+   InputAction.SEEK_FORWARD->{if(engine.replay!=null)seekStep(1,key.repeated);true}
+   InputAction.SEEK_BACKWARD->{if(engine.replay!=null)seekStep(-1,key.repeated);true}
    else->{val digit=key.digit;if(digit!=null){if(!key.repeated){digits=appendChannelDigit(digits,digit,digitCapacity);digitGeneration++};true}else false}
   }
  }.focusable()){
@@ -294,8 +307,8 @@ import kotlin.math.roundToInt
      }
     }
     val clock:@Composable (Modifier)->Unit={m->Column(m.height(identityHeight),horizontalAlignment=Alignment.End,verticalArrangement=Arrangement.Center){
-      AppText(Ui.hhmm(now),fontSize=20.sp,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.35f),androidx.compose.ui.geometry.Offset(0f,1f),3f))
-      AppText("${Ui.weekday(now)} ${Ui.monthDay(now)}",Modifier.padding(top=1.dp*scale),fontSize=11.sp,fontWeight=FontWeight.Medium,color=NextTvStyle.Muted,maxLines=1)
+      AppText(Ui.hhmm(now),Modifier.fillMaxWidth(),fontSize=24.sp,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End)
+      AppText("${Ui.weekday(now)} ${Ui.monthDay(now)}",Modifier.fillMaxWidth().padding(top=2.dp*scale),fontSize=11.sp,fontWeight=FontWeight.Medium,color=NextTvStyle.Muted,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End)
     }}
     if(programmeWidth<200.dp*scale)Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(9.dp)){
      Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){identity(Modifier.weight(1f));clock(Modifier.width(clockWidth).padding(start=8.dp))}

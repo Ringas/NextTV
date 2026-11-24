@@ -36,13 +36,15 @@ internal fun homeEmptyMessage(
 }
 
 internal fun homeEmptyHint(tab: Int, noSources: Boolean, favoritesEmpty: Boolean): String? = when {
-    tab == 0 && noSources -> "粘贴 M3U 地址即可导入频道，无需经过多层设置。"
-    tab == 1 && favoritesEmpty -> "在频道上长按可添加收藏。"
+    tab == 0 && noSources -> "粘贴 M3U 地址即可导入频道，无需经过多层设置"
+    tab == 1 && favoritesEmpty -> "在频道上长按可添加收藏"
     else -> null
 }
 
-internal fun homeEmptyActionLabel(noSources: Boolean, anyEnabled: Boolean, hasLoadedChannels: Boolean): String =
-    if (noSources) "添加订阅" else if (anyEnabled && !hasLoadedChannels) "重试" else "管理订阅"
+internal fun homeEmptyActionLabel(noSources: Boolean, anyEnabled: Boolean, hasLoadedChannels: Boolean, tab: Int = 0): String? {
+    val label = if (noSources) "添加订阅" else if (anyEnabled && !hasLoadedChannels) "重试" else "管理订阅"
+    return label.takeUnless { tab == 1 && it == "管理订阅" }
+}
 
 /** 顶部标题与「分类」入口，和网格焦点顺序解耦。 */
 @Composable
@@ -93,7 +95,7 @@ internal fun HomeHeader(
 internal fun HomeEmptyState(
     message: String,
     hint: String?,
-    actionLabel: String,
+    actionLabel: String?,
     emptyAction: FocusRequester,
     navUp: FocusRequester,
     horizontalPadding: Int,
@@ -107,15 +109,16 @@ internal fun HomeEmptyState(
     ) {
         AppText(
             message,
+            Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
             color = NextTvStyle.Text,
             fontSize = InteractionStyle.subheading,
             fontWeight = FontWeight.SemiBold
         )
         if (hint != null) {
-            AppText(hint, textAlign = TextAlign.Center, color = NextTvStyle.Muted, fontSize = InteractionStyle.caption)
+            AppText(hint, Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = NextTvStyle.Muted, fontSize = InteractionStyle.caption)
         }
-        TvButton(
+        if (actionLabel != null) TvButton(
             actionLabel,
             Modifier
                 .focusRequester(emptyAction)

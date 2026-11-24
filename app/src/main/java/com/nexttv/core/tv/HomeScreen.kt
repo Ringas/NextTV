@@ -98,7 +98,7 @@ import com.nexttv.observeGridDraws
  val focusers=remember{hashMapOf<String,FocusRequester>()}
  fun resetCategory(){group="";if(app.prefs.selectedGroup.isNotEmpty())app.prefs.selectedGroup=""}
  fun selectTab(index:Int){gridInput.entering=false;gridInput.entryGeneration++;settingsNavigation.cancelPendingFocus();if(index==2)settingsNavigation.resetEntry();gridInput.job?.cancel();gridInput.target=null;menuChannel=null;if(index!=tab)channelDigits="";if(index==0&&tab!=0){resetCategory();channelRestore.value="";channelGrid.requestScrollToItem(0);firstCardFocusPending=false};tab=index}
- fun refresh(onChannelsUpdated:(()->Unit)?=null){scope.launch{status="正在更新订阅…";val result=app.channels.refreshAll(respectAutoUpdate=true){status=it};revision++;status="订阅更新：${result.ok} 个成功，${result.failed} 个失败";onChannelsUpdated?.invoke();if(app.prefs.autoUpdateEpg) {app.epg.refresh();revision++}}}
+ fun refresh(onChannelsUpdated:(()->Unit)?=null){scope.launch{status="正在更新订阅…";val result=app.channels.refreshAll(){status=it};revision++;status="订阅更新：${result.ok} 个成功，${result.failed} 个失败";onChannelsUpdated?.invoke();if(app.prefs.autoUpdateEpg) {app.epg.refresh();revision++}}}
  LaunchedEffect(cacheReady){if(!cacheReady)return@LaunchedEffect;app.prefs.selectedGroup="";launch{withContext(Dispatchers.IO){app.epg.loadCache()};revision++;if(app.prefs.autoUpdateOnStart)refresh()else if(app.prefs.autoUpdateEpg){app.epg.refresh();revision++}}}
  LaunchedEffect(playing){if(playing==null){
   val serial=gridInput.serial
@@ -358,7 +358,7 @@ import com.nexttv.observeGridDraws
         message=homeEmptyMessage(tab,app.prefs.favorites.isEmpty(),noSources,addingSubscription,app.updatingAll,
          app.channels.sources.any{it.enabled},app.channels.hasLoadedChannels),
         hint=homeEmptyHint(tab,noSources,app.prefs.favorites.isEmpty()),
-        actionLabel=homeEmptyActionLabel(noSources,app.channels.sources.any{it.enabled},app.channels.hasLoadedChannels),
+        actionLabel=homeEmptyActionLabel(noSources,app.channels.sources.any{it.enabled},app.channels.hasLoadedChannels,tab),
         emptyAction=emptyAction,
         navUp=if(noSources)nav[tab]else first,
         horizontalPadding=36,

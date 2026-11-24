@@ -48,7 +48,7 @@ import java.util.UUID
  BackHandler{latestSourceBack()}
  var refreshJob by remember{mutableStateOf<Job?>(null)}
  var operationEntry by remember{mutableStateOf("编辑")}
- val operationRequests=remember{listOf("编辑","自动更新","状态","删除").associateWith{FocusRequester()}}
+ val operationRequests=remember{listOf("编辑","状态","删除").associateWith{FocusRequester()}}
  val sourceRequests=remember{mutableStateMapOf<String,FocusRequester>()}
  var sourceFocused by remember{mutableStateOf("")};var sourceListFocused by remember{mutableStateOf(false)}
  val sourceList=rememberLazyListState()
@@ -74,7 +74,7 @@ import java.util.UUID
   AppText(app.sourceStatus,color=NextTvStyle.Muted,fontSize=12.sp,modifier=Modifier.padding(vertical=12.dp))
   LazyColumn(flingBehavior=appFlingBehavior(),state=sourceList,modifier=Modifier.continuousWheel(sourceList),contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){items(sourceRows,key={it.id}){s->
    val request=remember(s.id){FocusRequester()};DisposableEffect(s.id,request){sourceRequests[s.id]=request;onDispose{if(sourceRequests[s.id]===request)sourceRequests.remove(s.id)}}
-   TvSurface(Modifier.fillMaxWidth().focusRequester(request).focusEdges(down=s.id==sourceRows.lastOrNull()?.id,left=true,right=true).focusProperties{left=FocusRequester.Cancel;right=FocusRequester.Cancel;if(s.id==sourceRows.firstOrNull()?.id)up=addFocus;if(s.id==sourceRows.lastOrNull()?.id)down=FocusRequester.Cancel},kind="source",onFocus={sourceFocused=s.id;sourceListFocused=true},onClick={sourceFocused=s.id;sourceListFocused=true;chosen=s;operationEntry="编辑";dialog="操作"}){Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){AppText(s.name,fontSize=InteractionStyle.subheading,fontWeight=FontWeight.Bold);AppText(s.url,fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1);AppText("${s.channelCount} 个频道"+(if(s.unsupportedCount>0)" · ${s.unsupportedCount} 个因协议不支持已跳过" else "")+if(s.lastError.isBlank())""else" · ${s.lastError}",fontSize=InteractionStyle.caption,color=NextTvStyle.Muted)};AppText((if(s.enabled)"已启用" else "已停用")+(if(s.autoUpdate)" ›" else " · 自动更新关闭 ›"),fontSize=12.sp,color=NextTvStyle.AccentText)}}}}
+   TvSurface(Modifier.fillMaxWidth().focusRequester(request).focusEdges(down=s.id==sourceRows.lastOrNull()?.id,left=true,right=true).focusProperties{left=FocusRequester.Cancel;right=FocusRequester.Cancel;if(s.id==sourceRows.firstOrNull()?.id)up=addFocus;if(s.id==sourceRows.lastOrNull()?.id)down=FocusRequester.Cancel},kind="source",onFocus={sourceFocused=s.id;sourceListFocused=true},onClick={sourceFocused=s.id;sourceListFocused=true;chosen=s;operationEntry="编辑";dialog="操作"}){Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){AppText(s.name,fontSize=InteractionStyle.subheading,fontWeight=FontWeight.Bold);AppText(s.url,fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1);AppText("${s.channelCount} 个频道"+(if(s.unsupportedCount>0)" · ${s.unsupportedCount} 个因协议不支持已跳过" else "")+if(s.lastError.isBlank())""else" · ${s.lastError}",fontSize=InteractionStyle.caption,color=NextTvStyle.Muted)};AppText((if(s.enabled)"已启用" else "已停用")+" ›",fontSize=12.sp,color=NextTvStyle.AccentText)}}}}
  }
  if(dialog.isNotBlank())StableDialogHost({sourceBack()},transitionKey=dialog){when(dialog){
   "编辑"->{val source=chosen!!;AddressInputDialog(if(source.name.isBlank())source.url else "${source.name},${source.url}",epg=false,editingSource=true,onDismiss={dialog=editorParent},onConfirm={input->save(subscriptionFromAddress(input,app.channels.sources,editing=source));dialog="";editorParent=""})}
@@ -82,7 +82,6 @@ import java.util.UUID
    val operationView=LocalView.current;val inWindowModal=LocalInWindowModal.current
    LaunchedEffect(Unit){awaitModalFocusWindow(operationView,inWindowModal);operationRequests[operationEntry]?.requestFocus()}
    TvButton("编辑",Modifier.fillMaxWidth().focusRequester(operationRequests.getValue("编辑")),onFocus={operationEntry="编辑"},onClick={editorParent="操作";dialog="编辑"})
-   TvButton(if(chosen!!.autoUpdate)"关闭自动更新"else"开启自动更新",Modifier.fillMaxWidth().focusRequester(operationRequests.getValue("自动更新")),onFocus={operationEntry="自动更新"},onClick={save(chosen!!.copy(autoUpdate=!chosen!!.autoUpdate));dialog=""})
    TvButton(if(chosen!!.enabled)"停用"else"启用",Modifier.fillMaxWidth().focusRequester(operationRequests.getValue("状态")),onFocus={operationEntry="状态"},onClick={save(chosen!!.copy(enabled=!chosen!!.enabled));dialog=""})
    TvButton("删除",Modifier.fillMaxWidth().focusRequester(operationRequests.getValue("删除")),onFocus={operationEntry="删除"},onClick={dialog="删除"})
   }

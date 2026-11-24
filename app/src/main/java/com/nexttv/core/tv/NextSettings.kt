@@ -79,7 +79,7 @@ private typealias SettingsEntry = SettingsRowData
  val deviceInfo = listOf(hardware, androidInfo).filter(String::isNotEmpty).joinToString(" · ")
  val entries=when {
   subpage=="自动更新"->listOf(
-   SettingsEntry("启动时更新订阅",if(p.autoUpdateOnStart)"开启"else"关闭","打开应用后在后台检查订阅，不阻塞进入页面。",{p.autoUpdateOnStart=!p.autoUpdateOnStart;changed()},false),
+   SettingsEntry("启动时更新订阅",if(p.autoUpdateOnStart)"开启"else"关闭","统一控制所有已启用订阅的自动更新；单个订阅不再单独开关。",{p.autoUpdateOnStart=!p.autoUpdateOnStart;changed()},false),
    SettingsEntry("自动更新节目单",if(p.autoUpdateEpg)"开启"else"关闭","定期更新节目时间与回放信息。",{p.autoUpdateEpg=!p.autoUpdateEpg;changed()},false))
   category=="订阅与节目单"->listOf(
    SettingsEntry("管理订阅","${app.channels.sources.size} 个订阅","添加、编辑、启停或删除频道订阅。",onSources),

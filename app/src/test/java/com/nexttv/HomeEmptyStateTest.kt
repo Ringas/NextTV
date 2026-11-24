@@ -36,9 +36,9 @@ class HomeEmptyStateTest {
 
     @Test fun hintsOnlyForEmptyFavoritesOrFirstRun() {
         assertNull(homeEmptyHint(tab = 0, noSources = false, favoritesEmpty = false))
-        assertEquals("粘贴 M3U 地址即可导入频道，无需经过多层设置。",
+        assertEquals("粘贴 M3U 地址即可导入频道，无需经过多层设置",
             homeEmptyHint(tab = 0, noSources = true, favoritesEmpty = false))
-        assertEquals("在频道上长按可添加收藏。",
+        assertEquals("在频道上长按可添加收藏",
             homeEmptyHint(tab = 1, noSources = false, favoritesEmpty = true))
     }
 
@@ -46,5 +46,6 @@ class HomeEmptyStateTest {
         assertEquals("添加订阅", homeEmptyActionLabel(noSources = true, anyEnabled = false, hasLoadedChannels = false))
         assertEquals("重试", homeEmptyActionLabel(noSources = false, anyEnabled = true, hasLoadedChannels = false))
         assertEquals("管理订阅", homeEmptyActionLabel(noSources = false, anyEnabled = true, hasLoadedChannels = true))
+        assertNull(homeEmptyActionLabel(noSources = false, anyEnabled = true, hasLoadedChannels = true, tab = 1))
     }
 }
