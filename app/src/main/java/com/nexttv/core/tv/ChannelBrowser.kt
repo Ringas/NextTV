@@ -52,8 +52,9 @@ import kotlinx.coroutines.flow.first
  val fill=if(accent)NextTvStyle.AccentBadge else NextTvStyle.SpecNeutralFill
  val stroke=if(accent)NextTvStyle.AccentText.copy(alpha=.45f)else NextTvStyle.SpecNeutralStroke
  val decoration=if(quiet)Modifier else Modifier.background(fill,shape).border(.75.dp,stroke,shape)
- Box(Modifier.height(19.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale).then(decoration).padding(horizontal=if(quiet)2.dp else 6.dp),contentAlignment=Alignment.Center){
-  AppText(text,fontSize=10.sp,fontWeight=if(quiet)androidx.compose.ui.text.font.FontWeight.Medium else androidx.compose.ui.text.font.FontWeight.Bold,color=if(accent)NextTvStyle.AccentText else NextTvStyle.Muted.copy(alpha=if(quiet).72f else 1f),maxLines=1)
+ val sizing=if(quiet)Modifier else Modifier.height(19.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale)
+ Box(sizing.then(decoration).padding(horizontal=if(quiet)2.dp else 6.dp),contentAlignment=Alignment.Center){
+  AppText(if(quiet)"· $text" else text,fontSize=10.sp,fontWeight=if(quiet)androidx.compose.ui.text.font.FontWeight.Medium else androidx.compose.ui.text.font.FontWeight.Bold,color=if(accent)NextTvStyle.AccentText else NextTvStyle.Muted.copy(alpha=if(quiet).72f else 1f),maxLines=1)
  }
 }
 
@@ -217,13 +218,15 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
     val programs=app.epg.programsForDay(candidate,epgDay)
     if(programs.isEmpty())Box(Modifier.fillMaxWidth().weight(1f),contentAlignment=Alignment.Center){AppText("暂无节目单",textAlign=androidx.compose.ui.text.style.TextAlign.Center,fontSize=InteractionStyle.body,color=NextTvStyle.Muted)}
     LazyColumn(flingBehavior=appFlingBehavior(),state=epgList,modifier=Modifier.continuousWheel(epgList),contentPadding=PaddingValues(start=6.dp,end=12.dp,top=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){itemsIndexed(programs,key={_,it->"${it.channelKey}:${it.start}:${it.stop}"}){index,p->
+     val scale=androidx.compose.ui.platform.LocalDensity.current.fontScale
      val request=remember(p.start){FocusRequester()};DisposableEffect(p.start,request){epgRequests[p.start]=request;onDispose{if(epgRequests[p.start]===request)epgRequests.remove(p.start)}}
      val live=now in p.start until p.stop
      val badge=if(live)"直播中"else if(p.stop<=now&&candidate.playbackRoutes.any{replayAddress(it,p,now)!=null})"回放"else""
      TvSurface(Modifier.fillMaxWidth().heightIn(min=48.dp).focusRequester(request).focusEdges(up=index==0,down=index==programs.lastIndex).focusProperties{canFocus=navigation.region.wire=="epg";if(index==0)up=FocusRequester.Cancel;if(index==programs.lastIndex)down=FocusRequester.Cancel},kind="playerRow",selected=live,onFocus={if(navigation.region.wire=="epg")epgFocusStart=p.start},onClick={onProgram(candidate,p)}){
       Row(Modifier.fillMaxWidth().align(Alignment.Center).padding(horizontal=10.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically){
-       AppText(Ui.hhmm(p.start),Modifier.width(44.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale),fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1,fontFeatureSettings="tnum")
-       AppText(p.title,Modifier.weight(1f).padding(start=8.dp,end=10.dp),fontSize=InteractionStyle.body,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
+       AppText(Ui.hhmm(p.start),Modifier.width(48.dp*scale).padding(end=8.dp),fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End,fontFeatureSettings="tnum")
+       Box(Modifier.width(.75.dp).height(18.dp*scale).background(NextTvStyle.PlayerInfoBorder))
+       AppText(p.title,Modifier.weight(1f).padding(start=10.dp,end=10.dp),fontSize=InteractionStyle.body,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
        if(badge.isNotBlank())BrowserBadge(badge,live,quiet=!live)
       }
      }

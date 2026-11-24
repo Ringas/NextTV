@@ -144,7 +144,7 @@ private typealias SettingsEntry = SettingsRowData
    // Explanation travels with the card, without drifting to the screen's bottom edge.
    Column(Modifier.fillMaxWidth()){
    val helpHeight=(InteractionStyle.caption.value*1.4f*LocalDensity.current.fontScale*2+24).dp.coerceAtLeast(64.dp)
-   Column(Modifier.fillMaxWidth().heightIn(max=(availableHeight-helpHeight).coerceAtLeast(bodyHeight)).glassPanel(RoundedCornerShape(InteractionStyle.panelRadius)).padding(12.dp).onGloballyPositioned{navigation.viewport=it}.appVerticalScroll(navigation.scroll).padding(vertical=10.dp)){
+   Column(Modifier.fillMaxWidth().heightIn(max=(availableHeight-helpHeight).coerceAtLeast(bodyHeight)).padding(horizontal=4.dp,vertical=4.dp).onGloballyPositioned{navigation.viewport=it}.appVerticalScroll(navigation.scroll).padding(vertical=6.dp)){
     entries.forEachIndexed{index,entry->
      val key="$category/${entry.title}";val request=remember(key){FocusRequester()}
      DisposableEffect(key,request){if(entry.action!=null){contentRequests[key]=request;navigation.rows[key]=request};onDispose{contentRequests.remove(key);navigation.rows.remove(key);navigation.coordinates.remove(key)}}
