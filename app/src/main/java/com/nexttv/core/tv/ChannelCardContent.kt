@@ -3,6 +3,7 @@
 package com.nexttv.core.tv
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -29,11 +30,6 @@ private val artworkBrushes = listOf(
  Color(0xFF5D6E8C) to Color(0xFF8C9EB8),
 ).map { (base, highlight) -> Brush.linearGradient(listOf(base, highlight)) }
 
-private val numberColors = listOf(
- Color(0xFF1D5C80), Color(0xFF2A6E5C), Color(0xFF694F86), Color(0xFF7A4A38),
- Color(0xFF2C5D9B), Color(0xFF8A5A2B), Color(0xFF39636F), Color(0xFF6B3B54),
-)
-
 @Composable
 private fun CardText(text: String, size: Int, color: Color, modifier: Modifier = Modifier, bold: Boolean = false) {
  androidx.compose.foundation.text.BasicText(
@@ -49,17 +45,17 @@ private fun CardText(text: String, size: Int, color: Color, modifier: Modifier =
 @Composable
 private fun ChannelNumberBadge(channel: Channel) {
  val number = channel.number.toString().padStart(3, '0')
- val paletteIndex = if (channel.number > 0) channel.number - 1 else channel.id.hashCode() and Int.MAX_VALUE
  val density = LocalDensity.current
  val systemScale = androidx.compose.ui.platform.LocalConfiguration.current.fontScale
  androidx.compose.runtime.CompositionLocalProvider(LocalDensity provides Density(density.density, systemScale)) {
   Box(
    Modifier.size(24.dp * systemScale.coerceAtLeast(1f))
     .semantics { contentDescription = "频道号 $number" }
-    .background(numberColors[paletteIndex % numberColors.size], RoundedCornerShape(8.dp)),
+    .background(NextTvStyle.ChannelNumber, RoundedCornerShape(8.dp))
+    .border(.75.dp, NextTvStyle.PlayerInfoBorder, RoundedCornerShape(8.dp)),
    contentAlignment = Alignment.Center,
   ) {
-   CardText(number, 11, Color(0xFFF2F7FC), bold = true)
+   CardText(number, 11, NextTvStyle.Text, bold = true)
   }
  }
 }

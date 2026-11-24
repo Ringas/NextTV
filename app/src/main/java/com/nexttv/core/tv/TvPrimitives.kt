@@ -45,50 +45,47 @@ object NextTvStyle {
  // Shared reactive semantic colours: the theme switches without recreating playback.
  private val light get()=com.nexttv.core.App.get().prefs.lightGlass
  private fun tone(dark:Long,pale:Long)=Color(if(light)pale else dark)
- val Background get()=tone(0xFF101218,0xFFC4CFDD)
- val Text get()=tone(0xFFF2F3F7,0xFF202A3A)
- val Muted get()=tone(0xFFCED2DB,0xFF354457)
- val AccentText get()=tone(0xFFAFD6FF,0xFF195BB0)
- val MediaBadge get()=tone(0xCC151922,0xDCF1F5FA)
+ // Dark: near-black neutral canvas, flat graphite cards and a single cool accent.
+ // Light: cool paper canvas, white cards, ink text and the same accent, never a mirror-inverted dark UI.
+ val Background get()=tone(0xFF0F1116,0xFFF3F6FA)
+ val Text get()=tone(0xFFF3F5F9,0xFF18202B)
+ val Muted get()=tone(0xFFA8B1C0,0xFF5B6778)
+ val AccentText get()=tone(0xFFA9CCFF,0xFF1D4F9E)
+ val MediaBadge get()=tone(0xD9161A20,0xE6FFFFFF)
  val QrInk=Color(0xFF1D2633)
- val Disabled get()=tone(0xFFAEB5C0,0xFF66758A)
- val Accent get()=tone(0xFF75B5FF,0xFF176CDA)
- val Stroke get()=tone(0x33FFFFFF,0x3325344B)
- val Focus get()=tone(0xC7616D7B,0xE0F1F6FC)
- val Selected get()=tone(0x8C4E5D70,0x8095A8BB)
- val Surface get()=tone(0x80343F50,0x72869AAD)
- val Button get()=tone(0x99464F60,0xA3CEDAE6)
- val Pressed get()=tone(0xFF667487,0xFFE1EBF5)
- val DisabledSurface get()=tone(0x66323842,0x66C6CFDC)
- val Divider get()=tone(0x1FFFFFFF,0x242C3D55)
- val Badge get()=tone(0xA64A5668,0xB8E0E8F1)
- val ChannelNumber get()=tone(0xE1465567,0xE7E5EDF7)
- val AccentBadge get()=tone(0xA6243D5A,0xA3D4E4F3)
- val PlayerInfoPanel get()=tone(0xED181A21,0xF2F2F6FA)
- val PlayerInfoBorder get()=tone(0x24FFFFFF,0x3325344B)
- val PlayerProgressTrack get()=tone(0x38FFFFFF,0x3825344B)
- val PlayerProgressFill get()=tone(0xDDF5F7FB,0xFF243449)
- val SpecNeutralFill get()=tone(0x1CFFFFFF,0x1C25344B)
- val SpecNeutralStroke get()=tone(0x22FFFFFF,0x3325344B)
- val SpecWarmFill get()=tone(0x30FF9F0A,0x2EFF9F0A)
- val SpecWarmStroke get()=tone(0x70FF9F0A,0x66FF9F0A)
- val SpecWarmText get()=tone(0xFFFFC766,0xFF8A4B00)
- val SpecCoolFill get()=tone(0x2E0A84FF,0x24176CDA)
- val SpecCoolStroke get()=tone(0x665AC8FA,0x55176CDA)
- val SpecCoolText get()=tone(0xFF93E2FF,0xFF0B4F9E)
- val Error get()=tone(0xFFFFC0B8,0xFF9C2822)
- val Nav get()=tone(0xB32A3443,0xA3BAC9DA)
- val NavActive get()=tone(0xCC46566C,0xD9E6EEF7)
- val NavFocused get()=tone(0xE075859A,0xF0F6FAFF)
- private val darkPanel=Brush.verticalGradient(listOf(Color(0xB2303C4A),Color(0x99141E2B)))
- private val lightPanel=Brush.verticalGradient(listOf(Color(0xC2EAF1F8),Color(0xA6D4DEE9)))
- val Panel get()=if(light)lightPanel else darkPanel
- private val darkReadingPanel = Brush.verticalGradient(listOf(Color(0xEC283544), Color(0xE3192432)))
- private val lightReadingPanel = Brush.verticalGradient(listOf(Color(0xF2F2F6FA), Color(0xE9E1EAF3)))
- val ReadingPanel get() = if (light) lightReadingPanel else darkReadingPanel
- private val darkHome=Brush.verticalGradient(listOf(Color(0xFF1C2230),Color(0xFF11141C)))
- private val lightHome=Brush.verticalGradient(listOf(Color(0xFFD0D9E4),Color(0xFFB3C1D2)))
- val Home get()=if(light)lightHome else darkHome
+ val Disabled get()=tone(0xFF737D8C,0xFF8A94A3)
+ val Accent get()=tone(0xFF7DB3FF,0xFF2563C9)
+ val Stroke get()=tone(0xFF2B323D,0xFFD6DEE8)
+ val Focus get()=tone(0xFF2E3846,0xFFDDEAFB)
+ val Selected get()=tone(0xFF242B35,0xFFEAF1F9)
+ val Surface get()=tone(0xFF1A1F27,0xFFFFFFFF)
+ val Button get()=tone(0xFF232A34,0xFFE9EEF5)
+ val Pressed get()=tone(0xFF35404F,0xFFDCE7F4)
+ val DisabledSurface get()=tone(0xFF1A1E24,0xFFEDF1F6)
+ val Divider get()=tone(0xFF2A313C,0xFFDCE3EC)
+ val Badge get()=tone(0xFF2A323E,0xFFE9EFF7)
+ val ChannelNumber get()=tone(0xFF303846,0xFFDDE7F2)
+ val AccentBadge get()=tone(0xFF233A56,0xFFDFECFF)
+ val PlayerInfoPanel get()=tone(0xF2181A21,0xFAFFFFFF)
+ val PlayerInfoBorder get()=tone(0x2BFFFFFF,0xFFD6DEE8)
+ val PlayerProgressTrack get()=tone(0x3DFFFFFF,0xFFD6DEE8)
+ val PlayerProgressFill get()=tone(0xFFF2F4F8,0xFF24364D)
+ val SpecNeutralFill get()=tone(0x1FFFFFFF,0x121B2A3A)
+ val SpecNeutralStroke get()=tone(0x2BFFFFFF,0x2B1B2A3A)
+ val SpecWarmFill get()=tone(0x33FF9F0A,0xFFFFF1DF)
+ val SpecWarmStroke get()=tone(0x80FFB24D,0xFFE2A45D)
+ val SpecWarmText get()=tone(0xFFFFC978,0xFF8A4B00)
+ val SpecCoolFill get()=tone(0x2E5AA9FF,0xFFE6F2FF)
+ val SpecCoolStroke get()=tone(0x7F5AC8FA,0xFF7EA9D8)
+ val SpecCoolText get()=tone(0xFFA9CCFF,0xFF0B4F9E)
+ val Error get()=tone(0xFFFFB4AB,0xFFA32B22)
+ val Nav get()=tone(0xFF1B2028,0xFFFBFCFE)
+ val NavActive get()=tone(0xFF262E39,0xFFEDF2F8)
+ val NavFocused get()=tone(0xFF35414F,0xFFE1EBF8)
+ // Flat surfaces: no gradients, no gloss; the hairline border carries depth.
+ val Panel get()=tone(0xF2181A21,0xFFFAFFFFFF)
+ val ReadingPanel get()=tone(0xF6181A21,0xFFFFFFFFFF)
+ val Home get()=tone(0xFF0F1116,0xFFF3F6FA)
  val Decelerate=Easing {1f-(1f-it)*(1f-it)}
  val CardEase=Easing {((kotlin.math.cos((it+1)*Math.PI)/2)+.5).toFloat()}
 }
@@ -159,7 +156,7 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
     }
    }
   }.semantics{if(kind=="nav"||kind=="side"||kind=="playerRow"||selected)this.selected=selected}.then(if(focusReturn==null)Modifier.focusRequester(ownFocus)else Modifier).focusProperties{canFocus=enabled}.onFocusChanged{focused=it.isFocused;if(!it.hasFocus){holdJob?.cancel();holding=false};if(it.isFocused){rememberReturnTarget();if(FocusAudit.frame!=null)FocusAudit.generation++;onFocus?.invoke()}}
-  .then(if(kind=="card"||kind=="list")Modifier else Modifier.graphicsLayer()).drawWithContent{drawContent();if(visibleFocus)FocusAudit.frame?.invoke(FocusAudit.generation,android.os.SystemClock.uptimeMillis())}.drawWithCache{val outline=shape.createOutline(size,layoutDirection,this);val gloss=Brush.verticalGradient(listOf(Color(0x0CFFFFFF),Color.Transparent));onDrawBehind{val paintedFill=if(visibleFocus)background.copy(alpha=background.alpha*(.8f+.2f*emphasis.value))else background;drawOutline(outline,paintedFill);if(paintedFill.alpha>0f&&kind!="nav"&&kind!="playerRow")drawOutline(outline,gloss);if(kind=="playerRow"&&(visibleFocus||selected)){val ink=if(visibleFocus)NextTvStyle.Text.copy(alpha=.55f)else NextTvStyle.Text.copy(alpha=.28f);drawOutline(outline,ink,style=androidx.compose.ui.graphics.drawscope.Stroke(width=.75.dp.toPx()))}}}
+  .then(if(kind=="card"||kind=="list")Modifier else Modifier.graphicsLayer()).drawWithContent{drawContent();if(visibleFocus)FocusAudit.frame?.invoke(FocusAudit.generation,android.os.SystemClock.uptimeMillis())}.drawWithCache{val outline=shape.createOutline(size,layoutDirection,this);val gloss=Brush.verticalGradient(listOf(Color(0x0CFFFFFF),Color.Transparent));val line=when(kind){"button","action","chip","danger","source"->NextTvStyle.PlayerInfoBorder;"setting","choice"->if(visibleFocus||selected)NextTvStyle.PlayerInfoBorder else Color.Transparent;else->Color.Transparent};onDrawBehind{val paintedFill=if(visibleFocus)background.copy(alpha=background.alpha*(.8f+.2f*emphasis.value))else background;drawOutline(outline,paintedFill);if(paintedFill.alpha>0f&&kind!="nav"&&kind!="playerRow")drawOutline(outline,gloss);if(kind=="playerRow"&&(visibleFocus||selected)){val ink=if(visibleFocus)NextTvStyle.Text.copy(alpha=.55f)else NextTvStyle.Text.copy(alpha=.28f);drawOutline(outline,ink,style=androidx.compose.ui.graphics.drawscope.Stroke(width=.75.dp.toPx()))}else if(line.alpha>0f)drawOutline(outline,line,style=androidx.compose.ui.graphics.drawscope.Stroke(width=.75.dp.toPx()))}}
   .hoverable(interactions,enabled=enabled)
   .combinedClickable(enabled=enabled,role=if(kind=="nav")androidx.compose.ui.semantics.Role.Tab else if(kind=="choice")null else androidx.compose.ui.semantics.Role.Button,interactionSource=interactions,indication=null,onClick={shortAction()},onLongClick=onLongClick?.let{{longAction?.invoke()}},onLongClickLabel=longClickLabel?:if(onLongClick!=null)"更多操作"else null)){
   CompositionLocalProvider(LocalContentColor provides foreground,LocalAppForeground provides foreground,LocalSurfaceFocused provides visibleFocus){content()}

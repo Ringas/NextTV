@@ -14,14 +14,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.*
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.*
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.geometry.CornerRadius
 import com.nexttv.BuildConfig
+import com.nexttv.R
 import com.nexttv.core.App
 import com.nexttv.core.data.CacheStore
 import kotlinx.coroutines.*
@@ -133,7 +131,7 @@ private typealias SettingsEntry = SettingsRowData
       if(category!=name){category=name;subpage="";scope.launch{navigation.scroll.scrollTo(0)}}
       explanation=when(name){"订阅与节目单"->"管理频道订阅与节目单。";"播放"->"设置启动方式、换台体验与播放信息。";"频道与外观"->"调整频道展示与动态效果。";"高级"->"配置特殊订阅服务的网络要求。";else->""}
      },onClick={if(InteractionStyle.pointer)runCatching{request.requestFocus()}else enterContent()}){Row(Modifier.fillMaxWidth().height(bodyHeight).padding(horizontal=12.dp,vertical=10.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
-      SettingsCategoryGlyph(index,Modifier.size(22.dp))
+      SettingsCategoryGlyph(index,category==name,Modifier.size(28.dp))
       AppText(name,Modifier.weight(1f),color=NextTvStyle.Text,fontSize=InteractionStyle.body,maxLines=2)
      }}
     }
@@ -226,34 +224,16 @@ private typealias SettingsEntry = SettingsRowData
  }
 }
 
-/** Monochrome category symbols use the same foreground and rounded strokes as global navigation. */
-@Composable private fun SettingsCategoryGlyph(index:Int,modifier:Modifier=Modifier){
- val color=NextTvStyle.Muted
- Canvas(modifier){
-  val u=size.minDimension/24f
-  val stroke=Stroke(width=1.7f*u,cap=StrokeCap.Round)
-  fun line(x:Float,y:Float,xx:Float,yy:Float)=drawLine(color,Offset(x*u,y*u),Offset(xx*u,yy*u),strokeWidth=1.7f*u,cap=StrokeCap.Round)
-  when(index){
-   0->{
-    drawRoundRect(color,Offset(3*u,4*u),Size(18*u,16*u),CornerRadius(3*u),style=stroke)
-    line(7f,9f,17f,9f);line(7f,13f,17f,13f);line(7f,17f,12f,17f)
-   }
-   1->{
-    drawRoundRect(color,Offset(2*u,4*u),Size(20*u,14*u),CornerRadius(3*u),style=stroke)
-    val path=androidx.compose.ui.graphics.Path().apply{moveTo(10*u,8*u);lineTo(15*u,11*u);lineTo(10*u,14*u);close()}
-    drawPath(path,color,style=stroke);line(8f,21f,16f,21f)
-   }
-   2->{
-    for(x in listOf(3f,13f))for(y in listOf(3f,13f))
-     drawRoundRect(color,Offset(x*u,y*u),Size(8*u,8*u),CornerRadius(2*u),style=stroke)
-   }
-   3->{
-    line(3f,6f,21f,6f);line(3f,12f,21f,12f);line(3f,18f,21f,18f)
-    drawCircle(NextTvStyle.Background,3*u,Offset(8*u,6*u));drawCircle(color,3*u,Offset(8*u,6*u),style=stroke)
-    drawCircle(NextTvStyle.Background,3*u,Offset(16*u,12*u));drawCircle(color,3*u,Offset(16*u,12*u),style=stroke)
-    drawCircle(NextTvStyle.Background,3*u,Offset(10*u,18*u));drawCircle(color,3*u,Offset(10*u,18*u),style=stroke)
-   }
-   else->{drawCircle(color,10*u,center,style=stroke);line(12f,11f,12f,17f);drawCircle(color,1*u,Offset(12*u,7*u))}
-  }
+/** Monochrome category symbols share one 24-unit grid, 1.8 stroke and the global tile material. */
+@Composable private fun SettingsCategoryGlyph(index:Int,selected:Boolean,modifier:Modifier=Modifier){
+ val icon=when(index){
+  0->R.drawable.ic_settings_sources
+  1->R.drawable.ic_settings_playback
+  2->R.drawable.ic_settings_appearance
+  3->R.drawable.ic_settings_advanced
+  else->R.drawable.ic_settings_about
+ }
+ Box(modifier.background(NextTvStyle.ChannelNumber,RoundedCornerShape(9.dp)).border(.75.dp,NextTvStyle.PlayerInfoBorder,RoundedCornerShape(9.dp)),contentAlignment=Alignment.Center){
+  Image(painterResource(icon),null,Modifier.size(17.dp),colorFilter=ColorFilter.tint(if(selected)NextTvStyle.AccentText else NextTvStyle.Text))
  }
 }
