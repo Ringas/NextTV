@@ -3,8 +3,6 @@ package com.nexttv.core.tv
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
@@ -24,7 +22,7 @@ import com.nexttv.R
  val positions=remember{mutableStateMapOf<Int,Pair<Float,Float>>()}
  val density=LocalDensity.current
  val reduced=com.nexttv.core.App.get().prefs.reduceMotion
- Box(modifier.height(56.dp).glassTint(NextTvStyle.Nav,RoundedCornerShape(InteractionStyle.pillRadius)).padding(5.dp)){
+ Box(modifier.height(56.dp).glassTint(NextTvStyle.Nav,RoundedCornerShape(InteractionStyle.pillRadius),elevation=10.dp).padding(5.dp)){
   if(positions.size==3){
    val target=positions[tab]?.first?:0f
    val width=positions.values.maxOf{it.second}
@@ -38,7 +36,7 @@ import com.nexttv.R
   Row{listOf("频道","收藏","设置").forEachIndexed{i,label->
    TvSurface(Modifier.height(46.dp).focusRequester(requests[i]).focusEdges(up=true,left=i==0,right=i==2).focusProperties{up=FocusRequester.Cancel;left=if(i==0)FocusRequester.Cancel else requests[i-1];right=if(i==2)FocusRequester.Cancel else requests[i+1]}.onGloballyPositioned{val value=it.positionInParent().x to it.size.width.toFloat();if(positions[i]!=value)positions[i]=value},kind="nav",selected=tab==i,focusReturn=requests[i],onFocus={onSelect(i)},onClick={onSelect(i);requests[i].requestFocus()}){
     Row(Modifier.padding(horizontal=18.dp).fillMaxHeight(),verticalAlignment=Alignment.CenterVertically){
-     Box(Modifier.size(26.dp).background(NextTvStyle.ChannelNumber,RoundedCornerShape(8.dp)).border(.75.dp,NextTvStyle.PlayerInfoBorder,RoundedCornerShape(8.dp)),contentAlignment=Alignment.Center){
+     Box(Modifier.size(26.dp).glassTint(NextTvStyle.ChannelNumber,RoundedCornerShape(10.dp)),contentAlignment=Alignment.Center){
       Image(painterResource(listOf(R.drawable.ic_nav_channels,R.drawable.ic_nav_favorites,R.drawable.ic_nav_settings)[i]),null,Modifier.size(16.dp*minOf(1.2f,density.fontScale/(8f/7f))),colorFilter=ColorFilter.tint(if(tab==i)NextTvStyle.AccentText else NextTvStyle.Text))
      }
      AppText(label,Modifier.padding(start=8.dp),fontSize=InteractionStyle.body*(minOf(density.fontScale,2f)/density.fontScale),fontWeight=FontWeight.Bold)

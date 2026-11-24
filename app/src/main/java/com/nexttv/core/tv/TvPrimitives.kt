@@ -79,10 +79,20 @@ object NextTvStyle {
  val SpecCoolStroke get()=tone(0x7F5AC8FA,0xFF7EA9D8)
  val SpecCoolText get()=tone(0xFFA9CCFF,0xFF0B4F9E)
  val Error get()=tone(0xFFFFB4AB,0xFFA32B22)
- val Nav get()=tone(0xFF1B2028,0xFFFBFCFE)
- val NavActive get()=tone(0xFF262E39,0xFFEDF2F8)
- val NavFocused get()=tone(0xFF35414F,0xFFE1EBF8)
- // Flat surfaces: no gradients, no gloss; the hairline border carries depth.
+ val Nav get()=tone(0xF21B2028,0xF2FBFCFE)
+ val NavActive get()=tone(0xF2262E39,0xF2EDF2F8)
+ val NavFocused get()=tone(0xF235414F,0xF2E1EBF8)
+ // tvOS 27 fusion: flat content stays flat, while the functional layer gets a
+ // tinted wash, a darker edge and a narrow specular highlight. Opacity stays high.
+ val GlassTop get()=tone(0xF21C2129,0xFFFFFFFF)
+ val GlassBottom get()=tone(0xE8161920,0xFFF5F7FA)
+ val GlassReadingTop get()=tone(0xFA1C2129,0xFFFFFFFF)
+ val GlassReadingBottom get()=tone(0xF3171A20,0xFFFAFBFD)
+ val PlayerGlassTop get()=tone(0xF21A1D24,0xFAFFFFFF)
+ val PlayerGlassBottom get()=tone(0xE6161920,0xFFF7F9FC)
+ val GlassSpecular get()=tone(0x40FFFFFF,0x1FFFFFFF)
+ val GlassEdge get()=tone(0x73000000,0x2E1E2C3D)
+ val GlassShadow get()=tone(0x66000000,0x2E334155)
  val Panel get()=tone(0xF2181A21,0xFFFAFFFFFF)
  val ReadingPanel get()=tone(0xF6181A21,0xFFFFFFFFFF)
  val Home get()=tone(0xFF0F1116,0xFFF3F6FA)
@@ -112,7 +122,7 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
  val interactions=remember{MutableInteractionSource()}
  val hovered by interactions.collectIsHoveredAsState()
  val pressed by interactions.collectIsPressedAsState()
- val radius=when(kind){"setting","side"->InteractionStyle.sideRadius;"card","list","source"->InteractionStyle.cardRadius;"nav"->InteractionStyle.pillInnerRadius;"quick","playerRow"->InteractionStyle.badgeRadius;else->InteractionStyle.radius}
+ val radius=when(kind){"setting","side"->InteractionStyle.sideRadius;"card","list","source"->InteractionStyle.cardRadius;"nav"->InteractionStyle.pillInnerRadius;"quick","playerRow"->InteractionStyle.badgeRadius;"button","action","chip","danger"->InteractionStyle.controlRadius;else->InteractionStyle.radius}
  // Navigation has exactly one shared moving capsule; never paint a second focus fill.
  val background=when{
   kind=="nav"->Color.Transparent
@@ -156,7 +166,7 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
     }
    }
   }.semantics{if(kind=="nav"||kind=="side"||kind=="playerRow"||selected)this.selected=selected}.then(if(focusReturn==null)Modifier.focusRequester(ownFocus)else Modifier).focusProperties{canFocus=enabled}.onFocusChanged{focused=it.isFocused;if(!it.hasFocus){holdJob?.cancel();holding=false};if(it.isFocused){rememberReturnTarget();if(FocusAudit.frame!=null)FocusAudit.generation++;onFocus?.invoke()}}
-  .then(if(kind=="card"||kind=="list")Modifier else Modifier.graphicsLayer()).drawWithContent{drawContent();if(visibleFocus)FocusAudit.frame?.invoke(FocusAudit.generation,android.os.SystemClock.uptimeMillis())}.drawWithCache{val outline=shape.createOutline(size,layoutDirection,this);val gloss=Brush.verticalGradient(listOf(Color(0x0CFFFFFF),Color.Transparent));val line=when(kind){"button","action","chip","danger","source"->NextTvStyle.PlayerInfoBorder;"setting","choice"->if(visibleFocus||selected)NextTvStyle.PlayerInfoBorder else Color.Transparent;else->Color.Transparent};onDrawBehind{val paintedFill=if(visibleFocus)background.copy(alpha=background.alpha*(.8f+.2f*emphasis.value))else background;drawOutline(outline,paintedFill);if(paintedFill.alpha>0f&&kind!="nav"&&kind!="playerRow")drawOutline(outline,gloss);if(kind=="playerRow"&&(visibleFocus||selected)){val ink=if(visibleFocus)NextTvStyle.Text.copy(alpha=.55f)else NextTvStyle.Text.copy(alpha=.28f);drawOutline(outline,ink,style=androidx.compose.ui.graphics.drawscope.Stroke(width=.75.dp.toPx()))}else if(line.alpha>0f)drawOutline(outline,line,style=androidx.compose.ui.graphics.drawscope.Stroke(width=.75.dp.toPx()))}}
+  .then(if(kind=="card"||kind=="list"||kind=="nav")Modifier else Modifier.graphicsLayer{val lift=1f+.02f*emphasis.value;scaleX=lift;scaleY=lift}).drawWithContent{drawContent();if(visibleFocus)FocusAudit.frame?.invoke(FocusAudit.generation,android.os.SystemClock.uptimeMillis())}.drawWithCache{val outline=shape.createOutline(size,layoutDirection,this);val gloss=if(visibleFocus)Brush.verticalGradient(listOf(NextTvStyle.GlassSpecular,Color.Transparent,NextTvStyle.GlassEdge.copy(alpha=NextTvStyle.GlassEdge.alpha*.32f)))else Brush.verticalGradient(listOf(Color(0x08FFFFFF),Color.Transparent));val rim=Brush.verticalGradient(listOf(NextTvStyle.GlassSpecular,Color.Transparent,NextTvStyle.GlassEdge));val line=when(kind){"button","action","chip","danger","source"->NextTvStyle.PlayerInfoBorder;"setting","choice"->if(visibleFocus||selected)NextTvStyle.PlayerInfoBorder else Color.Transparent;else->Color.Transparent};onDrawBehind{val paintedFill=if(visibleFocus)background.copy(alpha=background.alpha*(.8f+.2f*emphasis.value))else background;drawOutline(outline,paintedFill);if(paintedFill.alpha>0f&&kind!="nav"&&kind!="playerRow")drawOutline(outline,gloss);if(kind=="playerRow"&&(visibleFocus||selected)){val ink=if(visibleFocus)NextTvStyle.Text.copy(alpha=.55f)else NextTvStyle.Text.copy(alpha=.28f);drawOutline(outline,ink,style=androidx.compose.ui.graphics.drawscope.Stroke(width=.75.dp.toPx()))}else if(line.alpha>0f)drawOutline(outline,line,style=androidx.compose.ui.graphics.drawscope.Stroke(width=.75.dp.toPx()));if(visibleFocus&&kind!="nav"&&kind!="playerRow")drawOutline(outline,rim,style=androidx.compose.ui.graphics.drawscope.Stroke(width=1.dp.toPx()))}}
   .hoverable(interactions,enabled=enabled)
   .combinedClickable(enabled=enabled,role=if(kind=="nav")androidx.compose.ui.semantics.Role.Tab else if(kind=="choice")null else androidx.compose.ui.semantics.Role.Button,interactionSource=interactions,indication=null,onClick={shortAction()},onLongClick=onLongClick?.let{{longAction?.invoke()}},onLongClickLabel=longClickLabel?:if(onLongClick!=null)"更多操作"else null)){
   CompositionLocalProvider(LocalContentColor provides foreground,LocalAppForeground provides foreground,LocalSurfaceFocused provides visibleFocus){content()}
