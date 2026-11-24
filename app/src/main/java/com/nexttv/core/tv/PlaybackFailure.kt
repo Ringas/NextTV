@@ -12,6 +12,7 @@ import java.net.UnknownHostException
 import javax.net.ssl.SSLException
 
 internal class UnsupportedPlaybackProtocol : IllegalArgumentException()
+internal class HttpsRequired : IllegalArgumentException()
 
 internal fun playbackFailureMessage(error: Throwable, playerErrorCode: Int? = null): String {
     val causes = generateSequence(error) { it.cause }.take(8).toList()
@@ -34,6 +35,7 @@ internal fun playbackFailureMessage(error: Throwable, playerErrorCode: Int? = nu
         return "$reason（HTTP $status）"
     }
     return when {
+        causes.any { it is HttpsRequired } -> "已开启仅 HTTPS，请更换为加密线路或在设置中关闭该限制"
         causes.any { it is UnsupportedPlaybackProtocol } -> "当前播放引擎仅支持 HTTP/HTTPS，暂不支持该线路协议"
         causes.any { it is MalformedURLException } -> "播放地址格式无效"
         causes.any { it is UnknownHostException } -> "无法解析播放源域名"

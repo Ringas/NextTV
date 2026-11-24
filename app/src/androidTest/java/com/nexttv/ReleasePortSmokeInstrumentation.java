@@ -20,7 +20,7 @@ public class ReleasePortSmokeInstrumentation extends Instrumentation {
  private void click(String text){AccessibilityNodeInfo n=find(getUiAutomation().getRootInActiveWindow(),text);if(n==null)throw new IllegalStateException("Missing "+text);while(!n.isClickable()){n=n.getParent();if(n==null)throw new IllegalStateException("Not clickable "+text);}if(!n.performAction(AccessibilityNodeInfo.ACTION_CLICK))throw new IllegalStateException("Click failed "+text);SystemClock.sleep(300);}
  private File file(String name){return new File(getTargetContext().getExternalFilesDir(null),name);}
  private void shot(String name)throws Exception{Bitmap b=getUiAutomation().takeScreenshot();try(FileOutputStream f=new FileOutputStream(file("tvport-release-"+name+".png"))){b.compress(Bitmap.CompressFormat.PNG,100,f);}b.recycle();}
- private void pass(String label){results.append("PASS ").append(label).append('\n');Bundle b=new Bundle();b.putString("stream","PASS "+label+"\n");sendStatus(0,b);}
+ protected void pass(String label){results.append("PASS ").append(label).append('\n');Bundle b=new Bundle();b.putString("stream","PASS "+label+"\n");sendStatus(0,b);}
  @Override public void onStart(){try{
   startActivitySync(new Intent().setClassName("com.nexttv","com.nexttv.core.tv.TvActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));SystemClock.sleep(2500);
   await("release home","全部频道",10000);await("four menus","节目表",3000);shot("home");pass("R8 Release starts native TV entry");

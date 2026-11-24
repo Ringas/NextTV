@@ -62,8 +62,16 @@ internal class ChannelCache(private val context: Context) {
                 try {
                     input.copyTo(budget.output(stream,ImportPolicy.PLAYLIST_BYTES));budget.check();stream.fd.sync();cache.finishWrite(stream)
                 } catch(t:Throwable){cache.failWrite(stream);throw t}
+                CacheStore.trimSourceCaches(context, id)
             }
         }.isSuccess
+
+    fun deleteSourceCache(id: String) {
+        val base = File(context.filesDir, "pl_$id.m3u")
+        base.delete()
+        File(base.path + ".bak").delete()
+        File(base.path + ".new").delete()
+    }
 
     fun readSourceCache(id: String, base: String): List<Channel>? {
         val f = File(context.filesDir, "pl_$id.m3u")

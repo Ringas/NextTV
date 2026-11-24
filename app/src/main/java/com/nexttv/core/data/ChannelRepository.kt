@@ -101,7 +101,7 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
         saveSources()
         prefs.removeFavorites(rawChannels.filter{it.sourceId==id}.map{it.id}.toSet())
         applyChannels(rawChannels.filterNot{it.sourceId==id})
-        File(context.filesDir, "pl_$id.m3u").delete()
+        cache.deleteSourceCache(id)
     }
 
     // ---------------- 缓存 ----------------
@@ -148,8 +148,19 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
         val sourceChannels = mergeChannelRoutes(canonical.filter { c -> knownSources[c.sourceId]?.enabled == true && M3uParser.isPlayableUrl(c.url) })
         val merged = if (prefs.mergeChannelsAcrossSources) mergeAcrossSources(sourceChannels) else sourceChannels
         val numbering=runCatching{org.json.JSONObject(prefs.channelNumbersJson.ifBlank{"{}"})}.getOrElse{org.json.JSONObject()}
-        var nextNumber=(numbering.keys().asSequence().map{numbering.optInt(it)}.maxOrNull()?:0)+1
-        sourceChannels.forEach{if(numbering.optInt(it.id)<=0)numbering.put(it.id,nextNumber++)}
+        val usedNumbers=sourceChannels.mapNotNull{numbering.optInt(it.id).takeIf{n->n>0}}.toMutableSet()
+        var nextNumber=(usedNumbers.maxOrNull()?:0)+1
+        sourceChannels.forEach{c->
+            if(numbering.optInt(c.id)<=0){
+                val number=c.number.takeIf{it>0&&it !in usedNumbers} ?: run{
+                    while(nextNumber in usedNumbers)nextNumber++
+                    nextNumber
+                }
+                numbering.put(c.id,number)
+                usedNumbers.add(number)
+                if(number>=nextNumber)nextNumber=number+1
+            }
+        }
         val numberingJson=numbering.toString();if(numberingJson!=prefs.channelNumbersJson)prefs.channelNumbersJson=numberingJson
         val filtered = merged.map { c -> c.copy(number = numbering.getInt(c.id)) }
 
@@ -167,7 +178,7 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
 
     data class RefreshResult(val ok: Int, val failed: Int, val updated: List<Source>, val epgUrl: String, val storageWarning: String = "")
 
-    suspend fun refreshAll(onProgress: (String) -> Unit = {}): RefreshResult = refreshMutex.withLock {
+    suspend fun refreshAll(respectAutoUpdate: Boolean = false, onProgress: (String) -> Unit = {}): RefreshResult = refreshMutex.withLock {
         withContext(Dispatchers.IO) {
             val snapshot = synchronized(this@ChannelRepository) {
                 loadSources()
@@ -175,7 +186,7 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
             }
             val staged = linkedMapOf<String, File>()
             try {
-                val batch = refresh.prepare(snapshot.sources, snapshot.previousBySource, staged, onProgress)
+                val batch = refresh.prepare(snapshot.sources, snapshot.previousBySource, staged, onProgress, respectAutoUpdate)
                 val job = currentCoroutineContext()
                 synchronized(this@ChannelRepository) {
                     job.ensureActive()

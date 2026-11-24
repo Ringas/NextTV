@@ -12,9 +12,9 @@ public class PlaybackRoutesReleaseInstrumentation extends com.nexttv.support.Nex
  private Activity activity;private int passed;private final StringBuilder results=new StringBuilder();
  @Override public void onCreate(Bundle b){super.onCreate(b);start();}
 
- private void launch()throws Exception{activity=startActivitySync(new Intent().setClassName("com.nexttv","com.nexttv.core.tv.TvActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));text("频道分类：");SystemClock.sleep(2300);}
+ protected void launch()throws Exception{activity=startActivitySync(new Intent().setClassName("com.nexttv","com.nexttv.core.tv.TvActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));text("频道分类：");SystemClock.sleep(2300);}
  private void closeEditor()throws Exception{key(KeyEvent.KEYCODE_ESCAPE);SystemClock.sleep(400);if(tree().contains("保存"))key(KeyEvent.KEYCODE_ESCAPE);SystemClock.sleep(250);}
- private void pass(String name){passed++;results.append("PASS ").append(name).append('\n');Bundle b=new Bundle();b.putString("stream","PASS "+name+"\n");sendStatus(0,b);}
+ protected void pass(String name){passed++;results.append("PASS ").append(name).append('\n');Bundle b=new Bundle();b.putString("stream","PASS "+name+"\n");sendStatus(0,b);}
 
  @Override public void onStart(){android.content.SharedPreferences prefs=getTargetContext().getSharedPreferences("nexttv",0);String original=prefs.getString("selected_group","");prefs.edit().putString("selected_group","").commit();try{
   launch();focus("设置");text("节目单地址");

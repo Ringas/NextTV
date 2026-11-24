@@ -16,6 +16,10 @@ object ImportPolicy {
  const val EPG_WIRE_BYTES=8L*1024*1024
  const val EPG_XML_BYTES=16L*1024*1024
  const val EPG_CACHE_BYTES=24L*1024*1024
+ /** All EPG source files together must stay below this; 16 x 24 MB is not a safe budget. */
+ const val EPG_CACHE_TOTAL_BYTES=96L*1024*1024
+ /** Per-source playlist backups can grow to 8 MB each; cap their aggregate. */
+ const val PLAYLIST_CACHE_TOTAL_BYTES=48L*1024*1024
  const val PROGRAMMES=50000
  const val TOTAL_PROGRAMMES=75000
  const val EPG_CHANNELS=5000

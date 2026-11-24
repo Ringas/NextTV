@@ -20,6 +20,26 @@ https://example.org/other
   assertFalse(supportsHttpPlayback("file:///tmp/x"));assertFalse(supportsHttpPlayback("rtsp://example.test/live"))
   assertTrue(supportsHttpPlayback("HTTP://example.test/live"));assertTrue(supportsHttpPlayback("https://example.test/no-suffix"))
  }
+ @Test fun unquotedSingleQuotedAndExtendedAttributesAreAccepted(){
+  val c=M3uParser.parse("""#EXTM3U url-tvg="http://guide"
+#EXTINF:-1 tvg-id=news tvg-name='News HD' tvg-logo='http://logo.test/news.png' tvg-chno=42 group-title=News,News
+#EXTGRP:News Extra
+#EXTHTTP:{"User-Agent":"ExtUA","Referer":"http://ref.test"}
+#KODIPROP:http-user-agent=KodiUA
+#KODIPROP:inputstream.adaptive.stream_headers=Cookie=session%3D1&X-Token=t
+http://stream.test/live|User-Agent=PipeUA&Referer=http://pipe.test
+""","provider").channels.single()
+  assertEquals("news",c.tvgId);assertEquals("News",c.name);assertEquals("http://logo.test/news.png",c.logo)
+  assertEquals("News Extra",c.group);assertEquals(42,c.number);assertEquals("http://stream.test/live",c.url)
+  assertEquals("PipeUA",c.headers["User-Agent"]);assertEquals("http://pipe.test",c.headers["Referer"])
+  assertEquals("session%3D1",c.headers["Cookie"]);assertEquals("t",c.headers["X-Token"])
+ }
+ @Test fun catchupDefaultAndShiftModesAreAccepted(){
+  val base=com.nexttv.core.data.ChannelRoute("http://host/live","p","1",catchup="default",catchupSource="")
+  assertEquals("http://host/live?utc=1000&lutc=3000",com.nexttv.core.data.replayAddress(base,com.nexttv.core.data.Program("1","p","",1000000,2000000),3000000))
+  val shift=base.copy(catchup="shift",catchupSource="?start={start}&end={end}")
+  assertEquals("http://host/live?start=1000&end=2000",com.nexttv.core.data.replayAddress(shift,com.nexttv.core.data.Program("1","p","",1000000,2000000),3000000))
+ }
  @Test fun timezoneIsAppliedByCurrentXmltvParser(){assertEquals(Instant.parse("2026-11-16T04:00:00Z").toEpochMilli(),XmltvTimeParser().parse("20261116120000 +0800"))}
  @Test fun invalidCalendarAndMalformedTimesAreRejected(){val t=XmltvTimeParser();assertNull(t.parse("20260230120000 +0000"));assertNull(t.parse("bad"));assertNull(t.parse("20261116120000 +2460"))}
  @Test fun strictTimestampAndWhitespace(){val t=XmltvTimeParser();assertEquals(Instant.parse("2026-11-16T06:30:00Z").toEpochMilli(),t.parse("20261116120000   +0530"));assertNull(t.parse("202611161200 +0530"))}

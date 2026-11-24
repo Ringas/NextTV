@@ -3,6 +3,8 @@ name: Build signed APK
 on:
   push:
     branches: ['**']
+  pull_request:
+    branches: [main, dev]
   workflow_dispatch:
     inputs:
       build_type:
@@ -43,6 +45,9 @@ jobs:
 
       - name: Run unit tests
         run: bash ./gradlew --no-daemon :app:testReleaseUnitTest
+
+      - name: Compile instrumentation tests
+        run: bash ./gradlew --no-daemon :app:assembleDebugAndroidTest
 
       - name: Upload unit test report
         if: failure()
@@ -86,6 +91,10 @@ jobs:
 
   build:
     needs: [test, lint]
+    # Secrets are restored only for the two trusted branches. Pull requests and
+    # feature branches still run test/lint, but never receive signing material.
+    if: github.ref_name == 'main' || github.ref_name == 'dev'
+    environment: release-signing
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
@@ -137,6 +146,10 @@ jobs:
           # main keeps the plain version name; every other branch becomes a channel
           # prefix that is embedded in versionName and therefore visible in settings.
           branch="${GITHUB_REF_NAME}"
+          if [[ "$build_type" == "formal" && "$branch" != "main" && "$branch" != "dev" ]]; then
+            echo "::error::Formal releases are restricted to main and dev (requested: $branch)."
+            exit 1
+          fi
           channel=""
           if [[ "$branch" != "main" && "$branch" != "master" ]]; then
             channel=$(printf '%s' "$branch" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//; s/_/-/g')
@@ -208,10 +221,17 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      pull-requests: write
     concurrency:
       group: apk-release-${{ github.run_id }}
       cancel-in-progress: false
     steps:
+      - name: Checkout for version bump
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_type == 'formal'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
       - name: Download verified APK
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -246,3 +266,50 @@ jobs:
               --notes "签名 APK 来自分支 \`${GITHUB_REF_NAME}\`、提交 \`${GITHUB_SHA}\`。构建记录：${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
               "${flags[@]}"
           fi
+
+      - name: Propose next version bump
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_type == 'formal'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          released_release=$(awk -F= '$1=="releaseNumber"{print $2}' version.properties)
+          result=$(python3 tools/bump_version.py --released-release "$released_release" --json)
+          echo "$result"
+          if [[ "$(jq -r '.bumped' <<<"$result")" != "true" ]]; then
+            echo "version.properties is already advanced; nothing to do."
+            exit 0
+          fi
+
+          next_version=$(jq -r '.next_version' <<<"$result")
+          next_release=$(jq -r '.next_release' <<<"$result")
+          branch="chore/bump-${next_version}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          gh auth setup-git
+          git checkout -B "$branch"
+          git add version.properties
+          git commit -m "chore: bump to ${next_version} after formal release ${released_release}"
+          if git ls-remote --exit-code --heads origin "$branch" > /dev/null 2>&1; then
+            git push --force-with-lease origin "$branch"
+          else
+            git push origin "$branch"
+          fi
+
+          existing=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --base "$GITHUB_REF_NAME" --json number --jq '.[0].number // empty')
+          if [[ -n "$existing" ]]; then
+            echo "PR #$existing already tracks $branch."
+            exit 0
+          fi
+          body=$(printf '%s\n' \
+            "Formal release ${released_release} has been published from \`${GITHUB_REF_NAME}\` at \`${GITHUB_SHA}\`." \
+            "" \
+            "This PR advances \`version.properties\` so the next Alpha and formal builds use release ${next_release}:" \
+            "- versionName: \`${next_version}\`" \
+            "- releaseNumber: \`${next_release}\`" \
+            "- lastPublishedReleaseNumber: \`${released_release}\`" \
+            "" \
+            "The patch component was bumped automatically. Edit this PR if the next release should be a minor or major bump." \
+            "Release: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/build-${GITHUB_SHA}-${GITHUB_RUN_NUMBER}")
+          gh pr create --repo "$GITHUB_REPOSITORY" --base "$GITHUB_REF_NAME" --head "$branch" \
+            --title "chore: bump to ${next_version}" \
+            --body "$body"

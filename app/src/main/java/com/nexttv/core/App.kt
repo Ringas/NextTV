@@ -66,7 +66,7 @@ class App : Application() {
         Thread.setDefaultUncaughtExceptionHandler { thread,error ->
             try { java.io.File(filesDir,"last-crash.txt").writeText(
                 "Next TV ${com.nexttv.BuildConfig.VERSION_NAME} | Android ${android.os.Build.VERSION.RELEASE} | ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} | ${java.util.Date()}\n"+
-                android.util.Log.getStackTraceString(error).take(64000)) } catch(_:Exception) {}
+                com.nexttv.core.data.redactSensitive(android.util.Log.getStackTraceString(error)).take(64000)) } catch(_:Exception) {}
             previousCrashHandler?.uncaughtException(thread,error)
         }
         instance = this
@@ -77,6 +77,7 @@ class App : Application() {
         val started=android.os.SystemClock.elapsedRealtime()
         workScope.launch { try { withContext(Dispatchers.IO) {
         com.nexttv.core.tv.AppMotionScale.refresh(this@App)
+        prefs.migrateSensitiveSettings()
         channels.loadCache()
         if(channels.sources.isEmpty()){
         val old=getSharedPreferences("iptv_prefs",0)

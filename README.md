@@ -69,7 +69,7 @@ Next TV **不内置任何频道、订阅或直播源**，也不提供内容。�
 
 ### 性能
 
-- 频道表与节目单落盘缓存，冷启动直接读缓存进入首页。
+- 频道表与节目单落盘缓存，冷启动直接读缓存进入首页；设置页可查看缓存占用并一键清除，频道源备份、EPG 与台标缓存均有独立配额和孤儿清理。
 - 台标自研两级缓存（16 MB 内存 LRU + 64 MB 磁盘，3 路并发、按目标尺寸采样解码），未引入第三方图片库。
 - 换台预热池与相邻频道预加载（可关），配合解码器历史记忆选择更可能成功的线路与解码器。
 - Baseline Profile + Startup Profile 提交入库，release 开启 R8 与资源压缩。
@@ -344,9 +344,12 @@ bash ./gradlew :app:assembleRelease -PnextTvAlphaBuild=123 -PnextTvChannel=dev
 
 [`.github/workflows/signed-apk.yml`](.github/workflows/signed-apk.yml) 的行为：
 
-- 每次 push（任意分支）自动构建 **Alpha** 包；
-- 正式包只能通过 `workflow_dispatch` 手动触发，选择 `build_type=formal`；
-- `test` 与 `lint` job 必须先通过，否则不会进入签名构建和发布。
+- push 与 `main` / `dev` 的 Pull Request 都会运行 `test` / `lint`，并编译 instrumentation 测试 APK；
+- 只有 `main` / `dev` 分支会进入签名构建；feature 分支与 PR 不接触签名 Secrets；
+- 正式包只能通过 `workflow_dispatch` 手动触发，选择 `build_type=formal`，且只允许在 `main` / `dev` 上构建；
+- 签名 job 绑定 `release-signing` Environment，可在仓库设置中为该环境配置 required reviewers；
+- `test` 与 `lint` job 必须先通过，否则不会进入签名构建和发布；
+- 正式 Release 发布后，工作流会自动创建 `chore/bump-<next_version>` 分支并提交版本推进 PR。
 
 构建流程：
 
@@ -355,7 +358,7 @@ bash ./gradlew :app:assembleRelease -PnextTvAlphaBuild=123 -PnextTvChannel=dev
 3. 校验 `versionName` 与分支前缀、Alpha 构建号一致，并校验对应的 `versionCode`；
 4. 上传构建产物，并创建/更新 `build-<sha>-<run>` Release（Alpha 为预发布，正式包为普通 Release）。
 
-需要在仓库 Secrets 中配置：
+需要在 `release-signing` Environment Secrets（或仓库 Secrets）中配置：
 
 | Secret | 内容 |
 | --- | --- |
@@ -373,7 +376,7 @@ bash ./gradlew :app:assembleRelease -PnextTvAlphaBuild=123 -PnextTvChannel=dev
 - 版本遵循 `主版本.次版本.修订号`，`releaseNumber` 单调递增。
 - 每次 push 产出 Alpha 预发布包，用于真机验证；正式包从 Actions 手动触发 `build_type=formal`，本地等价命令是 `packageNextTvRelease`。
 - 非 `main` 分支的包名与 versionName 会带分支前缀，例如 `dev-1.4.1-Alpha.123`。
-- 正式发布后，把 `lastPublishedReleaseNumber` 更新为本次 `releaseNumber`，并递增下一次的 `releaseNumber`。
+- 正式发布后，工作流运行 `tools/bump_version.py`，自动把 `lastPublishedReleaseNumber` 更新为本次 `releaseNumber`、修订号 +1，并提交 `chore/bump-<next_version>` PR；自动化失败时仍可按同样规则手动更新。
 - versionCode 以 `releaseNumber` 为基数单调增长；Alpha 与正式包共用该基数，正式版升版后 Alpha 自动同步。
 
 ---
@@ -381,12 +384,12 @@ bash ./gradlew :app:assembleRelease -PnextTvAlphaBuild=123 -PnextTvChannel=dev
 ## 已知限制
 
 - 播放引擎只支持 `http` / `https`，不支持 `rtsp`、`rtp`、`udp`、`rtmp`。
-- 回看仅支持 `catchup="append"` + `?` 查询串模板，`default` / `shift` 型暂不支持。
-- 节目单最多 16 个来源；订阅源逐个刷新，源很多时靠后的源更容易超时。
+- 回看支持 `append` / `default` / `shift`，以及 `{utc}`、`{utcend}`、`{lutc}`、`{duration}`、`{start}`、`{end}`、日期占位符与 `${(b)...}` / `${(e)...}` 模板；仅仍受播放源服务端能力限制。
+- 节目单最多 16 个来源；订阅刷新默认 3 路并发，单个慢源受独立预算限制，但极慢源仍可能拖长整批时间。
 - 首页暂无搜索入口（数据层已具备按名称/分类/编号筛选能力）。
 - 不支持录制、时移、多屏同播、家长锁。
-- 界面文案目前只有简体中文，未接入多语言资源。
-- 订阅地址以明文保存在应用私有存储中（系统备份已关闭），请勿分享含账号/Token 的截图。
+- 界面文案仍以简体中文硬编码为主，尚未完成全量 `strings.xml` 抽取与英文翻译；关键台标已补充无障碍描述。
+- 订阅地址、EPG 地址、Referer 等敏感字段使用 Android Keystore AES-GCM 加密后写入 SharedPreferences，旧版明文会在后台首次启动时迁移；崩溃日志已脱敏，但仍请勿分享含账号/Token 的截图。
 
 ---
 
@@ -414,7 +417,8 @@ Issue 请包含：
 - 无统计、无广告、无账号、无远程配置；应用不会向你之外的服务上报数据。
 - 订阅、节目单、收藏、解码器历史都只存在本机应用私有目录；系统备份已关闭（`allowBackup=false`）。
 - 扫码输入是临时局域网页面，5 分钟后失效，只接收你填写的一条地址，不读取也不展示已有订阅。
-- 因 IPTV 源大量使用明文 HTTP，应用允许明文流量；HTTPS 仍使用系统信任链。
+- 因 IPTV 源大量使用明文 HTTP，应用默认允许明文流量；可在「设置 → 高级」开启「仅 HTTPS」，此时订阅、节目单与播放地址只接受 HTTPS，并拒绝 HTTPS→HTTP 重定向。
+- SharedPreferences 中的订阅地址、EPG 地址与 Referer 使用 Android Keystore AES-256-GCM 加密；崩溃日志会移除 URL userinfo / query 与常见 token 参数。
 
 ---
 

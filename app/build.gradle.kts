@@ -89,6 +89,7 @@ dependencies {
  implementation("com.googlecode.soundlibs:jlayer:1.0.1.4")
  implementation("com.google.zxing:core:3.5.3")
  testImplementation("junit:junit:4.13.2")
+ testImplementation("org.json:json:20240303")
  implementation(platform("androidx.compose:compose-bom:2026.02.00"))
  implementation("androidx.activity:activity-compose:1.10.1")
  implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")

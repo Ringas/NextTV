@@ -4,9 +4,9 @@ public class StaticSettingsInstrumentation extends com.nexttv.support.NextTvInst
 
  @Override public void onCreate(Bundle b){super.onCreate(b);singleColumn=b!=null&&"true".equals(b.getString("singleColumn"));start();}
 
- private void launch()throws Exception{activity=startActivitySync(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setClassName("com.nexttv","com.nexttv.core.tv.TvActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));text("频道分类：");SystemClock.sleep(2300);}
+ protected void launch()throws Exception{activity=startActivitySync(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setClassName("com.nexttv","com.nexttv.core.tv.TvActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));text("频道分类：");SystemClock.sleep(2300);}
  private void closeEditor()throws Exception{key(KeyEvent.KEYCODE_ESCAPE);SystemClock.sleep(400);if(tree().contains("保存"))key(KeyEvent.KEYCODE_ESCAPE);SystemClock.sleep(250);}
- private void pass(String name){passed++;results.append("PASS ").append(name).append('\n');Bundle b=new Bundle();b.putString("stream","PASS "+name+"\n");sendStatus(0,b);}
+ protected void pass(String name){passed++;results.append("PASS ").append(name).append('\n');Bundle b=new Bundle();b.putString("stream","PASS "+name+"\n");sendStatus(0,b);}
 
 
  private void reopen(){try(android.os.ParcelFileDescriptor fd=getUiAutomation().executeShellCommand("am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10200000 -n com.nexttv/com.nexttv.core.tv.TvActivity")){java.io.FileInputStream input=new java.io.FileInputStream(fd.getFileDescriptor());byte[] buffer=new byte[1024];while(input.read(buffer)>=0){}}catch(Exception e){throw new RuntimeException(e);}}

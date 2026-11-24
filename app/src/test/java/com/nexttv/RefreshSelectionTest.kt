@@ -64,6 +64,19 @@ class RefreshSelectionTest {
         assertEquals(channels, selection.channels)
     }
 
+    @Test fun skippedAutoUpdateSourceKeepsChannelsWithoutFailure() {
+        val s1 = source("s1").copy(autoUpdate = false)
+        val channels = listOf(channel("s1", "kept"))
+        val selection = selectRefreshOutcomes(
+            listOf(RefreshOutcome(s1, channels, null, false, "", null, skipped = true)),
+            mapOf("s1" to channels)
+        )
+
+        assertEquals(channels, selection.channels)
+        assertEquals(0, selection.failed)
+        assertTrue(selection.refreshed.isEmpty())
+    }
+
     @Test fun guideUsesFirstNonBlankSource() {
         val s1 = source("s1")
         val s2 = source("s2")

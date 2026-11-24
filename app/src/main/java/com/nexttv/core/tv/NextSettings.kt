@@ -23,6 +23,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.CornerRadius
 import com.nexttv.BuildConfig
 import com.nexttv.core.App
+import com.nexttv.core.data.CacheStore
 import kotlinx.coroutines.*
 
 private val settingsCategories=listOf("订阅与节目单","播放","频道与外观","高级","关于")
@@ -43,6 +44,8 @@ private typealias SettingsEntry = SettingsRowData
  var edit by remember{mutableStateOf("")}
  var pendingRestore by remember{mutableStateOf<Job?>(null)}
  var revision by remember{mutableIntStateOf(0)}
+ var cacheBytes by remember{mutableLongStateOf(-1L)}
+ LaunchedEffect(Unit){cacheBytes=withContext(Dispatchers.IO){CacheStore.usage(view.context)}}
  var explanation by remember{mutableStateOf("添加订阅、选择节目单来源，或更新频道与节目时间。")}
  val categories=remember{settingsCategories.associateWith{FocusRequester()}}
  val contentRequests=remember{mutableMapOf<String,FocusRequester>()}
@@ -96,7 +99,10 @@ private typealias SettingsEntry = SettingsRowData
    SettingsEntry("界面主题",if(p.lightGlass)"浅色"else"深色","选择深色或浅色，应用于首页、设置和播放器浮层。",{edit="界面主题"}),
    SettingsEntry("列表台标",if(p.showChannelLogos)"显示"else"隐藏","控制播放时频道侧栏中的台标。隐藏台标后，侧栏会自动收窄。",{p.showChannelLogos=!p.showChannelLogos;changed()},false),
    SettingsEntry("动态效果",if(p.reduceMotion)"减弱"else"标准","减弱模式关闭胶囊回弹、焦点渐变、浮层过渡与换台渐变。鼠标滚轮、触控滑动及其惯性仍可使用。",{edit="动态效果"}))
-  category=="高级"->listOf(SettingsEntry(REQUEST_PARAMETERS,if(p.defaultReferer.isBlank()&&p.defaultUserAgent==com.nexttv.core.data.Prefs.DEFAULT_UA)"默认"else"自定义","设置订阅、节目单和播放请求的默认 User-Agent 与 Referer。源或线路有专用参数时优先使用。",{edit=REQUEST_PARAMETERS}))
+  category=="高级"->listOf(
+   SettingsEntry(REQUEST_PARAMETERS,if(p.defaultReferer.isBlank()&&p.defaultUserAgent==com.nexttv.core.data.Prefs.DEFAULT_UA)"默认"else"自定义","设置订阅、节目单和播放请求的默认 User-Agent 与 Referer。源或线路有专用参数时优先使用。",{edit=REQUEST_PARAMETERS}),
+   SettingsEntry("仅 HTTPS",if(p.httpsOnly)"开启"else"关闭","拒绝 http:// 订阅、节目单和播放地址。默认关闭以兼容局域网或未加密的 IPTV 源。",{p.httpsOnly=!p.httpsOnly;changed()},false),
+   SettingsEntry("清除缓存",CacheStore.format(cacheBytes),"删除频道、节目单、播放源备份和台标缓存；不会删除订阅、收藏或设置。",{edit="清除缓存"}))
   else -> listOf(
    SettingsEntry("应用版本", BuildConfig.VERSION_NAME),
    SettingsEntry("设备名称", deviceName),
@@ -172,6 +178,20 @@ private typealias SettingsEntry = SettingsRowData
   "界面主题"->ChoiceDialog(edit,listOf(ChoiceOption("dark","深色"),ChoiceOption("light","浅色")),if(p.lightGlass)"light"else"dark",{dismissEdit()}){p.lightGlass=it=="light";changed();dismissEdit()}
   "动态效果"->ChoiceDialog(edit,listOf(ChoiceOption("standard","标准"),ChoiceOption("reduced","减弱")),if(p.reduceMotion)"reduced"else"standard",{dismissEdit()}){p.reduceMotion=it=="reduced";changed();dismissEdit()}
   REQUEST_PARAMETERS->NetworkRequestDialog({dismissEdit()}){ua,ref->p.defaultUserAgent=ua;p.defaultReferer=ref;changed();dismissEdit()}
+  "清除缓存"->TvDialog(edit,{dismissEdit()}){
+   AppText("将删除频道、节目单、播放源备份和台标缓存，不会删除订阅、收藏或设置。当前占用 ${CacheStore.format(cacheBytes)}。",Modifier.weight(1f,false).appVerticalScroll(rememberScrollState()),color=NextTvStyle.Text,fontSize=InteractionStyle.body)
+   Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){
+    TvButton("取消",onClick={dismissEdit()})
+    TvButton("清除",kind="danger",onClick={
+     scope.launch{
+      cacheBytes=withContext(Dispatchers.IO){CacheStore.clear(view.context)}
+      app.epg.clearMemoryCache()
+      cacheBytes=withContext(Dispatchers.IO){CacheStore.usage(view.context)}
+      changed();dismissEdit()
+     }
+    })
+   }
+  }
  }}
 }
 

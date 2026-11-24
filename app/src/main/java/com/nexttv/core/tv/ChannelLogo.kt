@@ -33,7 +33,7 @@ fun ChannelLogo(channel: Channel, modifier: Modifier = Modifier) {
         if (logo != null) {
             Image(
                 logo!!.asImageBitmap(),
-                null,
+                "${channel.name} 台标",
                 Modifier.fillMaxSize().padding(10.dp),
                 contentScale = ContentScale.Fit
             )

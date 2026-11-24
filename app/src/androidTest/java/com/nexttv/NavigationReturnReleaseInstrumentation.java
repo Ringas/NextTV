@@ -11,9 +11,9 @@ public class NavigationReturnReleaseInstrumentation extends com.nexttv.support.N
  private Activity activity;private int passed;private final StringBuilder results=new StringBuilder();
  @Override public void onCreate(Bundle b){super.onCreate(b);start();}
 
- private void launch()throws Exception{activity=startActivitySync(new Intent().setClassName("com.nexttv","com.nexttv.core.tv.TvActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));text("频道分类：");SystemClock.sleep(2300);}
+ protected void launch()throws Exception{activity=startActivitySync(new Intent().setClassName("com.nexttv","com.nexttv.core.tv.TvActivity").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));text("频道分类：");SystemClock.sleep(2300);}
  private void closeEditor()throws Exception{key(KeyEvent.KEYCODE_ESCAPE);SystemClock.sleep(400);if(tree().contains("保存"))key(KeyEvent.KEYCODE_ESCAPE);SystemClock.sleep(250);}
- private void pass(String name){passed++;results.append("PASS ").append(name).append('\n');Bundle b=new Bundle();b.putString("stream","PASS "+name+"\n");sendStatus(0,b);}
+ protected void pass(String name){passed++;results.append("PASS ").append(name).append('\n');Bundle b=new Bundle();b.putString("stream","PASS "+name+"\n");sendStatus(0,b);}
  @Override public void onStart(){android.content.SharedPreferences prefs=getTargetContext().getSharedPreferences("nexttv",0);String original=prefs.getString("selected_group","");try{
   prefs.edit().putString("selected_group","").commit();launch();if(tree().contains("节目表"))throw new IllegalStateException("Unexpected guide menu");focus("收藏");text("我的收藏");focus("设置");text("节目单地址");key(KeyEvent.KEYCODE_DPAD_RIGHT);if(!focus().equals("设置"))throw new IllegalStateException("Nav boundary");pass("three menus and D-pad boundaries");
   click("节目单地址");text("保存并更新");closeEditor();await("parent settings row",()->focus().contains("节目单地址"));key(KeyEvent.KEYCODE_BACK);await("settings top",()->focus().equals("设置"));pass("settings dialog → row → Settings nav");

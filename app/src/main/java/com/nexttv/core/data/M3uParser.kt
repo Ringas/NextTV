@@ -13,8 +13,6 @@ object M3uParser {
 
     data class Result(val channels: List<Channel>, val epgUrl: String?, val skippedUnsupported: Int = 0)
 
-    private val attrRegex = Regex("""([A-Za-z0-9_-]+)\s*=\s*"([^"]*)"""")
-
     fun parse(raw: String, sourceId: String, baseUrl: String = "", checkBudget: () -> Unit = {}): Result =
         parse(raw.reader(), sourceId, baseUrl, checkBudget)
 
@@ -29,7 +27,8 @@ object M3uParser {
         var guide: String? = null
         var skippedUnsupported = 0
         var pending: Pending? = null
-        fun add(entry: Pending, url: String) {
+        fun add(entry: Pending, rawUrl: String) {
+            val (url, pipeHeaders) = splitPipe(rawUrl)
             val name = entry.name.ifBlank { entry.tvgName }.trim().trimEnd(',').trim()
             if (name.isEmpty() || !isUrl(url) || !seen.add(name to url)) return
             // 播放引擎仅支持 HTTP(S)：其余协议在导入期就跳过，避免"能导入、点了必失败"。
@@ -37,8 +36,9 @@ object M3uParser {
             if (channels.size == ImportPolicy.CHANNELS) throw ImportLimitException("播放源频道/线路数量超过上限")
             channels += Channel(
                 stableChannelId(sourceId, name, entry.tvgId), name, entry.tvgId, entry.logo,
-                normalizeGroup(entry.group, name), url, sourceId, catchup = entry.catchup,
-                catchupSource = entry.catchupSource, catchupDays = entry.catchupDays, headers = entry.headers
+                normalizeGroup(entry.group, name), url, sourceId, number = entry.number ?: 0,
+                catchup = entry.catchup, catchupSource = entry.catchupSource,
+                catchupDays = entry.catchupDays, headers = entry.headers + pipeHeaders
             )
         }
 
@@ -56,7 +56,19 @@ object M3uParser {
                     pending = Pending(title, fields["tvg-id"].orEmpty(), fields["tvg-name"].orEmpty(),
                         fields["tvg-logo"].orEmpty().ifBlank { fields["logo"].orEmpty() },
                         fields["group-title"].orEmpty(), fields["catchup"].orEmpty(),
-                        fields["catchup-source"].orEmpty(), fields["catchup-days"]?.toIntOrNull())
+                        fields["catchup-source"].orEmpty(), fields["catchup-days"]?.toIntOrNull(),
+                        (fields["tvg-chno"] ?: fields["channel-number"])?.toIntOrNull()?.takeIf { it > 0 })
+                }
+                line.startsWith("#EXTGRP:", true) -> {
+                    val group = line.substringAfter(':').trim()
+                    if (group.isNotEmpty()) pending = pending?.copy(group = group)
+                }
+                line.startsWith("#EXTHTTP:", true) -> {
+                    val headers = parseExtHttp(line.substringAfter(':'))
+                    if (headers.isNotEmpty()) pending = pending?.let { it.copy(headers = it.headers + headers) }
+                }
+                line.startsWith("#KODIPROP:", true) -> {
+                    pending = applyKodiProp(line.substringAfter(':'), pending)
                 }
                 line.startsWith("#EXTVLCOPT:", true) -> {
                     val option = line.substringAfter(':')
@@ -89,17 +101,87 @@ object M3uParser {
     }
 
     private fun splitInfo(line: String): Pair<String, String> {
-        var quoted = false
+        var quote = '\u0000'
         for ((index, char) in line.withIndex()) {
-            if (char == '"') quoted = !quoted
-            if (char == ',' && !quoted) return line.substring(0, index) to line.substring(index + 1)
+            if (quote == '\u0000' && (char == '"' || char == '\'')) quote = char
+            else if (char == quote) quote = '\u0000'
+            if (char == ',' && quote == '\u0000') return line.substring(0, index) to line.substring(index + 1)
         }
         return line to ""
     }
 
+    /** Accepts tvg-id="x", tvg-id='x' and the common tvg-id=x form. */
     private fun readAttributes(text: String): Map<String, String> = buildMap {
-        for (match in attrRegex.findAll(text)) {
-            put(match.groupValues[1].lowercase(Locale.ROOT), match.groupValues[2].trim())
+        var index = 0
+        while (index < text.length) {
+            while (index < text.length && (text[index].isWhitespace() || text[index] == ',')) index++
+            val keyStart = index
+            while (index < text.length && (text[index].isLetterOrDigit() || text[index] == '_' || text[index] == '-')) index++
+            if (index == keyStart) { index++; continue }
+            val key = text.substring(keyStart, index).lowercase(Locale.ROOT)
+            while (index < text.length && text[index].isWhitespace()) index++
+            if (index >= text.length || text[index] != '=') continue
+            index++
+            while (index < text.length && text[index].isWhitespace()) index++
+            val value = if (index < text.length && (text[index] == '"' || text[index] == '\'')) {
+                val quote = text[index++]
+                val start = index
+                while (index < text.length && text[index] != quote) index++
+                val parsed = text.substring(start, index)
+                if (index < text.length) index++
+                parsed
+            } else {
+                val start = index
+                while (index < text.length && !text[index].isWhitespace() && text[index] != ',') index++
+                text.substring(start, index)
+            }
+            put(key, value.trim())
+        }
+    }
+
+    /** Kodi/Xtream append request headers with a pipe after the stream URL. */
+    private fun splitPipe(raw: String): Pair<String, Map<String, String>> {
+        val separator = raw.indexOf('|')
+        if (separator < 0 || separator == raw.lastIndex) return raw to emptyMap()
+        val suffix = raw.substring(separator + 1)
+        if ('=' !in suffix) return raw to emptyMap()
+        val headers = parseHeaderPairs(suffix)
+        return if (headers.isEmpty()) raw to emptyMap() else raw.substring(0, separator) to headers
+    }
+
+    private fun parseHeaderPairs(text: String): Map<String, String> {
+        val out = linkedMapOf<String, String>()
+        text.split('&', ';').forEach { pair ->
+            val key = pair.substringBefore('=', "").trim()
+            val value = pair.substringAfter('=', "").trim()
+            if (key.isNotEmpty() && value.isNotEmpty() && key.length <= 64 && value.length <= 4096) out[key] = value
+        }
+        return out
+    }
+
+    private fun parseExtHttp(text: String): Map<String, String> = runCatching {
+        val json = org.json.JSONObject(text.trim())
+        val out = linkedMapOf<String, String>()
+        json.keys().forEach { key ->
+            val value = json.optString(key, "")
+            if (key.length <= 64 && value.isNotBlank() && value.length <= 4096) out[key] = value
+        }
+        out
+    }.getOrDefault(emptyMap())
+
+    private fun applyKodiProp(option: String, pending: Pending?): Pending? {
+        if (pending == null) return null
+        val key = option.substringBefore('=').trim().lowercase(Locale.ROOT)
+        val value = option.substringAfter('=', "").trim()
+        if (value.isEmpty()) return pending
+        return when (key) {
+            "http-user-agent" -> pending.copy(headers = pending.headers + ("User-Agent" to value))
+            "http-referrer", "http-referer" -> pending.copy(headers = pending.headers + ("Referer" to value))
+            "inputstream.adaptive.stream_headers", "inputstream.adaptive.manifest_headers" -> {
+                val headers = parseHeaderPairs(value)
+                if (headers.isEmpty()) pending else pending.copy(headers = pending.headers + headers)
+            }
+            else -> pending
         }
     }
 
@@ -147,6 +229,7 @@ object M3uParser {
         val tvgId: String,
         val tvgName: String,
         val logo: String,
-        val group: String, val catchup:String="", val catchupSource:String="", val catchupDays:Int?=null, val headers:Map<String,String> = emptyMap()
+        val group: String, val catchup:String="", val catchupSource:String="", val catchupDays:Int?=null,
+        val number:Int?=null, val headers:Map<String,String> = emptyMap()
     )
 }

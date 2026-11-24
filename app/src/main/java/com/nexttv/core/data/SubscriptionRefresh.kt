@@ -39,14 +39,15 @@ internal class SubscriptionRefresh(
         sources: List<Source>,
         previousBySource: Map<String, List<Channel>>,
         staged: MutableMap<String, File>,
-        onProgress: (String) -> Unit
+        onProgress: (String) -> Unit,
+        respectAutoUpdate: Boolean = false,
     ): PreparedRefresh {
         val outcomes = coroutineScope {
             val gate = Semaphore(REFRESH_CONCURRENCY)
             sources.map { source ->
                 async(Dispatchers.IO) {
                     gate.withPermit {
-                        fetchOutcome(source, previousBySource[source.id].orEmpty(), onProgress)
+                        fetchOutcome(source, previousBySource[source.id].orEmpty(), onProgress, respectAutoUpdate)
                     }
                 }
             }.awaitAll()
@@ -70,10 +71,15 @@ internal class SubscriptionRefresh(
     private suspend fun fetchOutcome(
         source: Source,
         previous: List<Channel>,
-        onProgress: (String) -> Unit
+        onProgress: (String) -> Unit,
+        respectAutoUpdate: Boolean,
     ): RefreshOutcome {
         currentCoroutineContext().ensureActive()
         if (!source.enabled) return RefreshOutcome(source, previous, null, false, "", null)
+        if (respectAutoUpdate && !source.autoUpdate) {
+            return RefreshOutcome(source, previous.ifEmpty { cache.readSourceCache(source.id, source.url).orEmpty() },
+                null, false, "", null, skipped = true)
+        }
         onProgress("正在更新 ${source.name} …")
         val result = fetchAndParse(source, ImportPolicy.IMPORT_MS)
         val file = result.staged
@@ -139,6 +145,7 @@ internal data class RefreshOutcome(
     val refreshed: Boolean,
     val error: String,
     val epg: String?,
+    val skipped: Boolean = false,
 )
 
 /** Pure planning step: apply the global channel cap, failure counts and favorite expiry. */
@@ -168,7 +175,7 @@ internal fun selectRefreshOutcomes(
         val trimmed = selected.size < original.size
         val refreshedFully = outcome.refreshed && !trimmed
         if (refreshedFully) refreshed += outcome.source.id
-        if (outcome.source.enabled && !refreshedFully) failures++
+        if (outcome.source.enabled && !refreshedFully && !outcome.skipped) failures++
         if (guide.isEmpty() && !outcome.epg.isNullOrBlank()) guide = outcome.epg.orEmpty()
         val error = listOf(
             outcome.error.takeIf { it.isNotBlank() },

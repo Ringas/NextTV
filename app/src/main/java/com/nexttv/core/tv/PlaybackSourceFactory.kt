@@ -26,8 +26,10 @@ internal class PlaybackSourceFactory(
   val headers=playbackHeaders(src,app.prefs.defaultUserAgent,app.prefs.defaultReferer,route.headers)
   val ua=playbackUserAgent(headers,app.prefs.defaultUserAgent)
   if(!com.nexttv.supportsHttpPlayback(route.url))throw UnsupportedPlaybackProtocol()
+  if(app.prefs.httpsOnly&&!route.url.startsWith("https://",true))throw HttpsRequired()
   val resolved=resolveStream(replay?.let{replayAddress(route,it,System.currentTimeMillis())}?:route.url,headers)
-  val http=DefaultHttpDataSource.Factory().setUserAgent(ua).setAllowCrossProtocolRedirects(true).setDefaultRequestProperties(headers).setConnectTimeoutMs(8000).setReadTimeoutMs(10000)
+  if(app.prefs.httpsOnly&&!resolved.url.startsWith("https://",true))throw HttpsRequired()
+  val http=DefaultHttpDataSource.Factory().setUserAgent(ua).setAllowCrossProtocolRedirects(!app.prefs.httpsOnly).setDefaultRequestProperties(headers).setConnectTimeoutMs(8000).setReadTimeoutMs(10000)
   val expectedReplay=replay?.start
   http.setTransferListener(object:androidx.media3.datasource.TransferListener {
    override fun onTransferInitializing(s:androidx.media3.datasource.DataSource,d:androidx.media3.datasource.DataSpec,n:Boolean){}

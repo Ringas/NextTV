@@ -48,7 +48,9 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
     private fun sources()=com.nexttv.core.App.get().channels.sources.filter{it.enabled&&it.epgUrl.isNotBlank()}
     private fun urls()=(listOf(prefs.epgUrl)+sources().map{it.epgUrl}).filter{it.isNotBlank()}.distinct()
     private fun file(url:String):File {val name=java.security.MessageDigest.getInstance("SHA-256").digest(url.toByteArray()).joinToString(""){"%02x".format(it)};return File(context.filesDir,"epg_feeds/$name.json")}
-    private fun updateState(){lookup.clear();val activeUrls=urls().toSet();feeds.keys.retainAll(activeUrls);aggregate.retain(activeUrls);val active=activeUrls.mapNotNull{feeds[it]};loaded=active.any{it.parsed.programmes.isNotEmpty()};updatedAt=active.maxOfOrNull{it.time}?:0L;revision++}
+    private fun updateState(){lookup.clear();val activeUrls=urls().toSet();feeds.keys.retainAll(activeUrls);aggregate.retain(activeUrls);cleanupOrphans(activeUrls);val active=activeUrls.mapNotNull{feeds[it]};loaded=active.any{it.parsed.programmes.isNotEmpty()};updatedAt=active.maxOfOrNull{it.time}?:0L;revision++}
+    fun clearMemoryCache(){feeds.clear();lookup.clear();lookupContext="";aggregate.retain(emptySet());loaded=false;updatedAt=0L;lastError="";revision++}
+
     fun loadCache(){
         val before=feeds.toMap()
         urls().take(16).filterNot{feeds.containsKey(it)}.forEach{url->val f=file(url);if(f.exists()||File(f.path+".bak").exists())runCatching{
@@ -115,7 +117,16 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
             if(!force&&cached!=null&&System.currentTimeMillis()-cached.time<STALE_MS)return RefreshOutcome(url,true,"")
             val job=currentCoroutineContext()[Job]
             ImportBudget("节目单",ImportPolicy.IMPORT_MS,cancelled={job?.isActive==false}).use{budget->
-                val stream=open(url,budget)?:error("无法打开节目单")
+                val meta=readMeta(url)
+                val opened=open(url,budget,meta)?:error("无法打开节目单")
+                if(opened.notModified){
+                    val previous=cached?:error("服务器返回 304，但本地没有节目单缓存")
+                    val value=Feed(previous.parsed,System.currentTimeMillis())
+                    synchronized(feeds){feeds[url]=value}
+                    saveMeta(url,opened.etag,opened.lastModified)
+                    return@use
+                }
+                val stream=opened.stream?:error("无法打开节目单")
                 val parsed=stream.use { readXmltvFeed(budget.input(decodedInput(budget.input(it,ImportPolicy.EPG_WIRE_BYTES)),ImportPolicy.EPG_XML_BYTES), budget, ::normalize) }
                 if(parsed.programmes.isEmpty())error("节目单为空")
                 budget.check()
@@ -124,6 +135,7 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
                 // Reserve first, then publish in memory; cache persistence must not reopen the cap race.
                 synchronized(feeds){feeds[url]=value}
                 saveCache(url,value,budget)
+                saveMeta(url,opened.etag,opened.lastModified)
                 budget.check()
             }
             return RefreshOutcome(url,true,"")
@@ -131,32 +143,66 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
         catch(e:Exception){return RefreshOutcome(url,false,e.message?:if(url==manual)"单独节目单刷新失败"else"内置节目单刷新失败")}
     }
 
-    private fun open(url: String,budget:ImportBudget): java.io.InputStream? {
+    private data class CacheMeta(val etag:String?,val lastModified:String?)
+    private data class OpenFeed(val stream:java.io.InputStream?,val etag:String?,val lastModified:String?,val notModified:Boolean=false)
+
+    private fun metaFile(url:String)=File(file(url).path+".meta")
+    private fun readMeta(url:String):CacheMeta? = runCatching{
+        val f=metaFile(url);if(!f.exists())return@runCatching null
+        val json=JSONObject(f.readText());CacheMeta(json.optString("etag").takeIf{it.isNotBlank()},json.optString("lastModified").takeIf{it.isNotBlank()})
+    }.getOrNull()
+    private fun saveMeta(url:String,etag:String?,lastModified:String?){
+        if(etag.isNullOrBlank()&&lastModified.isNullOrBlank()){metaFile(url).delete();return}
+        val atomic=android.util.AtomicFile(metaFile(url));val out=atomic.startWrite()
+        try{out.write(JSONObject().put("etag",etag.orEmpty()).put("lastModified",lastModified.orEmpty()).toString().toByteArray(Charsets.UTF_8));atomic.finishWrite(out)}
+        catch(e:Exception){atomic.failWrite(out)}
+    }
+
+    private fun open(url: String,budget:ImportBudget,meta:CacheMeta?): OpenFeed? {
+        if (prefs.httpsOnly && url.startsWith("http://", true)) throw IllegalStateException("已开启仅 HTTPS，拒绝该节目单地址")
         if (url.startsWith("content://") || url.startsWith("/") || url.startsWith("file:")) {
             val u = url.removePrefix("file://")
-            return if (u.startsWith("content://")) {
+            return OpenFeed(if (u.startsWith("content://")) {
                 context.contentResolver.openInputStream(android.net.Uri.parse(u))
             } else {
                 (if(url.startsWith("file:"))File(java.net.URI(url))else File(u)).inputStream()
-            }
+            }, null, null)
         }
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.connectTimeout = 15000
-        conn.readTimeout = 30000
         val source=sources().firstOrNull{it.epgUrl==url}
-        ChannelRepository.parseHeaders(source?.headers.orEmpty()).forEach{(k,v)->conn.setRequestProperty(k,v)}
-        conn.setRequestProperty("User-Agent",source?.userAgent?.ifBlank{prefs.defaultUserAgent}?:prefs.defaultUserAgent)
-        val referer=source?.referer?.ifBlank{prefs.defaultReferer}?:prefs.defaultReferer
-        if(referer.isNotBlank())conn.setRequestProperty("Referer",referer)
-        conn.setRequestProperty("Accept-Encoding","identity")
-        budget.watch{conn.disconnect()}
-        val status = conn.responseCode
-        if (status !in 200..299) {
-            conn.disconnect()
-            throw IllegalStateException("HTTP $status")
+        var customHeaders=ChannelRepository.parseHeaders(source?.headers.orEmpty())
+        var current=URL(url)
+        repeat(5){
+            val conn=current.openConnection() as HttpURLConnection
+            conn.connectTimeout=15000
+            conn.readTimeout=30000
+            conn.instanceFollowRedirects=false
+            conn.setRequestProperty("User-Agent",source?.userAgent?.ifBlank{prefs.defaultUserAgent}?:prefs.defaultUserAgent)
+            val referer=source?.referer?.ifBlank{prefs.defaultReferer}?:prefs.defaultReferer
+            if(referer.isNotBlank())conn.setRequestProperty("Referer",referer)
+            conn.setRequestProperty("Accept-Encoding","gzip")
+            meta?.etag?.let{conn.setRequestProperty("If-None-Match",it)}
+            meta?.lastModified?.let{conn.setRequestProperty("If-Modified-Since",it)}
+            customHeaders.forEach{(k,v)->conn.setRequestProperty(k,v)}
+            budget.watch{conn.disconnect()}
+            val status=conn.responseCode
+            if(status in 300..399){
+                val location=conn.getHeaderField("Location")?:run{conn.disconnect();throw IllegalStateException("HTTP $status 缺少重定向地址")}
+                val next=URL(current,location)
+                if(next.protocol !in setOf("http","https")){conn.disconnect();throw IllegalStateException("重定向到不支持的协议")}
+                if(current.protocol=="https"&&next.protocol!="https"){conn.disconnect();throw IllegalStateException("拒绝从 HTTPS 降级到 HTTP 的重定向")}
+                if(next.host!=current.host)customHeaders=emptyMap()
+                conn.disconnect();current=next;return@repeat
+            }
+            if(status==304){
+                val etag=conn.getHeaderField("ETag")?:meta?.etag
+                val lastModified=conn.getHeaderField("Last-Modified")?:meta?.lastModified
+                conn.disconnect();return OpenFeed(null,etag,lastModified,true)
+            }
+            if(status !in 200..299){conn.disconnect();throw IllegalStateException("HTTP $status")}
+            if((conn.getHeaderField("Content-Length")?.toLongOrNull()?:0)>ImportPolicy.EPG_WIRE_BYTES){conn.disconnect();throw ImportLimitException("节目单下载大小超过上限")}
+            return OpenFeed(object:java.io.FilterInputStream(conn.inputStream){override fun close(){try{super.close()}finally{conn.disconnect()}}},conn.getHeaderField("ETag"),conn.getHeaderField("Last-Modified"))
         }
-        if((conn.getHeaderField("Content-Length")?.toLongOrNull()?:0)>ImportPolicy.EPG_WIRE_BYTES)throw ImportLimitException("节目单下载大小超过上限")
-        return object:java.io.FilterInputStream(conn.inputStream){override fun close(){try{super.close()}finally{conn.disconnect()}}}
+        throw IllegalStateException("重定向次数过多")
     }
 
     /** 归一化：去掉分辨率后缀、空格与常见修饰，便于和 xmltv 显示名匹配 */
@@ -208,6 +254,31 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
             for((key,map) in listOf("alias" to feed.parsed.aliases,"names" to feed.parsed.displayNames)){writer.name(key).beginObject();map.forEach{(k,v)->writer.name(k).value(v)};writer.endObject()}
             writer.endObject();writer.flush();budget.check();atomic.finishWrite(output)
         }catch(e:Exception){atomic.failWrite(output);throw e}
+        trimCache(url)
+    }
+
+    private fun cleanupOrphans(activeUrls:Set<String>){
+        val dir=File(context.filesDir,"epg_feeds");if(!dir.exists())return
+        val active=activeUrls.mapTo(hashSetOf()){file(it).name}
+        dir.listFiles()?.forEach{f->
+            val normalized=f.name.removeSuffix(".bak").removeSuffix(".new").removeSuffix(".meta")
+            if(normalized !in active) f.delete()
+        }
+    }
+
+    /** Keep the feed just written, then evict the oldest files until the aggregate cap holds. */
+    private fun trimCache(keepUrl:String){
+        val dir=File(context.filesDir,"epg_feeds");if(!dir.exists())return
+        val keep=file(keepUrl).name
+        val files=dir.listFiles{it.isFile}?:return
+        var total=files.sumOf{it.length()}
+        if(total<=ImportPolicy.EPG_CACHE_TOTAL_BYTES)return
+        files.filterNot{it.name==keep||it.name=="$keep.bak"||it.name=="$keep.meta"}
+            .sortedBy{it.lastModified()}
+            .forEach{f->
+                if(total<=ImportPolicy.EPG_CACHE_TOTAL_BYTES)return@forEach
+                total-=f.length();f.delete()
+            }
     }
 
     companion object {

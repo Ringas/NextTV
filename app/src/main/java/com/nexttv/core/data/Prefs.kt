@@ -15,6 +15,8 @@ import kotlin.reflect.KProperty
 class Prefs(context: Context) {
 
     private val sp = context.applicationContext.getSharedPreferences("nexttv", Context.MODE_PRIVATE)
+    private val secrets = SecretStore(context)
+    private val secretCache = HashMap<String, Pair<String, String>>()
 
     @Volatile private var motionCache:Boolean?=null
     private var motionRevision by androidx.compose.runtime.mutableIntStateOf(0)
@@ -41,6 +43,9 @@ class Prefs(context: Context) {
 
     var keepLastFrame by booleanSetting("keep_last_frame", true)
 
+    /** 开启后拒绝 http:// 订阅、节目单与播放地址；默认关闭以兼容局域网 IPTV。 */
+    var httpsOnly by booleanSetting("https_only", false)
+
     /** 硬解优先，失败回落软解 */
     var hardwareFirst by booleanSetting("hw_first", true)
 
@@ -63,26 +68,39 @@ class Prefs(context: Context) {
     /** 上次播放的频道 */
     var lastChannelId by textSetting("last_channel", "")
 
-    /** 当前生效的 EPG 地址（来自播放源或手动设置） */
+    /** 当前生效的 EPG 地址（来自播放源或手动设置），静态加密存储。 */
     var epgUrl: String
-        get() = sp.getString("manual_epg_url", "") ?: ""
-        @Synchronized set(value) = sp.edit().putString("manual_epg_url", value).apply()
+        get() = readSecret("manual_epg_url", "")
+        @Synchronized set(value) = writeSecret("manual_epg_url", value)
 
     @Synchronized
     fun migrateLegacyEpg(sourceUrls:Set<String>){
         if(sp.contains("manual_epg_url"))return
-        val old=sp.getString("epg_url","").orEmpty()
-        sp.edit().putString("legacy_epg_url_backup",old).putString("manual_epg_url",if(old in sourceUrls)""else old).apply()
+        val old=readSecret("epg_url", "")
+        writeSecret("legacy_epg_url_backup",old)
+        writeSecret("manual_epg_url",if(old in sourceUrls)""else old)
+    }
+
+    /** Re-encrypts values written by older builds. Safe to call more than once. */
+    @Synchronized
+    fun migrateSensitiveSettings(){
+        SENSITIVE_KEYS.forEach { key ->
+            val current = sp.getString(key, null) ?: return@forEach
+            if (current.isEmpty() || secrets.isEncrypted(current)) return@forEach
+            val sealed = secrets.seal(current) ?: return@forEach
+            sp.edit().putString(key, sealed).apply()
+            secretCache[key] = sealed to current
+        }
     }
     val needsEpgMigration:Boolean get()=!sp.contains("manual_epg_url")
 
     /** 默认请求头，用于部分需要 UA/Referer 的源 */
     var defaultUserAgent by textSetting("ua", DEFAULT_UA)
 
-    var defaultReferer by textSetting("referer", "")
+    var defaultReferer by secretTextSetting("referer", "")
 
     /** 播放源配置（JSON） */
-    var sourcesJson by textSetting("sources", "")
+    var sourcesJson by secretTextSetting("sources", "")
 
     private data class FavoriteRead(val stored: Set<String>, val immutable: Set<String>)
     private var favoriteRead: FavoriteRead? = null
@@ -135,6 +153,27 @@ class Prefs(context: Context) {
         return result
     }
 
+    @Synchronized
+    private fun readSecret(key: String, fallback: String): String {
+        val raw = sp.getString(key, null) ?: return fallback
+        secretCache[key]?.takeIf { it.first == raw }?.let { return it.second }
+        val plain = secrets.open(raw)
+        secretCache[key] = raw to plain
+        return plain
+    }
+
+    @Synchronized
+    private fun writeSecret(key: String, value: String) {
+        val sealed = if (value.isEmpty()) "" else secrets.seal(value)
+        val stored = sealed ?: value
+        sp.edit().putString(key, stored).apply()
+        secretCache[key] = stored to value
+    }
+
+    private fun secretTextSetting(key: String, fallback: String) = setting(
+        key, { readSecret(it, fallback) }, { name, value -> writeSecret(name, value) }
+    )
+
     private fun booleanSetting(key: String, fallback: Boolean) = setting(
         key, { getBoolean(it, fallback) }, { name, value -> putBoolean(name, value) }
     )
@@ -156,6 +195,8 @@ class Prefs(context: Context) {
     }
 
     companion object {
+        private val SENSITIVE_KEYS = listOf("sources", "manual_epg_url", "legacy_epg_url_backup", "epg_url", "referer")
+
         const val DEFAULT_UA =
             "Mozilla/5.0 (Linux; Android 9; TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
     }
