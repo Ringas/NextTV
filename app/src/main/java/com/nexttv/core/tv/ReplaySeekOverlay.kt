@@ -34,7 +34,7 @@ internal fun replayElapsed(millis:Long):String{val seconds=millis.coerceAtLeast(
  BoxWithConstraints(modifier.fillMaxWidth().padding(bottom=androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp*.05f),contentAlignment=Alignment.Center){
   Column(Modifier.width(maxWidth*playerPanelFraction(maxWidth.value)).readingSurface(RoundedCornerShape(InteractionStyle.panelRadius)).padding(horizontal=22.dp,vertical=14.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){val amount=replaySeekAmount(feedback.delta);val speed=if(feedback.multiplier>1)" ×${feedback.multiplier}" else "";AppText((if(feedback.delta>0)"快进 $amount ▷▷"else"◁◁ 快退 $amount")+speed,Modifier.weight(1f),fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1);AppText(replayElapsed(feedback.target)+" / "+replayElapsed(feedback.duration),color=NextTvStyle.Muted,maxLines=1)}
-   Box(Modifier.fillMaxWidth().progressSemantics((feedback.target.toFloat()/feedback.duration.coerceAtLeast(1)).coerceIn(0f,1f)).height(4.dp).background(NextTvStyle.Stroke,RoundedCornerShape(2.dp))){Box(Modifier.fillMaxWidth((feedback.target.toFloat()/feedback.duration.coerceAtLeast(1)).coerceIn(0f,1f)).fillMaxHeight().background(NextTvStyle.Accent,RoundedCornerShape(2.dp)))}
+   Box(Modifier.fillMaxWidth().progressSemantics((feedback.target.toFloat()/feedback.duration.coerceAtLeast(1)).coerceIn(0f,1f)).height(4.dp).background(NextTvStyle.Stroke,RoundedCornerShape(2.dp))){Box(Modifier.fillMaxWidth((feedback.target.toFloat()/feedback.duration.coerceAtLeast(1)).coerceIn(0f,1f)).fillMaxHeight().background(NextTvStyle.Ivory,RoundedCornerShape(2.dp)))}
   }
  }
 }

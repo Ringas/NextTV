@@ -97,9 +97,9 @@ internal fun Modifier.replayTimelineInput(input:ReplayTimelineInput,enabled:Bool
    Canvas(Modifier.fillMaxWidth().height(3.dp)){
     val stroke=thickness.value.dp.toPx();val start=stroke/2;val end=(size.width-stroke/2).coerceAtLeast(start);val y=size.height/2
     drawLine(NextTvStyle.Stroke,Offset(start,y),Offset(end,y),strokeWidth=stroke,cap=StrokeCap.Round)
-    if(fraction>0f)drawLine(if(visibleFocus)NextTvStyle.AccentText else NextTvStyle.Accent,Offset(start,y),Offset(start+(end-start)*fraction,y),strokeWidth=stroke,cap=StrokeCap.Round)
+    if(fraction>0f)drawLine(NextTvStyle.Ivory,Offset(start,y),Offset(start+(end-start)*fraction,y),strokeWidth=stroke,cap=StrokeCap.Round)
    }
-  })else Box(Modifier.fillMaxSize().progressSemantics(fraction).background(NextTvStyle.Stroke,CircleShape)){Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(NextTvStyle.Accent,CircleShape))}
+  })else Box(Modifier.fillMaxSize().progressSemantics(fraction).background(NextTvStyle.Stroke,CircleShape)){Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(NextTvStyle.Ivory,CircleShape))}
   if(enabled&&markerVisible)Canvas(Modifier.matchParentSize()){
    val markerX=(size.width*fraction).coerceIn(0f,size.width)
    drawCircle(NextTvStyle.Text,radius=3.dp.toPx(),center=Offset(markerX,size.height/2))

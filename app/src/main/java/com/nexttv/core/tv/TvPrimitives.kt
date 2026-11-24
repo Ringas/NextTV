@@ -115,15 +115,19 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
  val interactions=remember{MutableInteractionSource()}
  val hovered by interactions.collectIsHoveredAsState()
  val pressed by interactions.collectIsPressedAsState()
- val radius=when(kind){"setting","side"->InteractionStyle.sideRadius;"card","list","source"->InteractionStyle.cardRadius;"nav"->InteractionStyle.badgeRadius;"quick","playerRow","channelRow"->InteractionStyle.badgeRadius;"button","action","chip","danger","category"->InteractionStyle.controlRadius;"text"->InteractionStyle.badgeRadius;else->InteractionStyle.radius}
+ val radius=when(kind){"setting","side"->InteractionStyle.sideRadius;"card","list","source"->InteractionStyle.cardRadius;"nav"->InteractionStyle.badgeRadius;"quick","playerRow","channelRow"->InteractionStyle.badgeRadius;"button","action","chip","danger","category"->InteractionStyle.controlRadius;"categoryRow"->InteractionStyle.badgeRadius;"text"->InteractionStyle.badgeRadius;else->InteractionStyle.radius}
  val background=when{
   kind=="nav"||kind=="category"->Color.Transparent
   kind=="text"&&(visibleFocus||(hovered&&InteractionStyle.pointer))->NextTvStyle.Focus
   kind=="text"->Color.Transparent
   kind=="card"&&visibleFocus->Color.Transparent
+  kind=="categoryRow"&&(visibleFocus||(hovered&&InteractionStyle.pointer))->NextTvStyle.Focus
+  kind=="categoryRow"&&selected->NextTvStyle.RowSelected
+  kind=="categoryRow"->Color.Transparent
   (kind=="channelRow"||kind=="playerRow")&&(visibleFocus||selected)->NextTvStyle.RowSelected
   kind=="setting"&&visibleFocus->NextTvStyle.SettingFocus
   !enabled->NextTvStyle.DisabledSurface
+  kind=="danger"->Color.Transparent
   pressed->NextTvStyle.Pressed
   kind=="setting"&&selected->NextTvStyle.TabActive
   visibleFocus||(hovered&&InteractionStyle.pointer)->NextTvStyle.Focus
@@ -137,6 +141,7 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
   !enabled->NextTvStyle.Disabled
   kind=="danger"->NextTvStyle.Error
   kind=="category"->if(selected)NextTvStyle.Ivory else NextTvStyle.Muted
+  kind=="categoryRow"->if(selected)NextTvStyle.Ivory else NextTvStyle.Muted
   kind=="text"->if(visibleFocus||selected)NextTvStyle.Ivory else NextTvStyle.Muted
   kind=="setting"&&selected->NextTvStyle.OnTabActive
   kind=="nav"->if(selected||visibleFocus)NextTvStyle.Text else NextTvStyle.Muted
@@ -167,7 +172,7 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
      if(secondary){event.changes.forEach{it.consume()};if(event.type==PointerEventType.Release)secondary=false}
     }
    }
-  }.semantics{if(kind=="nav"||kind=="side"||kind=="playerRow"||kind=="channelRow"||kind=="category"||selected)this.selected=selected}.then(if(focusReturn==null)Modifier.focusRequester(ownFocus)else Modifier).focusProperties{canFocus=enabled}.onFocusChanged{focused=it.isFocused;if(!it.hasFocus){holdJob?.cancel();holding=false};if(it.isFocused){rememberReturnTarget();if(FocusAudit.frame!=null)FocusAudit.generation++;onFocus?.invoke()}}
+  }.semantics{if(kind=="nav"||kind=="side"||kind=="playerRow"||kind=="channelRow"||kind=="category"||kind=="categoryRow"||selected)this.selected=selected}.then(if(focusReturn==null)Modifier.focusRequester(ownFocus)else Modifier).focusProperties{canFocus=enabled}.onFocusChanged{focused=it.isFocused;if(!it.hasFocus){holdJob?.cancel();holding=false};if(it.isFocused){rememberReturnTarget();if(FocusAudit.frame!=null)FocusAudit.generation++;onFocus?.invoke()}}
   .then(
    when{
     liftable->Modifier.zIndex(if(visibleFocus)1f else 0f).graphicsLayer{scaleX=lift.value;scaleY=lift.value}
@@ -189,6 +194,7 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
     when{
      ring->drawOutline(outline,NextTvStyle.Ivory.copy(alpha=.92f),style=androidx.compose.ui.graphics.drawscope.Stroke(width=InteractionStyle.focusRing.toPx()))
      kind=="category"&&selected->drawRoundRect(NextTvStyle.Ivory.copy(alpha=.9f),topLeft=androidx.compose.ui.geometry.Offset(0f,bar*2),size=androidx.compose.ui.geometry.Size(bar,barHeight),cornerRadius=androidx.compose.ui.geometry.CornerRadius(bar/2))
+     kind=="categoryRow"&&selected->drawRoundRect(NextTvStyle.Ivory.copy(alpha=.9f),topLeft=androidx.compose.ui.geometry.Offset(0f,bar*2),size=androidx.compose.ui.geometry.Size(bar,barHeight),cornerRadius=androidx.compose.ui.geometry.CornerRadius(bar/2))
      kind=="channelRow"&&(selected||visibleFocus)->drawRoundRect(NextTvStyle.Ivory.copy(alpha=.9f),topLeft=androidx.compose.ui.geometry.Offset(0f,bar*2),size=androidx.compose.ui.geometry.Size(bar,barHeight),cornerRadius=androidx.compose.ui.geometry.CornerRadius(bar/2))
      kind=="setting"&&visibleFocus->drawRoundRect(NextTvStyle.Ivory.copy(alpha=.9f),topLeft=androidx.compose.ui.geometry.Offset(0f,bar*2),size=androidx.compose.ui.geometry.Size(bar,barHeight),cornerRadius=androidx.compose.ui.geometry.CornerRadius(bar/2))
      line.alpha>0f->drawOutline(outline,line,style=androidx.compose.ui.graphics.drawscope.Stroke(width=.75.dp.toPx()))
@@ -201,9 +207,10 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
  }
 
 }
-@Composable fun TvButton(label:String,modifier:Modifier=Modifier,selected:Boolean=false,kind:String="button",enabled:Boolean=true,onFocus:(()->Unit)?=null,focusReturn:FocusRequester?=null,onClick:()->Unit){
- TvSurface(modifier.widthIn(min=if(kind=="chip")64.dp else 80.dp).heightIn(min=if(kind=="chip"||kind=="action")36.dp else 44.dp),kind,selected,onFocus,enabled=enabled,focusReturn=focusReturn,onClick=onClick){
-  Box(Modifier.align(Alignment.Center).padding(horizontal=if(kind=="chip")16.dp else 18.dp,vertical=if(kind=="action")5.dp else 9.dp),contentAlignment=Alignment.Center){AppText(label,textAlign=androidx.compose.ui.text.style.TextAlign.Center,fontSize=InteractionStyle.body,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)}
+@Composable fun TvButton(label:String,modifier:Modifier=Modifier,selected:Boolean=false,kind:String="text",enabled:Boolean=true,onFocus:(()->Unit)?=null,focusReturn:FocusRequester?=null,onClick:()->Unit){
+ val bare=kind=="text"||kind=="danger"
+ TvSurface(modifier.widthIn(min=if(bare)0.dp else if(kind=="chip")64.dp else 80.dp).heightIn(min=if(bare)32.dp else if(kind=="chip"||kind=="action")36.dp else 44.dp),kind,selected,onFocus,enabled=enabled,focusReturn=focusReturn,onClick=onClick){
+  Box(Modifier.align(Alignment.Center).padding(horizontal=if(bare)8.dp else if(kind=="chip")16.dp else 18.dp,vertical=if(bare)3.dp else if(kind=="action")5.dp else 9.dp),contentAlignment=Alignment.Center){AppText(label,textAlign=androidx.compose.ui.text.style.TextAlign.Center,fontSize=InteractionStyle.body,maxLines=1,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)}
  }
 }
 private class DialogWindowSession{var disposed=false}

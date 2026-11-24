@@ -48,6 +48,7 @@ import com.nexttv.observeGridDraws
  val homeModal=LocalModalController.current
  val homeConfiguration=androidx.compose.ui.platform.LocalConfiguration.current
  val safeInsets=homeSafeInsets(homeConfiguration.screenWidthDp,homeConfiguration.screenHeightDp)
+ val homeHorizontal=maxOf(safeInsets.horizontal,homeConfiguration.screenWidthDp*.05f)
  val app=App.get();val scope=rememberCoroutineScope();val context=LocalContext.current
  val cacheReady=app.cacheReady
  val digitCapacity=remember(cacheReady,app.channels.revision){channelDigitCapacity(if(cacheReady)app.channels.channels.maxOfOrNull{it.number}?:0 else 0)}
@@ -318,7 +319,7 @@ import com.nexttv.observeGridDraws
  if(playing==null&&!sources&&dialog.isBlank()&&menuChannel==null&&tab in 0..1&&digit!=null){if(key.down&&!key.repeated)channelDigits=appendChannelDigit(channelDigits,digit,digitCapacity);return@onPreviewKeyEvent true}
  if(key.down&&key.action==InputAction.LEFT&&playing==null&&restoringHome){runCatching{nav[0].requestFocus()};true}else if(key.down&&key.action==InputAction.DOWN&&navFocused&&playing==null&&!sources&&dialog.isBlank()){enterContent();true}else false}.onGloballyPositioned{firstFrameReady=true}.focusRequester(returnAnchor).focusProperties{canFocus=returningToTop}.focusable().background(NextTvStyle.Home)){
 
-  if(playing==null&&tab!=2)HomeBackdrop(all.firstOrNull())
+  if(playing==null&&tab!=2)HomeBackdrop(all.firstOrNull{it.id==restoreId}?:all.firstOrNull())
   if(playing!=null){PlayerScreen(playing!!,onLaunchReady=onLaunchReady,onHome={resetCategory();playing=null;tab=0;restoringHome=true;revision++},onClose={current->if(app.prefs.startLive){onExit();return@PlayerScreen};if(tab==1)favoriteRestore.value=if(app.prefs.isFavorite(current))current.id else app.channels.channels.filter{app.prefs.isFavorite(it)}.minByOrNull{kotlin.math.abs(it.number-current.number)}?.id.orEmpty() else channelRestore.value=current.id;resetCategory();restoringHome=true;playing=null;revision++});return@Box}
   if(channelDigits.isNotBlank())AppText(channelDigits,Modifier.align(Alignment.TopEnd).padding(20.dp),fontSize=InteractionStyle.display,color=NextTvStyle.Text)
   Column(Modifier.fillMaxSize().padding(top=safeInsets.vertical.dp+58.dp)){
@@ -333,14 +334,14 @@ import com.nexttv.observeGridDraws
       showCategory=tab==0&&cacheReady&&!noSources,
       first=first,navUp=nav[tab],
       categoryDown=if(all.isEmpty())emptyAction else FocusRequester.Cancel,
-      horizontalPadding=safeInsets.horizontal.toInt(),
-      minHeight=if(homeConfiguration.screenHeightDp<480)80 else 96,
+      horizontalPadding=homeHorizontal.toInt(),
+      minHeight=if(homeConfiguration.screenHeightDp<480)64 else 76,
       onFocus={gridInput.job?.cancel();gridInput.target=null;cardInput=false;contentFocus()},
       onCategoryClick={contentFocus();first.requestFocus();dialog="分类"}
      )
 
      CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides HomeGridFocusVisibility) {
-     LazyVerticalGrid(GridCells.Fixed(columns),flingBehavior=appFlingBehavior(),state=grid,modifier=Modifier.fillMaxSize().continuousWheel(grid).observeGridDraws(grid),contentPadding=PaddingValues(start=safeInsets.horizontal.dp,end=safeInsets.horizontal.dp,top=14.dp,bottom=28.dp),horizontalArrangement=Arrangement.spacedBy(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
+     LazyVerticalGrid(GridCells.Fixed(columns),flingBehavior=appFlingBehavior(),state=grid,modifier=Modifier.fillMaxSize().continuousWheel(grid).observeGridDraws(grid),contentPadding=PaddingValues(start=homeHorizontal.dp,end=homeHorizontal.dp,top=14.dp,bottom=28.dp),horizontalArrangement=Arrangement.spacedBy(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
       itemsIndexed(all,key={_,c->c.id}){index,c->
        HomeChannelTile(
         channel=c,index=index,count=all.size,columns=columns,tab=tab,focusers=focusers,
@@ -372,7 +373,7 @@ import com.nexttv.observeGridDraws
     }
    }
   }
-  if(!sources)HomeNavigation(tab,navFocused,nav,Modifier.align(Alignment.TopCenter).padding(top=safeInsets.vertical.dp),homeCompositions={homeCompositionCount[0]},onSelect={i->if(!cacheReady)return@HomeNavigation;cardInput=false;cancelReturn();clearExit();navFocused=true;selectTab(i)})
+  if(!sources)HomeNavigation(tab,navFocused,nav,Modifier.align(Alignment.TopCenter).padding(top=(safeInsets.vertical*.67f).dp),homeCompositions={homeCompositionCount[0]},onSelect={i->if(!cacheReady)return@HomeNavigation;cardInput=false;cancelReturn();clearExit();navFocused=true;selectTab(i)})
   if(homeNotice.isNotBlank())ExitNotice(homeNotice)
  }
  fun dismissAddSubscription(){

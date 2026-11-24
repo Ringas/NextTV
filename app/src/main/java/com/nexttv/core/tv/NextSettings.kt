@@ -109,16 +109,16 @@ private typealias SettingsEntry = SettingsRowData
  fun enterContent(){scope.launch{withFrameNanos{};entries.firstOrNull{it.action!=null}?.let{contentRequests["$category/${it.title}"]?.requestFocus()}}}
  val configuration=LocalConfiguration.current
  val narrow=configuration.screenWidthDp<800
- val bodyHeight=(28f*LocalDensity.current.fontScale.coerceAtLeast(1f)+18f).dp
+ val bodyHeight=(28f*LocalDensity.current.fontScale.coerceAtLeast(1f)+16f).dp
  // A bounded reading canvas keeps values beside their labels on wide televisions.
  // Short windows retain scrolling, rather than shrinking typography or focus targets.
  BoxWithConstraints(Modifier.fillMaxSize(),contentAlignment=Alignment.TopCenter){
  val canvasWidth=if(narrow)maxWidth-24.dp else (maxWidth*.84f).coerceAtMost(1000.dp)
- Row(Modifier.onPreviewKeyEvent{if(edit.isBlank()&&it.nativeKeyEvent.action==android.view.KeyEvent.ACTION_DOWN)pendingRestore?.cancel();false}.width(canvasWidth).fillMaxHeight().padding(top=if(narrow)8.dp else 22.dp,bottom=12.dp),horizontalArrangement=Arrangement.spacedBy(if(narrow)18.dp else 40.dp)){
+ Row(Modifier.onPreviewKeyEvent{if(edit.isBlank()&&it.nativeKeyEvent.action==android.view.KeyEvent.ACTION_DOWN)pendingRestore?.cancel();false}.width(canvasWidth).fillMaxHeight().padding(top=if(narrow)8.dp else 4.dp,bottom=12.dp),horizontalArrangement=Arrangement.spacedBy(if(narrow)18.dp else 32.dp)){
 
-  Column(Modifier.weight(if(narrow).36f else .31f).fillMaxHeight()){
+  Column(Modifier.weight(if(narrow).36f else .24f).fillMaxHeight()){
    // Align the first category with the first content row, without repeating the selected tab title.
-   Spacer(Modifier.height((InteractionStyle.heading.value*1.4f*LocalDensity.current.fontScale).dp+28.dp))
+   Spacer(Modifier.height(38.dp*LocalDensity.current.fontScale.coerceAtLeast(1f)))
    Column(Modifier.fillMaxWidth().appVerticalScroll(rememberScrollState()).padding(12.dp),verticalArrangement=Arrangement.spacedBy(2.dp)){
     settingsCategories.forEachIndexed{index,name->
      val key="分类/$name";val request=categories.getValue(name)
@@ -133,8 +133,8 @@ private typealias SettingsEntry = SettingsRowData
     }
    }
   }
-  Column(Modifier.weight(if(narrow).64f else .69f).fillMaxHeight()){
-   AppText(subpage.ifBlank{category},Modifier.padding(start=12.dp,bottom=8.dp),color=NextTvStyle.Text,fontSize=InteractionStyle.heading,fontWeight=FontWeight.SemiBold,maxLines=1)
+  Column(Modifier.weight(if(narrow).64f else .76f).fillMaxHeight()){
+   AppText(subpage.ifBlank{category},Modifier.padding(start=12.dp,bottom=8.dp),color=NextTvStyle.Text,fontSize=InteractionStyle.heading,fontWeight=FontWeight.SemiBold,maxLines=1,lineHeight=InteractionStyle.heading*1.1f)
    AppText(when(category){"订阅与节目单"->"管理频道订阅、节目单来源与自动更新。";"播放"->"设置启动方式、换台体验和播放信息。";"频道与外观"->"调整频道展示、主题与动态效果。";"高级"->"配置网络请求、协议限制与缓存。";else->"应用版本与设备信息。"},Modifier.padding(start=12.dp,bottom=16.dp),color=NextTvStyle.Muted,fontSize=InteractionStyle.caption,maxLines=2)
    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()){
    val availableHeight=maxHeight

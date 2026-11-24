@@ -57,7 +57,8 @@ private fun CardText(text: String, size: Int, color: Color, modifier: Modifier =
   style = androidx.compose.ui.text.TextStyle(
    color = color, fontSize = size.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
    fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
-   platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)
+   platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true),
+   lineHeight = size.sp * if (bold) 1.2f else 1.35f
   )
  )
 }
@@ -69,10 +70,11 @@ private fun ChannelNumberBadge(channel: Channel) {
  val systemScale = androidx.compose.ui.platform.LocalConfiguration.current.fontScale
  androidx.compose.runtime.CompositionLocalProvider(LocalDensity provides Density(density.density, systemScale)) {
   Box(
-   Modifier.size(24.dp * systemScale.coerceAtLeast(1f))
+   Modifier.widthIn(min = 20.dp * systemScale.coerceAtLeast(1f)).height(15.dp * systemScale.coerceAtLeast(1f))
     .semantics { contentDescription = "频道号 $number" }
     .background(NextTvStyle.ChannelNumber, RoundedCornerShape(InteractionStyle.badgeRadius))
-    .border(.75.dp, NextTvStyle.PlayerInfoBorder, RoundedCornerShape(InteractionStyle.badgeRadius)),
+    .border(.75.dp, NextTvStyle.PlayerInfoBorder, RoundedCornerShape(InteractionStyle.badgeRadius))
+    .padding(horizontal = 4.dp),
    contentAlignment = Alignment.Center,
   ) {
    CardText(number, 10, NextTvStyle.Text, bold = true)

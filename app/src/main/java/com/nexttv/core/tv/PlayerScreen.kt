@@ -279,18 +279,18 @@ import kotlin.math.roundToInt
   val panelWidth=maxWidth*playerPanelFraction(maxWidth.value)
   val bottomInset = (maxHeight * .035f).coerceIn(14.dp, 26.dp)
   val infoPadding = (maxHeight * .017f).coerceIn(9.dp, 12.dp)
-  Column(Modifier.align(Alignment.BottomCenter).width(panelWidth).padding(bottom=bottomInset).replayTimelineInput(replayInput,engine.replay!=null&&actionsVisible).onFocusChanged{onActionFocus(it.hasFocus)}.focusGroup().padding(horizontal=20.dp).padding(top=infoPadding,bottom=if(actionsVisible)9.dp else infoPadding)){
+  Column(Modifier.align(Alignment.BottomCenter).width(panelWidth).padding(bottom=bottomInset).replayTimelineInput(replayInput,engine.replay!=null&&actionsVisible).onFocusChanged{onActionFocus(it.hasFocus)}.focusGroup().padding(horizontal=0.dp).padding(top=infoPadding,bottom=if(actionsVisible)9.dp else infoPadding)){
    BoxWithConstraints(Modifier.fillMaxWidth()){
-    val gap=14.dp
-    val logoWidth=identityHeight*1.22f
+    val gap=17.dp
+    val logoWidth=68.dp*scale
     val identityWidth=factWidths.fold(0.dp){sum,v->sum+v}+9.dp+logoWidth+8.dp
     val clockWidth=112.dp*scale
     val programmeWidth=maxWidth-identityWidth-clockWidth-gap*2
     val identity:@Composable (Modifier)->Unit={m->
      Row(m.height(identityHeight),verticalAlignment=Alignment.CenterVertically){
-      PlayerLogo(c,Modifier.width(logoWidth).height(identityHeight))
+      PlayerLogo(c,Modifier.width(logoWidth).height(36.dp*scale))
       Column(Modifier.weight(1f).height(identityHeight).padding(start=8.dp),verticalArrangement=Arrangement.Center){
-       AppText(Ui.displayName(c.name),Modifier.fillMaxWidth().height(27.dp*scale),fontSize=InteractionStyle.subheading,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
+       AppText(Ui.displayName(c.name),Modifier.fillMaxWidth().height(27.dp*scale),fontSize=InteractionStyle.subheading,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis,lineHeight=InteractionStyle.subheading*1.2f)
        Row(Modifier.padding(top=3.dp*scale).height(20.dp*scale),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically){
         val descriptions=listOf("线路 ${engine.routeIndex+1}，共 ${engine.routeCount} 条","分辨率 ${facts[1]}","声道 ${facts[2]}","接收速率 ${facts[3]}")
         facts.forEachIndexed{i,value->Box(Modifier.width(factWidths[i]).fillMaxHeight().semantics(mergeDescendants=true){contentDescription=descriptions[i]},contentAlignment=Alignment.CenterStart){InfoBadge(value,tone=when{i==1&&(value.contains("4K")||value.contains("8K"))->BadgeTone.Warm;i==1->BadgeTone.Cool;i==2&&(engine.player.audioFormat?.channelCount?:0)>2->BadgeTone.Cool;else->BadgeTone.Neutral},modifier=Modifier.fillMaxWidth(),horizontalPadding=if(i==3)0.dp else 6.dp,bordered=i<3)}}
@@ -300,7 +300,7 @@ import kotlin.math.roundToInt
     }
     val programme:@Composable (Modifier)->Unit={m->
      Column(m){
-      AppText(current?.title?:"暂无节目信息",Modifier.fillMaxWidth().height(27.dp*scale),fontSize=InteractionStyle.heading,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
+      AppText(current?.title?:"暂无节目信息",Modifier.fillMaxWidth().height(27.dp*scale),fontSize=InteractionStyle.heading,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis,lineHeight=InteractionStyle.heading*1.1f)
       Row(Modifier.fillMaxWidth().padding(top=3.dp*scale).height(20.dp*scale),verticalAlignment=Alignment.CenterVertically){
        if(current!=null){val liveNow=engine.replay==null&&!(engine.ready&&!engine.player.playWhenReady)
        InfoBadge(if(engine.ready&&!engine.player.playWhenReady)"已暂停"else if(engine.replay!=null)"回放中"else"直播中",tone=if(liveNow)BadgeTone.Live else BadgeTone.Neutral);AppText("${Ui.hhmm(current.start)}–${Ui.hhmm(current.stop)}"+(next?.let{" · 接下来 ${Ui.hhmm(it.start)} ${it.title}"}?:""),Modifier.weight(1f).padding(start=7.dp),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,overflow=TextOverflow.Ellipsis)}
@@ -311,7 +311,7 @@ import kotlin.math.roundToInt
      }
     }
     val clock:@Composable (Modifier)->Unit={m->Column(m.height(identityHeight),horizontalAlignment=Alignment.End,verticalArrangement=Arrangement.Center){
-      AppText(Ui.hhmm(now),Modifier.fillMaxWidth(),fontSize=InteractionStyle.display,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End)
+      AppText(Ui.hhmm(now),Modifier.fillMaxWidth(),fontSize=InteractionStyle.heading,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End,lineHeight=InteractionStyle.heading)
       AppText("${Ui.weekday(now)} ${Ui.monthDay(now)}",Modifier.fillMaxWidth().padding(top=2.dp*scale),fontSize=InteractionStyle.captionSmall,fontWeight=FontWeight.Medium,color=NextTvStyle.Muted,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End)
     }}
     if(programmeWidth<200.dp*scale)Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(9.dp)){
@@ -342,7 +342,7 @@ import kotlin.math.roundToInt
 }
 
 @Composable private fun QuickActionButton(label:String,description:String,modifier:Modifier,onFocus:()->Unit,onClick:()->Unit){
- TvSurface(modifier.widthIn(min=58.dp).heightIn(min=40.dp).semantics(mergeDescendants=true){contentDescription=description},kind="text",onFocus=onFocus,onClick=onClick){
+ TvSurface(modifier.widthIn(min=58.dp).heightIn(min=34.dp).semantics(mergeDescendants=true){contentDescription=description},kind="text",onFocus=onFocus,onClick=onClick){
   Box(Modifier.align(Alignment.Center).padding(horizontal=10.dp),contentAlignment=Alignment.Center){
    AppText(label,fontSize=InteractionStyle.caption,fontWeight=FontWeight.Medium,maxLines=1,overflow=TextOverflow.Clip,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
   }

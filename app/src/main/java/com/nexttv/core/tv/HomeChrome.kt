@@ -4,6 +4,8 @@ package com.nexttv.core.tv
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -64,15 +66,15 @@ internal fun HomeHeader(
         Modifier.fillMaxWidth()
             .heightIn(min = minHeight.dp)
             .padding(horizontal = horizontalPadding.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Top
     ) {
         Column(Modifier.weight(1f)) {
-            AppText(title, fontSize = InteractionStyle.title, fontWeight = FontWeight.Bold, color = NextTvStyle.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            AppText(title, fontSize = InteractionStyle.title, fontWeight = FontWeight.Bold, color = NextTvStyle.Text, maxLines = 1, overflow = TextOverflow.Ellipsis, lineHeight = InteractionStyle.title)
             AppText(subtitle, fontSize = InteractionStyle.body, color = NextTvStyle.Muted, modifier = Modifier.padding(top = 4.dp), maxLines = 1)
         }
         if (showCategory) {
             TvSurface(
-                Modifier
+                Modifier.padding(top = 30.dp)
                     .semantics { contentDescription = "频道分类：$title" }
                     .focusRequester(first)
                     .focusProperties {
@@ -86,7 +88,7 @@ internal fun HomeHeader(
                 focusReturn = first,
                 onClick = onCategoryClick
             ) {
-                Box(Modifier.heightIn(min = 40.dp).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.heightIn(min = 34.dp).drawBehind{drawLine(NextTvStyle.Ivory.copy(alpha=.34f),Offset(0f,size.height-1.dp.toPx()),Offset(size.width,size.height-1.dp.toPx()),1.dp.toPx())}.padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
                     AppText("分类  ›", color = NextTvStyle.Ivory, fontSize = InteractionStyle.body, maxLines = 1)
                 }
             }
