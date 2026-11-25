@@ -93,7 +93,7 @@ private typealias SettingsEntry = SettingsRowData
    SettingsEntry("频道布局",if(p.gridMode)"网格"else"列表","选择首页频道的展示方式。",{edit="频道布局"}),
    SettingsEntry("频道预览",if(p.channelPreviews)"开启"else"关闭","停稳后同时静音预览当前可见频道，操作时暂停；会增加网络与解码开销，关闭后停止全部预览。",{p.channelPreviews=!p.channelPreviews;changed()},false),
    SettingsEntry("界面主题",if(p.lightGlass)"浅色"else"深色","选择深色或浅色，应用于首页、设置和播放器浮层。",{edit="界面主题"}),
-   SettingsEntry("列表台标",if(p.showChannelLogos)"显示"else"隐藏","控制播放时频道侧栏中的台标。隐藏台标后，侧栏会自动收窄。",{p.showChannelLogos=!p.showChannelLogos;changed()},false),
+   SettingsEntry("列表台标",if(p.showChannelLogos)"显示"else"隐藏","控制播放时频道侧栏中的台标；栏宽保持不变。",{p.showChannelLogos=!p.showChannelLogos;changed()},false),
    SettingsEntry("动态效果",if(p.reduceMotion)"减弱"else"标准","减弱模式关闭胶囊回弹、焦点渐变、浮层过渡与换台渐变。鼠标滚轮、触控滑动及其惯性仍可使用。",{edit="动态效果"}))
   category=="高级"->listOf(
    SettingsEntry(REQUEST_PARAMETERS,if(p.defaultReferer.isBlank()&&p.defaultUserAgent==com.nexttv.core.data.Prefs.DEFAULT_UA)"默认"else"自定义","设置订阅、节目单和播放请求的默认 User-Agent 与 Referer。源或线路有专用参数时优先使用。",{edit=REQUEST_PARAMETERS}),

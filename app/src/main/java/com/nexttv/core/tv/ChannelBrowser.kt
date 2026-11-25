@@ -48,23 +48,20 @@ import kotlinx.coroutines.flow.first
  }
 }
 
-/** Programme status: live is a red dot and label; replay is a quiet outlined chip. */
+/** Programme status: live is a red dot and plain text; replay is quiet secondary text. */
 @Composable private fun BrowserBadge(text:String,accent:Boolean){
- val scale=androidx.compose.ui.platform.LocalDensity.current.fontScale
  if(accent){
-  Row(Modifier.height(19.dp*scale).padding(horizontal=2.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)){
+  Row(Modifier.height(19.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale).padding(horizontal=2.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)){
    Box(Modifier.size(5.dp).background(NextTvStyle.Live,RoundedCornerShape(50)))
-   AppText(if(text=="直播中")"直播" else text,fontSize=InteractionStyle.captionSmall,fontWeight=androidx.compose.ui.text.font.FontWeight.Bold,color=NextTvStyle.Live,maxLines=1)
+   AppText(if(text=="直播中")"直播" else text,fontSize=InteractionStyle.micro,fontWeight=androidx.compose.ui.text.font.FontWeight.Bold,color=NextTvStyle.Live,maxLines=1)
   }
  }else{
-  Box(Modifier.heightIn(min=20.dp*scale).border(.75.dp,NextTvStyle.Muted.copy(alpha=.55f),RoundedCornerShape(9.dp)).padding(horizontal=6.dp),contentAlignment=Alignment.Center){
-   AppText(text,fontSize=InteractionStyle.captionSmall,fontWeight=androidx.compose.ui.text.font.FontWeight.Medium,color=NextTvStyle.Muted.copy(alpha=.92f),maxLines=1)
-  }
+  AppText("· $text",Modifier.padding(horizontal=2.dp),fontSize=InteractionStyle.micro,fontWeight=androidx.compose.ui.text.font.FontWeight.Medium,color=NextTvStyle.Muted.copy(alpha=.72f),maxLines=1)
  }
 }
 
 /** One rail, channel stack on top and the programme stack underneath. */
-@Composable internal fun ProgrammeSideSheet(width:Dp,candidate:Channel,channels:List<Channel>,showLogos:Boolean,list:LazyListState,requests:MutableMap<String,FocusRequester>,programs:List<Program>,epgList:LazyListState,epgRequests:MutableMap<Long,FocusRequester>,days:List<Int>,dateList:LazyListState,dateRequests:Map<Int,FocusRequester>,epgDay:Int,now:Long,nowProgram:(Channel)->Program?,onChannelFocus:(Channel)->Unit,onChannelClick:(Channel)->Unit,onProgramFocus:(Program)->Unit,onProgramClick:(Channel,Program)->Unit,onDate:(Int)->Unit){
+@Composable internal fun ProgrammeSideSheet(width:Dp,candidate:Channel,channels:List<Channel>,showLogos:Boolean,list:LazyListState,requests:MutableMap<String,FocusRequester>,programs:List<Program>,epgList:LazyListState,epgRequests:MutableMap<Long,FocusRequester>,days:List<Int>,dateList:LazyListState,dateRequests:Map<Int,FocusRequester>,epgDay:Int,now:Long,onChannelFocus:(Channel)->Unit,onChannelClick:(Channel)->Unit,onProgramFocus:(Program)->Unit,onProgramClick:(Channel,Program)->Unit,onDate:(Int)->Unit){
  val scale=androidx.compose.ui.platform.LocalDensity.current.fontScale
  val density=androidx.compose.ui.platform.LocalDensity.current
  val logoWidth=(width.value*.14f).coerceIn(24f,44f).coerceAtMost(width.value*.4f).dp
@@ -81,20 +78,16 @@ import kotlinx.coroutines.flow.first
     AppText("返回",Modifier.padding(top=2.dp,start=8.dp),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1)
    }
    Spacer(Modifier.height(8.dp))
-   LazyColumn(flingBehavior=appFlingBehavior(),state=list,modifier=Modifier.fillMaxWidth().heightIn(max=168.dp).continuousWheel(list),contentPadding=PaddingValues(bottom=2.dp),verticalArrangement=Arrangement.spacedBy(2.dp)){
+   LazyColumn(flingBehavior=appFlingBehavior(),state=list,modifier=Modifier.fillMaxWidth().heightIn(max=156.dp).continuousWheel(list),contentPadding=PaddingValues(bottom=2.dp),verticalArrangement=Arrangement.spacedBy(2.dp)){
     itemsIndexed(channels,key={_,it->it.id}){index,c->
      val request=remember(c.id){FocusRequester()}
      DisposableEffect(c.id){requests[c.id]=request;onDispose{if(requests[c.id]===request)requests.remove(c.id)}}
-     TvSurface(Modifier.fillMaxWidth().heightIn(min=52.dp*scale).focusRequester(request).focusEdges(up=index==0),kind="categoryRow",selected=c.id==candidate.id&&!InteractionStyle.pointer,onFocus={onChannelFocus(c)},onClick={onChannelClick(c)}){
-      Row(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=3.dp),verticalAlignment=Alignment.CenterVertically){
-       if(showLogos)PlayerLogo(c,Modifier.width(logoWidth).height(38.dp))
-       else AppText(c.number.toString().padStart(3,'0'),Modifier.width(34.dp*scale),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,fontFeatureSettings="tnum")
-       Column(Modifier.weight(1f).padding(start=8.dp)){
-        AppText(Ui.displayName(c.name),Modifier.fillMaxWidth(),fontSize=InteractionStyle.body,maxLines=1,overflow=TextOverflow.Ellipsis)
-        val program=nowProgram(c)
-        AppText(program?.title?:"暂无节目信息",Modifier.fillMaxWidth().padding(top=1.dp),fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1,overflow=TextOverflow.Ellipsis)
-        Box(Modifier.fillMaxWidth().padding(top=3.dp).height(2.dp).background(NextTvStyle.PlayerProgressTrack,RoundedCornerShape(1.dp))){Box(Modifier.fillMaxWidth(programmeProgress(program,now)).fillMaxHeight().background(NextTvStyle.PlayerProgressFill.copy(alpha=.55f),RoundedCornerShape(1.dp)))}
-       }
+     TvSurface(Modifier.fillMaxWidth().heightIn(min=44.dp).focusRequester(request).focusEdges(up=index==0),kind="categoryRow",selected=c.id==candidate.id&&!InteractionStyle.pointer,onFocus={onChannelFocus(c)},onClick={onChannelClick(c)}){
+      Row(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically){
+       val slot=Modifier.width(logoWidth).height(38.dp)
+       if(showLogos)PlayerLogo(c,slot,fallback=c.number.toString().padStart(3,'0'))
+       else Box(slot,contentAlignment=Alignment.Center){AppText(c.number.toString().padStart(3,'0'),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,fontFeatureSettings="tnum")}
+       AppText(Ui.displayName(c.name),Modifier.weight(1f).padding(start=8.dp),fontSize=InteractionStyle.body,maxLines=1,overflow=TextOverflow.Ellipsis)
       }
      }
     }
@@ -107,10 +100,10 @@ import kotlinx.coroutines.flow.first
      items(days,key={it}){day->
       val date=remember(day,now){java.util.Calendar.getInstance().apply{timeInMillis=now;add(java.util.Calendar.DAY_OF_YEAR,day)}.time}
       val label=when(day){0->"今天 "+java.text.SimpleDateFormat("EEE",java.util.Locale.SIMPLIFIED_CHINESE).format(date);1->"明天 "+java.text.SimpleDateFormat("EEE",java.util.Locale.SIMPLIFIED_CHINESE).format(date);else->java.text.SimpleDateFormat("EEE MM-dd",java.util.Locale.SIMPLIFIED_CHINESE).format(date)}
-      TvSurface(Modifier.focusRequester(dateRequests.getValue(day)).focusEdges(left=day==days.firstOrNull(),right=day==days.lastOrNull()),kind="playerRow",selected=day==epgDay,onClick={onDate(day)}){
+      TvSurface(Modifier.focusRequester(dateRequests.getValue(day)).focusEdges(left=day==days.firstOrNull(),right=day==days.lastOrNull()),kind="text",selected=day==epgDay,onClick={onDate(day)}){
        Box(Modifier.padding(horizontal=2.dp,vertical=3.dp)){
         AppText(label,fontSize=InteractionStyle.captionSmall,color=if(day==epgDay)NextTvStyle.Text else NextTvStyle.Muted,maxLines=1)
-        if(day==epgDay)Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(top=4.dp).height(2.dp).background(NextTvStyle.Ivory,RoundedCornerShape(1.dp)))
+        if(day==epgDay)Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(top=4.dp).height(1.5.dp).background(NextTvStyle.Ivory))
        }
       }
      }
@@ -123,13 +116,11 @@ import kotlinx.coroutines.flow.first
      val request=remember(p.start){FocusRequester()}
      DisposableEffect(p.start,request){epgRequests[p.start]=request;onDispose{if(epgRequests[p.start]===request)epgRequests.remove(p.start)}}
      val live=now in p.start until p.stop
-     val replay=p.stop<=now&&candidate.playbackRoutes.any{replayAddress(it,p,now)!=null}
      TvSurface(Modifier.fillMaxWidth().heightIn(min=34.dp*scale).focusRequester(request).focusEdges(down=index==programs.lastIndex),kind="playerRow",onFocus={onProgramFocus(p)},onClick={onProgramClick(candidate,p)}){
       Row(Modifier.fillMaxWidth().padding(horizontal=8.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically){
        AppText(Ui.hhmm(p.start),Modifier.width(44.dp*scale),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,fontFeatureSettings="tnum")
-       AppText(p.title,Modifier.weight(1f).padding(start=8.dp,end=4.dp),fontSize=InteractionStyle.body,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
-       AppText("–"+Ui.hhmm(p.stop),Modifier.width(46.dp*scale),fontSize=InteractionStyle.caption,color=NextTvStyle.Text.copy(alpha=.72f),maxLines=1,fontFeatureSettings="tnum",textAlign=androidx.compose.ui.text.style.TextAlign.End)
-       if(live||replay){Spacer(Modifier.width(6.dp));if(live)BrowserBadge("直播中",true)else BrowserBadge("回放",false)}
+       AppText(p.title,Modifier.weight(1f).padding(start=8.dp,end=6.dp),fontSize=InteractionStyle.body,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
+       if(live)BrowserBadge("直播中",true)
       }
      }
     }
@@ -269,7 +260,7 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
   if(direction!=null){horizontal(direction);true}else false
  }){
   val showLogos=app.prefs.showChannelLogos
-  val widths=browserWidths(maxWidth.value,showLogos,androidx.compose.ui.platform.LocalDensity.current.fontScale)
+  val widths=browserWidths(maxWidth.value,fontScale=androidx.compose.ui.platform.LocalDensity.current.fontScale)
   val gap=0.dp;val groupWidth=widths.group.dp;val channelWidth=widths.channel.dp;val dateWidth=widths.date.dp;val epgWidth=widths.programme.dp
   val hintWidth=(12.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale).coerceIn(12.dp,22.dp)
   val reduced=app.prefs.reduceMotion
@@ -280,7 +271,7 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
   if(navigation.pane.wire=="epg"){
    ProgrammeSideSheet(
     width=channelWidth,candidate=candidate,channels=channels,showLogos=showLogos,list=list,requests=requests,
-    programs=epgPrograms,epgList=epgList,epgRequests=epgRequests,days=days,dateList=dateList,dateRequests=dateRequests,epgDay=epgDay,now=now,nowProgram={c->app.epg.nowNext(c).first},
+    programs=epgPrograms,epgList=epgList,epgRequests=epgRequests,days=days,dateList=dateList,dateRequests=dateRequests,epgDay=epgDay,now=now,
     onChannelFocus={c->navigation=BrowserNavigation(BrowserPane.PROGRAMMES,BrowserRegion.CHANNELS);candidateId=c.id},
     onChannelClick=onSelect,
     onProgramFocus={p->navigation=BrowserNavigation.Programmes;epgFocusStart=p.start},
