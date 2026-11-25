@@ -43,10 +43,11 @@ import java.io.FileOutputStream
 import java.util.Calendar
 
 /**
- * Renders the six acceptance screens at 1920×1080 without an emulator.
- * The harness composes the real primitives (header, cards, category sheet,
- * programme rail, player badges/actions and settings material) with stable
- * fake data, so CI can compare structure, type scale and spacing every push.
+ * Renders the six acceptance screens plus the light-player contrast regression
+ * at 1920×1080 without an emulator. The harness composes the real primitives
+ * (header, cards, category sheet, programme rail, player badges/actions and
+ * settings material) with stable fake data, so CI can compare structure, type
+ * scale and spacing every push.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -71,6 +72,17 @@ class DesignScreenshots {
 
     @Test fun player() {
         shoot("04-player") { PlayerScene() }
+    }
+
+    @Test fun playerLight() {
+        val prefs = App.get().prefs
+        val previous = prefs.lightGlass
+        prefs.lightGlass = true
+        try {
+            shoot("04-player-light") { PlayerScene() }
+        } finally {
+            prefs.lightGlass = previous
+        }
     }
 
     @Test fun schedule() {
@@ -285,9 +297,10 @@ private fun ScheduleScene() {
     Box(Modifier.fillMaxSize()) {
         StadiumBackdrop()
         ProgrammeSideSheet(
-            width = 330.dp,
+            width = 307.dp,
             candidate = candidate,
             channels = channels,
+            showLogos = true,
             list = channelList,
             requests = requests,
             programs = programmes,
@@ -348,12 +361,13 @@ private fun PlayerScene() {
                         AppText(
                             "CCTV-5 体育", Modifier.fillMaxWidth().height(27.dp),
                             fontSize = InteractionStyle.subheading, fontWeight = FontWeight.SemiBold,
+                            color = NextTvStyle.MediaText,
                             maxLines = 1, lineHeight = InteractionStyle.subheading * 1.2f,
                         )
                         Row(Modifier.padding(top = 3.dp).height(20.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            InfoBadge("线路 1/3")
-                            InfoBadge("1080P", BadgeTone.Cool)
-                            InfoBadge("立体声", BadgeTone.Cool)
+                            InfoBadge("线路 1/3", onMedia = true)
+                            InfoBadge("1080P", BadgeTone.Cool, onMedia = true)
+                            InfoBadge("立体声", BadgeTone.Cool, onMedia = true)
                         }
                     }
                 }
@@ -361,36 +375,37 @@ private fun PlayerScene() {
                     AppText(
                         "天下足球", Modifier.fillMaxWidth().height(27.dp),
                         fontSize = InteractionStyle.heading, fontWeight = FontWeight.SemiBold,
+                        color = NextTvStyle.MediaText,
                         maxLines = 1, lineHeight = InteractionStyle.heading * 1.1f,
                     )
                     Row(Modifier.fillMaxWidth().padding(top = 3.dp).height(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                        InfoBadge("直播中", BadgeTone.Live)
+                        InfoBadge("直播中", BadgeTone.Live, onMedia = true)
                         AppText(
                             "19:35–21:00 · 接下来 21:00 体育世界",
                             Modifier.weight(1f).padding(start = 7.dp),
                             fontSize = InteractionStyle.captionSmall,
-                            color = NextTvStyle.Muted, maxLines = 1,
+                            color = NextTvStyle.MediaMuted, maxLines = 1,
                         )
                     }
-                    Box(Modifier.fillMaxWidth().padding(top = 5.dp).height(3.dp).background(NextTvStyle.PlayerProgressTrack, RoundedCornerShape(50))) {
-                        Box(Modifier.fillMaxWidth(.64f).fillMaxHeight().background(NextTvStyle.PlayerProgressFill, RoundedCornerShape(50)))
+                    Box(Modifier.fillMaxWidth().padding(top = 5.dp).height(3.dp).background(NextTvStyle.MediaTrack, RoundedCornerShape(50))) {
+                        Box(Modifier.fillMaxWidth(.64f).fillMaxHeight().background(NextTvStyle.MediaFill, RoundedCornerShape(50)))
                     }
                 }
                 Column(Modifier.width(112.dp).height(56.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.Center) {
                     AppText(
                         "21:14", Modifier.fillMaxWidth(), fontSize = InteractionStyle.heading,
-                        fontWeight = FontWeight.SemiBold, maxLines = 1,
+                        fontWeight = FontWeight.SemiBold, color = NextTvStyle.MediaText, maxLines = 1,
                         textAlign = androidx.compose.ui.text.style.TextAlign.End,
                         lineHeight = InteractionStyle.heading,
                     )
                     AppText(
                         "周二 11月24日", Modifier.fillMaxWidth().padding(top = 2.dp),
-                        fontSize = InteractionStyle.captionSmall, color = NextTvStyle.Muted,
+                        fontSize = InteractionStyle.captionSmall, color = NextTvStyle.MediaMuted,
                         maxLines = 1, textAlign = androidx.compose.ui.text.style.TextAlign.End,
                     )
                 }
             }
-            Box(Modifier.fillMaxWidth().padding(top = 7.dp).height(1.dp).background(NextTvStyle.PlayerInfoBorder, RoundedCornerShape(50)))
+            Box(Modifier.fillMaxWidth().padding(top = 7.dp).height(1.dp).background(NextTvStyle.MediaLine, RoundedCornerShape(50)))
             Row(
                 Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(7.dp),

@@ -149,6 +149,7 @@ import kotlin.math.roundToInt
  };deadline=System.currentTimeMillis()+InteractionStyle.actionsMillis}
  fun dismissOverlays(){cancelPendingDigits();browserController.move=null;browserController.pending=0;dialog="";side=false;bars=false;actionsVisible=false;digits="";notice="";actionFocused=false;exitGate.reset();runCatching{root.requestFocus()}}
  fun back(){
+  if(side&&browserController.back?.invoke()==true)return
   if(dialog.isNotBlank()||side||bars||digits.isNotBlank())dismissOverlays()
   else if(engine.error.isNotBlank()&&app.prefs.startLive&&onHome!=null)onHome(engine.current)
   else if(exitGate.press(android.os.SystemClock.elapsedRealtime()))onClose(engine.current)
@@ -290,29 +291,29 @@ import kotlin.math.roundToInt
      Row(m.height(identityHeight),verticalAlignment=Alignment.CenterVertically){
       PlayerLogo(c,Modifier.width(logoWidth).height(36.dp*scale))
       Column(Modifier.weight(1f).height(identityHeight).padding(start=8.dp),verticalArrangement=Arrangement.Center){
-       AppText(Ui.displayName(c.name),Modifier.fillMaxWidth().height(27.dp*scale),fontSize=InteractionStyle.subheading,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis,lineHeight=InteractionStyle.subheading*1.2f)
+       AppText(Ui.displayName(c.name),Modifier.fillMaxWidth().height(27.dp*scale),fontSize=InteractionStyle.subheading,fontWeight=FontWeight.SemiBold,color=NextTvStyle.MediaText,maxLines=1,overflow=TextOverflow.Ellipsis,lineHeight=InteractionStyle.subheading*1.2f)
        Row(Modifier.padding(top=3.dp*scale).height(20.dp*scale),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically){
         val descriptions=listOf("线路 ${engine.routeIndex+1}，共 ${engine.routeCount} 条","分辨率 ${facts[1]}","声道 ${facts[2]}","接收速率 ${facts[3]}")
-        facts.forEachIndexed{i,value->Box(Modifier.width(factWidths[i]).fillMaxHeight().semantics(mergeDescendants=true){contentDescription=descriptions[i]},contentAlignment=Alignment.CenterStart){InfoBadge(value,tone=when{i==1&&(value.contains("4K")||value.contains("8K"))->BadgeTone.Warm;i==1->BadgeTone.Cool;i==2&&(engine.player.audioFormat?.channelCount?:0)>2->BadgeTone.Cool;else->BadgeTone.Neutral},modifier=Modifier.fillMaxWidth(),horizontalPadding=if(i==3)0.dp else 6.dp,bordered=i<3)}}
+        facts.forEachIndexed{i,value->Box(Modifier.width(factWidths[i]).fillMaxHeight().semantics(mergeDescendants=true){contentDescription=descriptions[i]},contentAlignment=Alignment.CenterStart){InfoBadge(value,tone=when{i==1&&(value.contains("4K")||value.contains("8K"))->BadgeTone.Warm;i==1->BadgeTone.Cool;i==2&&(engine.player.audioFormat?.channelCount?:0)>2->BadgeTone.Cool;else->BadgeTone.Neutral},modifier=Modifier.fillMaxWidth(),horizontalPadding=if(i==3)0.dp else 6.dp,bordered=i<3,onMedia=true)}}
        }
       }
      }
     }
     val programme:@Composable (Modifier)->Unit={m->
      Column(m){
-      AppText(current?.title?:"暂无节目信息",Modifier.fillMaxWidth().height(27.dp*scale),fontSize=InteractionStyle.heading,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis,lineHeight=InteractionStyle.heading*1.1f)
+      AppText(current?.title?:"暂无节目信息",Modifier.fillMaxWidth().height(27.dp*scale),fontSize=InteractionStyle.heading,fontWeight=FontWeight.SemiBold,color=NextTvStyle.MediaText,maxLines=1,overflow=TextOverflow.Ellipsis,lineHeight=InteractionStyle.heading*1.1f)
       Row(Modifier.fillMaxWidth().padding(top=3.dp*scale).height(20.dp*scale),verticalAlignment=Alignment.CenterVertically){
        if(current!=null){val liveNow=engine.replay==null&&!(engine.ready&&!engine.player.playWhenReady)
-       InfoBadge(if(engine.ready&&!engine.player.playWhenReady)"已暂停"else if(engine.replay!=null)"回放中"else"直播中",tone=if(liveNow)BadgeTone.Live else BadgeTone.Neutral);AppText("${Ui.hhmm(current.start)}–${Ui.hhmm(current.stop)}"+(next?.let{" · 接下来 ${Ui.hhmm(it.start)} ${it.title}"}?:""),Modifier.weight(1f).padding(start=7.dp),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,overflow=TextOverflow.Ellipsis)}
+       InfoBadge(if(engine.ready&&!engine.player.playWhenReady)"已暂停"else if(engine.replay!=null)"回放中"else"直播中",tone=if(liveNow)BadgeTone.Live else BadgeTone.Neutral,onMedia=true);AppText("${Ui.hhmm(current.start)}–${Ui.hhmm(current.stop)}"+(next?.let{" · 接下来 ${Ui.hhmm(it.start)} ${it.title}"}?:""),Modifier.weight(1f).padding(start=7.dp),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.MediaMuted,maxLines=1,overflow=TextOverflow.Ellipsis)}
       }
       val progress=if(engine.replay!=null)playbackFraction(engine.player.currentPosition,timelineDuration)else programmeProgress(current,now)
       if(engine.replay!=null)ReplayTimeline(engine.player.currentPosition,timelineDuration,actionsVisible,replaySeek,replayInput,returnToAction={runCatching{replayActionReturn[0].requestFocus()}},onSeek={engine.seekReplay(it)},modifier=Modifier.fillMaxWidth().padding(top=5.dp).height(3.dp))
-      else Box(Modifier.fillMaxWidth().padding(top=5.dp).height(3.dp).background(if(current==null)Color.Transparent else NextTvStyle.PlayerProgressTrack,androidx.compose.foundation.shape.CircleShape)){if(current!=null)Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(NextTvStyle.PlayerProgressFill,androidx.compose.foundation.shape.CircleShape))}
+      else Box(Modifier.fillMaxWidth().padding(top=5.dp).height(3.dp).background(if(current==null)Color.Transparent else NextTvStyle.MediaTrack,androidx.compose.foundation.shape.CircleShape)){if(current!=null)Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(NextTvStyle.MediaFill,androidx.compose.foundation.shape.CircleShape))}
      }
     }
     val clock:@Composable (Modifier)->Unit={m->Column(m.height(identityHeight),horizontalAlignment=Alignment.End,verticalArrangement=Arrangement.Center){
-      AppText(Ui.hhmm(now),Modifier.fillMaxWidth(),fontSize=InteractionStyle.heading,fontWeight=FontWeight.SemiBold,color=NextTvStyle.Text,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End,lineHeight=InteractionStyle.heading)
-      AppText("${Ui.weekday(now)} ${Ui.monthDay(now)}",Modifier.fillMaxWidth().padding(top=2.dp*scale),fontSize=InteractionStyle.captionSmall,fontWeight=FontWeight.Medium,color=NextTvStyle.Muted,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End)
+      AppText(Ui.hhmm(now),Modifier.fillMaxWidth(),fontSize=InteractionStyle.heading,fontWeight=FontWeight.SemiBold,color=NextTvStyle.MediaText,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End,lineHeight=InteractionStyle.heading)
+      AppText("${Ui.weekday(now)} ${Ui.monthDay(now)}",Modifier.fillMaxWidth().padding(top=2.dp*scale),fontSize=InteractionStyle.captionSmall,fontWeight=FontWeight.Medium,color=NextTvStyle.MediaMuted,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End)
     }}
     if(programmeWidth<200.dp*scale)Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(9.dp)){
      Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){identity(Modifier.weight(1f));clock(Modifier.width(clockWidth).padding(start=8.dp))}
@@ -322,7 +323,7 @@ import kotlin.math.roundToInt
    if(actionsVisible){
     val activity=LocalActivity.current as TvActivity
     DisposableEffect(activity){onDispose{activity.quickActionsPointerRegion=null}}
-    Box(Modifier.fillMaxWidth().padding(top=7.dp).height(1.dp).background(NextTvStyle.PlayerInfoBorder,androidx.compose.foundation.shape.CircleShape))
+    Box(Modifier.fillMaxWidth().padding(top=7.dp).height(1.dp).background(NextTvStyle.MediaLine,androidx.compose.foundation.shape.CircleShape))
     Row(Modifier.fillMaxWidth()
      .onGloballyPositioned{activity.quickActionsPointerRegion=it.boundsInWindow()}
      .horizontalScroll(rememberScrollState(),flingBehavior=appFlingBehavior()).padding(vertical=4.dp),horizontalArrangement=Arrangement.spacedBy(7.dp)){
@@ -342,9 +343,10 @@ import kotlin.math.roundToInt
 }
 
 @Composable internal fun QuickActionButton(label:String,description:String,modifier:Modifier,onFocus:()->Unit,onClick:()->Unit){
- TvSurface(modifier.widthIn(min=58.dp).heightIn(min=34.dp).semantics(mergeDescendants=true){contentDescription=description},kind="text",onFocus=onFocus,onClick=onClick){
+ TvSurface(modifier.widthIn(min=58.dp).heightIn(min=34.dp).semantics(mergeDescendants=true){contentDescription=description},kind="playerAction",onFocus=onFocus,onClick=onClick){
+  val focused=LocalSurfaceFocused.current
   Box(Modifier.align(Alignment.Center).padding(horizontal=10.dp),contentAlignment=Alignment.Center){
-   AppText(label,fontSize=InteractionStyle.caption,fontWeight=FontWeight.Medium,maxLines=1,overflow=TextOverflow.Clip,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+   AppText(label,fontSize=InteractionStyle.caption,fontWeight=FontWeight.Medium,color=if(focused)Color.White else NextTvStyle.MediaMuted,maxLines=1,overflow=TextOverflow.Clip,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
   }
  }
 }
@@ -356,16 +358,16 @@ import kotlin.math.roundToInt
 
 internal enum class BadgeTone{Neutral,Warm,Cool,Live}
 
-@Composable internal fun InfoBadge(value:String,tone:BadgeTone=BadgeTone.Neutral,modifier:Modifier=Modifier,fontSize:androidx.compose.ui.unit.TextUnit=InteractionStyle.micro,horizontalPadding:Dp=6.dp,bordered:Boolean=true){
+@Composable internal fun InfoBadge(value:String,tone:BadgeTone=BadgeTone.Neutral,modifier:Modifier=Modifier,fontSize:androidx.compose.ui.unit.TextUnit=InteractionStyle.micro,horizontalPadding:Dp=6.dp,bordered:Boolean=true,onMedia:Boolean=false){
  val shape=RoundedCornerShape(InteractionStyle.badgeRadius)
- val fill=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmFill;BadgeTone.Cool->NextTvStyle.SpecCoolFill;BadgeTone.Live->NextTvStyle.AccentBadge;else->NextTvStyle.SpecNeutralFill}
- val stroke=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmStroke;BadgeTone.Cool->NextTvStyle.SpecCoolStroke;BadgeTone.Live->NextTvStyle.AccentText.copy(alpha=.45f);else->NextTvStyle.SpecNeutralStroke}
- val ink=when(tone){BadgeTone.Warm->NextTvStyle.SpecWarmText;BadgeTone.Cool->NextTvStyle.SpecCoolText;BadgeTone.Live->NextTvStyle.Live;else->NextTvStyle.Muted}
+ val fill=when{tone==BadgeTone.Warm->NextTvStyle.SpecWarmFill;tone==BadgeTone.Cool->NextTvStyle.SpecCoolFill;tone==BadgeTone.Live->NextTvStyle.AccentBadge;onMedia->NextTvStyle.MediaChipFill;else->NextTvStyle.SpecNeutralFill}
+ val stroke=when{tone==BadgeTone.Warm->NextTvStyle.SpecWarmStroke;tone==BadgeTone.Cool->NextTvStyle.SpecCoolStroke;tone==BadgeTone.Live->NextTvStyle.AccentText.copy(alpha=.45f);onMedia->NextTvStyle.MediaChipStroke;else->NextTvStyle.SpecNeutralStroke}
+ val ink=when{tone==BadgeTone.Warm->NextTvStyle.SpecWarmText;tone==BadgeTone.Cool->NextTvStyle.SpecCoolText;tone==BadgeTone.Live->NextTvStyle.Live;onMedia->NextTvStyle.MediaText.copy(alpha=.82f);else->NextTvStyle.Muted}
  val height=19.dp*LocalDensity.current.fontScale
  if(tone==BadgeTone.Live)Row(modifier.height(height).padding(horizontal=horizontalPadding),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)){
   Box(Modifier.size(5.dp).background(NextTvStyle.Live,RoundedCornerShape(50)))
   AppText(value,fontSize=fontSize,fontWeight=FontWeight.Bold,color=NextTvStyle.Live,maxLines=1)
  }else Box(modifier.height(height).then(if(bordered)Modifier.background(fill,shape).border(.75.dp,stroke,shape)else Modifier).padding(horizontal=horizontalPadding),contentAlignment=Alignment.Center){
-  AppText(value,fontSize=fontSize,fontWeight=FontWeight.Bold,color=if(bordered)ink else NextTvStyle.Muted,maxLines=1)
+  AppText(value,fontSize=fontSize,fontWeight=FontWeight.Bold,color=if(bordered)ink else if(onMedia)NextTvStyle.MediaMuted else NextTvStyle.Muted,maxLines=1)
  }
 }

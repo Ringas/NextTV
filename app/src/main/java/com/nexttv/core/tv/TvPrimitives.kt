@@ -86,6 +86,16 @@ object NextTvStyle {
  val TabActive get()=Ivory
  val OnTabActive get()=tone(0xFF0A0C10,0xFFF7F8FA)
  val Scrim get()=tone(0xB3000000,0x66000000)
+ // Player chrome sits on a cinematic black scrim in both themes, so it never follows theme ink.
+ val MediaText=Color(0xFFF4F6F8)
+ val MediaMuted=Color(0xB8FFFFFF)
+ val MediaLine=Color(0x3DFFFFFF)
+ val MediaTrack=Color(0x47FFFFFF)
+ val MediaFill=Color(0xFFF3EFE6)
+ val MediaFocus=Color(0x24FFFFFF)
+ val MediaPressed=Color(0x38FFFFFF)
+ val MediaChipFill=Color(0x1FFFFFFF)
+ val MediaChipStroke=Color(0x47FFFFFF)
  // Flat surfaces share one graphite fill and one hairline; no glass tokens remain.
  val Panel get()=tone(0xFF14171D,0xFFFFFFFF)
  val Decelerate=Easing {1f-(1f-it)*(1f-it)}
@@ -115,9 +125,12 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
  val interactions=remember{MutableInteractionSource()}
  val hovered by interactions.collectIsHoveredAsState()
  val pressed by interactions.collectIsPressedAsState()
- val radius=when(kind){"setting","side"->InteractionStyle.sideRadius;"card","list","source"->InteractionStyle.cardRadius;"nav"->InteractionStyle.badgeRadius;"quick","playerRow","channelRow"->InteractionStyle.badgeRadius;"button","action","chip","danger","category"->InteractionStyle.controlRadius;"categoryRow"->InteractionStyle.badgeRadius;"text"->InteractionStyle.badgeRadius;else->InteractionStyle.radius}
+ val radius=when(kind){"setting","side"->InteractionStyle.sideRadius;"card","list","source"->InteractionStyle.cardRadius;"nav"->InteractionStyle.badgeRadius;"quick","playerAction","playerRow","channelRow"->InteractionStyle.badgeRadius;"button","action","chip","danger","category"->InteractionStyle.controlRadius;"categoryRow"->InteractionStyle.badgeRadius;"text"->InteractionStyle.badgeRadius;else->InteractionStyle.radius}
  val background=when{
   kind=="nav"||kind=="category"->Color.Transparent
+  kind=="playerAction"&&pressed->NextTvStyle.MediaPressed
+  kind=="playerAction"&&(visibleFocus||(hovered&&InteractionStyle.pointer))->NextTvStyle.MediaFocus
+  kind=="playerAction"->Color.Transparent
   kind=="text"&&(visibleFocus||(hovered&&InteractionStyle.pointer))->NextTvStyle.Focus
   kind=="text"->Color.Transparent
   kind=="card"&&visibleFocus->Color.Transparent
@@ -143,6 +156,7 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
   kind=="category"->if(selected)NextTvStyle.Ivory else NextTvStyle.Muted
   kind=="categoryRow"->if(selected)NextTvStyle.Ivory else NextTvStyle.Muted
   kind=="text"->if(visibleFocus||selected)NextTvStyle.Ivory else NextTvStyle.Muted
+  kind=="playerAction"->if(visibleFocus)Color.White else NextTvStyle.MediaMuted
   kind=="setting"&&selected->NextTvStyle.OnTabActive
   kind=="nav"->if(selected||visibleFocus)NextTvStyle.Text else NextTvStyle.Muted
   kind=="quick"->NextTvStyle.Text

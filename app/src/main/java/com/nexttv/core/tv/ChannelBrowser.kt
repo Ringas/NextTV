@@ -37,7 +37,7 @@ import com.nexttv.core.ui.Ui
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 
-@Stable internal class BrowserController{var pending by mutableIntStateOf(0);var move:((Int)->Unit)?=null;var resumeVisible:(()->Boolean)?=null;fun navigate(delta:Int){val action=move;if(action==null)pending=delta else action(delta)}}
+@Stable internal class BrowserController{var pending by mutableIntStateOf(0);var move:((Int)->Unit)?=null;var resumeVisible:(()->Boolean)?=null;var back:(()->Boolean)?=null;fun navigate(delta:Int){val action=move;if(action==null)pending=delta else action(delta)}}
 
 /** Same header rhythm in every browser column, including enlarged system fonts. */
 @Composable private fun BrowserHeading(text:String,centered:Boolean=false){
@@ -61,9 +61,10 @@ import kotlinx.coroutines.flow.first
 }
 
 /** One rail, channel stack on top and the programme stack underneath. */
-@Composable internal fun ProgrammeSideSheet(width:Dp,candidate:Channel,channels:List<Channel>,list:LazyListState,requests:MutableMap<String,FocusRequester>,programs:List<Program>,epgList:LazyListState,epgRequests:MutableMap<Long,FocusRequester>,days:List<Int>,dateList:LazyListState,dateRequests:Map<Int,FocusRequester>,epgDay:Int,now:Long,onChannelFocus:(Channel)->Unit,onChannelClick:(Channel)->Unit,onProgramFocus:(Program)->Unit,onProgramClick:(Channel,Program)->Unit,onDate:(Int)->Unit){
+@Composable internal fun ProgrammeSideSheet(width:Dp,candidate:Channel,channels:List<Channel>,showLogos:Boolean,list:LazyListState,requests:MutableMap<String,FocusRequester>,programs:List<Program>,epgList:LazyListState,epgRequests:MutableMap<Long,FocusRequester>,days:List<Int>,dateList:LazyListState,dateRequests:Map<Int,FocusRequester>,epgDay:Int,now:Long,onChannelFocus:(Channel)->Unit,onChannelClick:(Channel)->Unit,onProgramFocus:(Program)->Unit,onProgramClick:(Channel,Program)->Unit,onDate:(Int)->Unit){
  val scale=androidx.compose.ui.platform.LocalDensity.current.fontScale
  val density=androidx.compose.ui.platform.LocalDensity.current
+ val logoWidth=(width.value*.14f).coerceIn(24f,44f).coerceAtMost(width.value*.4f).dp
  Box(Modifier.width(width).fillMaxHeight().playerSidebarSurface{with(density){width.toPx()}}){
   Column(Modifier.fillMaxSize().padding(horizontal=12.dp,vertical=12.dp)){
    Row(Modifier.fillMaxWidth().padding(start=10.dp),verticalAlignment=Alignment.Top){
@@ -83,7 +84,8 @@ import kotlinx.coroutines.flow.first
      DisposableEffect(c.id){requests[c.id]=request;onDispose{if(requests[c.id]===request)requests.remove(c.id)}}
      TvSurface(Modifier.fillMaxWidth().heightIn(min=32.dp*scale).focusRequester(request).focusEdges(up=index==0),kind="categoryRow",selected=c.id==candidate.id&&!InteractionStyle.pointer,onFocus={onChannelFocus(c)},onClick={onChannelClick(c)}){
       Row(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically){
-       AppText(c.number.toString().padStart(3,'0'),Modifier.width(34.dp*scale),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,fontFeatureSettings="tnum")
+       if(showLogos)PlayerLogo(c,Modifier.width(logoWidth).height(38.dp))
+       AppText(c.number.toString().padStart(3,'0'),Modifier.padding(start=if(showLogos)10.dp else 0.dp).width(34.dp*scale),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,fontFeatureSettings="tnum")
        AppText(Ui.displayName(c.name),Modifier.weight(1f),fontSize=InteractionStyle.body,maxLines=1,overflow=TextOverflow.Ellipsis)
       }
      }
@@ -125,7 +127,7 @@ import kotlinx.coroutines.flow.first
    }
    Box(Modifier.fillMaxWidth().padding(top=6.dp,bottom=6.dp).height(.5.dp).background(NextTvStyle.Divider))
    AppText("左右切换日期 · 上下选择节目",fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1)
-   AppText("确认播放 · 返回收起侧栏",fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1)
+   AppText("确认播放 · 返回频道列表",fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1)
   }
  }
 }
@@ -234,13 +236,19 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
   focusJob?.cancel()
   return runCatching{request.requestFocus();true}.getOrDefault(false)
  }
+ fun backPane():Boolean{
+  if(navigation.pane!=BrowserPane.PROGRAMMES)return false
+  focusChannel(candidateId,closeAdjacent=true)
+  return true
+ }
  SideEffect {
   controller.move = { horizontal(it) }
   controller.resumeVisible = { resumeVisible() }
+  controller.back = { backPane() }
   browserActivity.browserGesture = { delta -> horizontal(delta) }
  }
  DisposableEffect(browserActivity){onDispose{browserActivity.browserGesture=null}}
- DisposableEffect(controller){onDispose{controller.move=null;controller.resumeVisible=null}}
+ DisposableEffect(controller){onDispose{controller.move=null;controller.resumeVisible=null;controller.back=null}}
  LaunchedEffect(generation){if(navigation.pane.wire=="channels")focusChannel(current.id)}
  LaunchedEffect(controller.pending){if(controller.pending!=0){val delta=controller.pending;controller.pending=0;horizontal(delta)}}
  DisposableEffect(Unit){onDispose{focusJob?.cancel()}}
@@ -262,7 +270,7 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
   val browserDensity=androidx.compose.ui.platform.LocalDensity.current
   if(navigation.pane.wire=="epg"){
    ProgrammeSideSheet(
-    width=minOf(330.dp,maxWidth*.38f),candidate=candidate,channels=channels,list=list,requests=requests,
+    width=channelWidth,candidate=candidate,channels=channels,showLogos=showLogos,list=list,requests=requests,
     programs=epgPrograms,epgList=epgList,epgRequests=epgRequests,days=days,dateList=dateList,dateRequests=dateRequests,epgDay=epgDay,now=now,
     onChannelFocus={c->navigation=BrowserNavigation(BrowserPane.PROGRAMMES,BrowserRegion.CHANNELS);candidateId=c.id},
     onChannelClick=onSelect,

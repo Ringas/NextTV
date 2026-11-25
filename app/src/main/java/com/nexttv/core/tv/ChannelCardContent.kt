@@ -73,14 +73,14 @@ private fun ChannelNumberBadge(channel: Channel) {
  val systemScale = androidx.compose.ui.platform.LocalConfiguration.current.fontScale
  androidx.compose.runtime.CompositionLocalProvider(LocalDensity provides Density(density.density, systemScale)) {
   Box(
-   Modifier.widthIn(min = 20.dp * systemScale.coerceAtLeast(1f)).height(15.dp * systemScale.coerceAtLeast(1f))
+   Modifier.widthIn(min = 25.dp * systemScale.coerceAtLeast(1f)).height(19.dp * systemScale.coerceAtLeast(1f))
     .semantics { contentDescription = "频道号 $number" }
     .background(NextTvStyle.ChannelNumber, RoundedCornerShape(InteractionStyle.badgeRadius))
     .border(.75.dp, NextTvStyle.PlayerInfoBorder, RoundedCornerShape(InteractionStyle.badgeRadius))
-    .padding(horizontal = 4.dp),
+    .padding(horizontal = 5.dp),
    contentAlignment = Alignment.Center,
   ) {
-   CardText(number, 10, NextTvStyle.Text, bold = true)
+   CardText(number, 11, NextTvStyle.Text, bold = true)
   }
  }
 }
@@ -132,6 +132,7 @@ internal fun channelCoverMark(name: String): String {
       CardText(Ui.displayName(c.name), 16, NextTvStyle.Text, bold = true)
       CardText(caption, 13, NextTvStyle.Muted)
      }
+     ChannelNumberBadge(c)
     }
    }
   }
