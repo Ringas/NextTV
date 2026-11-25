@@ -49,22 +49,34 @@ jobs:
       - name: Prefetch Robolectric runtime
         run: |
           # Robolectric fetches android-all on first use; pre-seed it so a
-          # transient Maven timeout cannot drop one of the six renders.
+          # transient Maven timeout cannot drop one of the renders. Shared
+          # runner IPs can hit a 429 on repo1, so try the Google mirror and
+          # the canonical hostname before giving up.
           VERSION=15-robolectric-12650502-i7
           DIR="$HOME/.m2/repository/org/robolectric/android-all-instrumented/$VERSION"
           mkdir -p "$DIR"
           for EXT in jar pom jar.sha512 pom.sha512; do
-            curl --retry 6 --retry-all-errors --retry-delay 2 -fL \
-              "https://repo1.maven.org/maven2/org/robolectric/android-all-instrumented/$VERSION/android-all-instrumented-$VERSION.$EXT" \
-              -o "$DIR/android-all-instrumented-$VERSION.$EXT"
+            ok=false
+            for BASE in \
+              https://maven-central.storage-download.googleapis.com/maven2 \
+              https://repo1.maven.org/maven2 \
+              https://repo.maven.apache.org/maven2; do
+              if curl --retry 8 --retry-all-errors --retry-delay 4 -fL \
+                "$BASE/org/robolectric/android-all-instrumented/$VERSION/android-all-instrumented-$VERSION.$EXT" \
+                -o "$DIR/android-all-instrumented-$VERSION.$EXT"; then
+                ok=true
+                break
+              fi
+            done
+            [[ "$ok" == true ]] || exit 1
           done
 
       - name: Render design screenshots
         run: |
           bash ./gradlew --no-daemon :app:testDebugUnitTest \
             --tests com.nexttv.design.DesignScreenshots || \
-          bash ./gradlew --no-daemon :app:testDebugUnitTest \
-            --tests com.nexttv.design.DesignScreenshots
+          (sleep 30 && bash ./gradlew --no-daemon :app:testDebugUnitTest \
+            --tests com.nexttv.design.DesignScreenshots)
 
       - name: Upload design screenshots
         if: always()
