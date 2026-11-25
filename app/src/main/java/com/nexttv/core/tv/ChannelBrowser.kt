@@ -48,15 +48,18 @@ import kotlinx.coroutines.flow.first
  }
 }
 
-/** Programme status: live is a red dot and plain text; replay is quiet secondary text. */
+/** Programme status: live is a red dot and label; replay is a quiet outlined chip. */
 @Composable private fun BrowserBadge(text:String,accent:Boolean){
+ val scale=androidx.compose.ui.platform.LocalDensity.current.fontScale
  if(accent){
-  Row(Modifier.height(19.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale).padding(horizontal=2.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)){
+  Row(Modifier.height(19.dp*scale).padding(horizontal=2.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)){
    Box(Modifier.size(5.dp).background(NextTvStyle.Live,RoundedCornerShape(50)))
-   AppText(if(text=="直播中")"直播" else text,fontSize=InteractionStyle.micro,fontWeight=androidx.compose.ui.text.font.FontWeight.Bold,color=NextTvStyle.Live,maxLines=1)
+   AppText(if(text=="直播中")"直播" else text,fontSize=InteractionStyle.captionSmall,fontWeight=androidx.compose.ui.text.font.FontWeight.Bold,color=NextTvStyle.Live,maxLines=1)
   }
  }else{
-  AppText("· $text",Modifier.padding(horizontal=2.dp),fontSize=InteractionStyle.micro,fontWeight=androidx.compose.ui.text.font.FontWeight.Medium,color=NextTvStyle.Muted.copy(alpha=.72f),maxLines=1)
+  Box(Modifier.heightIn(min=20.dp*scale).border(.75.dp,NextTvStyle.Muted.copy(alpha=.55f),RoundedCornerShape(9.dp)).padding(horizontal=6.dp),contentAlignment=Alignment.Center){
+   AppText(text,fontSize=InteractionStyle.captionSmall,fontWeight=androidx.compose.ui.text.font.FontWeight.Medium,color=NextTvStyle.Muted.copy(alpha=.92f),maxLines=1)
+  }
  }
 }
 
@@ -90,7 +93,7 @@ import kotlinx.coroutines.flow.first
         AppText(Ui.displayName(c.name),Modifier.fillMaxWidth(),fontSize=InteractionStyle.body,maxLines=1,overflow=TextOverflow.Ellipsis)
         val program=nowProgram(c)
         AppText(program?.title?:"暂无节目信息",Modifier.fillMaxWidth().padding(top=1.dp),fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1,overflow=TextOverflow.Ellipsis)
-        Box(Modifier.fillMaxWidth().padding(top=3.dp).height(3.dp).background(NextTvStyle.PlayerProgressTrack,RoundedCornerShape(2.dp))){Box(Modifier.fillMaxWidth(programmeProgress(program,now)).fillMaxHeight().background(NextTvStyle.PlayerProgressFill,RoundedCornerShape(2.dp)))}
+        Box(Modifier.fillMaxWidth().padding(top=3.dp).height(2.dp).background(NextTvStyle.PlayerProgressTrack,RoundedCornerShape(1.dp))){Box(Modifier.fillMaxWidth(programmeProgress(program,now)).fillMaxHeight().background(NextTvStyle.PlayerProgressFill.copy(alpha=.55f),RoundedCornerShape(1.dp)))}
        }
       }
      }
@@ -104,10 +107,10 @@ import kotlinx.coroutines.flow.first
      items(days,key={it}){day->
       val date=remember(day,now){java.util.Calendar.getInstance().apply{timeInMillis=now;add(java.util.Calendar.DAY_OF_YEAR,day)}.time}
       val label=when(day){0->"今天 "+java.text.SimpleDateFormat("EEE",java.util.Locale.SIMPLIFIED_CHINESE).format(date);1->"明天 "+java.text.SimpleDateFormat("EEE",java.util.Locale.SIMPLIFIED_CHINESE).format(date);else->java.text.SimpleDateFormat("EEE MM-dd",java.util.Locale.SIMPLIFIED_CHINESE).format(date)}
-      TvSurface(Modifier.focusRequester(dateRequests.getValue(day)).focusEdges(left=day==days.firstOrNull(),right=day==days.lastOrNull()),kind="text",selected=day==epgDay,onClick={onDate(day)}){
+      TvSurface(Modifier.focusRequester(dateRequests.getValue(day)).focusEdges(left=day==days.firstOrNull(),right=day==days.lastOrNull()),kind="playerRow",selected=day==epgDay,onClick={onDate(day)}){
        Box(Modifier.padding(horizontal=2.dp,vertical=3.dp)){
         AppText(label,fontSize=InteractionStyle.captionSmall,color=if(day==epgDay)NextTvStyle.Text else NextTvStyle.Muted,maxLines=1)
-        if(day==epgDay)Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(top=4.dp).height(1.5.dp).background(NextTvStyle.Ivory))
+        if(day==epgDay)Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(top=4.dp).height(2.dp).background(NextTvStyle.Ivory,RoundedCornerShape(1.dp)))
        }
       }
      }
@@ -125,7 +128,7 @@ import kotlinx.coroutines.flow.first
       Row(Modifier.fillMaxWidth().padding(horizontal=8.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically){
        AppText(Ui.hhmm(p.start),Modifier.width(44.dp*scale),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,fontFeatureSettings="tnum")
        AppText(p.title,Modifier.weight(1f).padding(start=8.dp,end=4.dp),fontSize=InteractionStyle.body,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
-       AppText(Ui.hhmm(p.stop),Modifier.width(38.dp*scale),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,fontFeatureSettings="tnum",textAlign=androidx.compose.ui.text.style.TextAlign.End)
+       AppText("–"+Ui.hhmm(p.stop),Modifier.width(46.dp*scale),fontSize=InteractionStyle.caption,color=NextTvStyle.Text.copy(alpha=.72f),maxLines=1,fontFeatureSettings="tnum",textAlign=androidx.compose.ui.text.style.TextAlign.End)
        if(live||replay){Spacer(Modifier.width(6.dp));if(live)BrowserBadge("直播中",true)else BrowserBadge("回放",false)}
       }
      }
