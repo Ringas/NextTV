@@ -294,6 +294,16 @@ private fun ScheduleScene() {
     val channelList = remember { LazyListState(1) }
     val epgList = remember { LazyListState(0) }
     val dateList = remember { LazyListState(0) }
+    val nowProgram = { c: Channel ->
+        if (c.id == candidate.id) programmes[2]
+        else Program(
+            channelKey = c.id,
+            title = (demoCaptions[c.id] ?: "20:00 暂无节目信息").substringAfter(' '),
+            desc = "",
+            start = at(60),
+            stop = at(120),
+        )
+    }
     Box(Modifier.fillMaxSize()) {
         StadiumBackdrop()
         ProgrammeSideSheet(
@@ -311,6 +321,7 @@ private fun ScheduleScene() {
             dateRequests = dateRequests,
             epgDay = 0,
             now = start + 104L * 60_000,
+            nowProgram = nowProgram,
             onChannelFocus = {},
             onChannelClick = {},
             onProgramFocus = {},
