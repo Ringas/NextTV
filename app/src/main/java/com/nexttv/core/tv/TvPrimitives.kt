@@ -125,12 +125,13 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
  val interactions=remember{MutableInteractionSource()}
  val hovered by interactions.collectIsHoveredAsState()
  val pressed by interactions.collectIsPressedAsState()
- val radius=when(kind){"setting","side"->InteractionStyle.sideRadius;"card","list","source"->InteractionStyle.cardRadius;"nav"->InteractionStyle.badgeRadius;"quick","playerAction","playerRow","channelRow"->InteractionStyle.badgeRadius;"button","action","chip","danger","category"->InteractionStyle.controlRadius;"categoryRow"->InteractionStyle.badgeRadius;"text"->InteractionStyle.badgeRadius;else->InteractionStyle.radius}
+ val radius=when(kind){"setting","side"->InteractionStyle.sideRadius;"card","list","source"->InteractionStyle.cardRadius;"nav"->InteractionStyle.badgeRadius;"quick","playerAction","playerRow","channelRow"->InteractionStyle.badgeRadius;"button","action","chip","danger","category"->InteractionStyle.controlRadius;"categoryRow"->InteractionStyle.badgeRadius;"text","date"->InteractionStyle.badgeRadius;else->InteractionStyle.radius}
  val background=when{
   kind=="nav"||kind=="category"->Color.Transparent
   kind=="playerAction"&&pressed->NextTvStyle.MediaPressed
   kind=="playerAction"&&(visibleFocus||(hovered&&InteractionStyle.pointer))->NextTvStyle.MediaFocus
   kind=="playerAction"->Color.Transparent
+  kind=="date"->Color.Transparent
   kind=="text"&&(visibleFocus||(hovered&&InteractionStyle.pointer))->NextTvStyle.Focus
   kind=="text"->Color.Transparent
   kind=="card"&&visibleFocus->Color.Transparent
@@ -155,6 +156,7 @@ internal val LocalSurfaceFocused=compositionLocalOf{false}
   kind=="danger"->NextTvStyle.Error
   kind=="category"->if(selected)NextTvStyle.Ivory else NextTvStyle.Muted
   kind=="categoryRow"->if(selected)NextTvStyle.Ivory else NextTvStyle.Muted
+  kind=="date"->if(visibleFocus||selected)NextTvStyle.Ivory else NextTvStyle.Muted
   kind=="text"->if(visibleFocus||selected)NextTvStyle.Ivory else NextTvStyle.Muted
   kind=="playerAction"->if(visibleFocus)Color.White else NextTvStyle.MediaMuted
   kind=="setting"&&selected->NextTvStyle.OnTabActive

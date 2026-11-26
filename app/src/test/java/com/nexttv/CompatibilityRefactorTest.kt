@@ -17,8 +17,12 @@ class CompatibilityRefactorTest {
  @Test fun browserMustPassThroughChannelOnlyInBothDirections(){
   val groups=BrowserNavigation.Groups;assertEquals(BrowserMove.CHANNELS,groups.horizontal(1,false))
   val channels=groups.focusChannels(closeAdjacent=true);assertEquals(BrowserPane.CHANNELS,channels.pane);assertEquals(BrowserMove.PROGRAMMES,channels.horizontal(1,false))
-  assertEquals(BrowserMove.CHANNELS,BrowserNavigation.Programmes.horizontal(-1,false));assertEquals(BrowserMove.GROUPS,BrowserNavigation().horizontal(-1,false))
-  assertEquals(BrowserMove.PROGRAMMES,BrowserNavigation.Dates.horizontal(-1,false));assertEquals(BrowserMove.CHANNELS,BrowserNavigation.Dates.horizontal(-1,true));assertEquals(BrowserMove.NONE,BrowserNavigation.Dates.horizontal(1,false))
+  assertEquals(BrowserMove.GROUPS,BrowserNavigation().horizontal(-1,false))
+  assertEquals(BrowserMove.NONE,BrowserNavigation.Programmes.horizontal(-1,false))
+  assertEquals(BrowserMove.NONE,BrowserNavigation.Programmes.horizontal(1,false))
+  assertEquals(BrowserMove.NONE,BrowserNavigation.Dates.horizontal(-1,false))
+  assertEquals(BrowserMove.NONE,BrowserNavigation.Dates.horizontal(-1,true))
+  assertEquals(BrowserMove.NONE,BrowserNavigation.Dates.horizontal(1,false))
  }
  @Test fun impossiblePaneRegionCombinationsCannotBeConstructed(){
   for(pair in listOf(BrowserPane.CHANNELS to BrowserRegion.GROUPS,BrowserPane.GROUPS to BrowserRegion.PROGRAMMES,BrowserPane.PROGRAMMES to BrowserRegion.GROUPS))assertTrue(runCatching{BrowserNavigation(pair.first,pair.second)}.isFailure)

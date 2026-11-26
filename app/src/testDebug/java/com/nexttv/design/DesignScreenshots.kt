@@ -311,11 +311,13 @@ private fun ScheduleScene() {
             dateRequests = dateRequests,
             epgDay = 0,
             now = start + 104L * 60_000,
+            region = BrowserRegion.CHANNELS,
             onChannelFocus = {},
             onChannelClick = {},
             onProgramFocus = {},
             onProgramClick = { _, _ -> },
             onDate = {},
+            onDateFocus = {},
         )
     }
     LaunchedEffect(candidate) {

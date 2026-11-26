@@ -12,12 +12,12 @@ internal data class BrowserNavigation(val pane:BrowserPane=BrowserPane.CHANNELS,
  fun horizontal(delta:Int,emptyProgramme:Boolean):BrowserMove=if(delta<0)when(region){
   BrowserRegion.GROUPS->BrowserMove.NONE
   BrowserRegion.CHANNELS->BrowserMove.GROUPS
-  BrowserRegion.PROGRAMMES->BrowserMove.CHANNELS
-  BrowserRegion.DATES->if(emptyProgramme)BrowserMove.CHANNELS else BrowserMove.PROGRAMMES
+  BrowserRegion.PROGRAMMES->BrowserMove.NONE
+  BrowserRegion.DATES->BrowserMove.NONE
  }else if(delta>0)when(region){
   BrowserRegion.GROUPS->BrowserMove.CHANNELS
   BrowserRegion.CHANNELS->BrowserMove.PROGRAMMES
-  BrowserRegion.PROGRAMMES->BrowserMove.DATES
+  BrowserRegion.PROGRAMMES->BrowserMove.NONE
   BrowserRegion.DATES->BrowserMove.NONE
  }else BrowserMove.NONE
  companion object{
