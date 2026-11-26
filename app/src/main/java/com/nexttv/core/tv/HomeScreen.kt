@@ -71,6 +71,16 @@ import com.nexttv.observeGridDraws
   if(!cacheReady||!app.prefs.hideUnavailableRoutes)return@LaunchedEffect
   RouteHealthProbe.run(app,{probeGroup}){digitLifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)}
  }
+ // If every channel in the open group has become unavailable, fall back to
+ // "all channels" instead of leaving the user on an empty dead category.
+ LaunchedEffect(cacheReady,tab,group,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){
+  if(!cacheReady||tab!=0||group.isBlank())return@LaunchedEffect
+  if(group !in app.channels.displayGroups){
+   val old=group
+   group=""
+   if(app.prefs.selectedGroup==old)app.prefs.selectedGroup=""
+  }
+ }
  var firstCardFocusPending by ui.firstCardFocusPending
  var addingSubscription by ui.addingSubscription
  val emptyAction=remember{FocusRequester()}
@@ -85,7 +95,7 @@ import com.nexttv.observeGridDraws
  var homeNoticeEpoch by ui.homeNoticeEpoch
  var restoringHome by ui.restoringHome
  var homeNotice by ui.homeNotice
- LaunchedEffect(channelDigits,playing,sources,dialog,tab){if(playing!=null||sources||dialog.isNotBlank()||tab !in 0..1){channelDigits=""}else if(channelDigits.isNotBlank()){val pending=channelDigits;val pendingRevision=app.channels.revision;delay(CHANNEL_DIGIT_WAIT_MS);if(channelDigits!=pending)return@LaunchedEffect;if(!digitLifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)||playing!=null||sources||dialog.isNotBlank()||tab !in 0..1||app.channels.revision!=pendingRevision){channelDigits="";return@LaunchedEffect};val target=app.channels.displayChannels.firstOrNull{it.number==channelDigits.toIntOrNull()};channelDigits="";if(target!=null)playing=target else{homeNotice="没有该频道";homeNoticeEpoch++}}}
+ LaunchedEffect(channelDigits,playing,sources,dialog,tab,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){if(playing!=null||sources||dialog.isNotBlank()||tab !in 0..1){channelDigits=""}else if(channelDigits.isNotBlank()){val pending=channelDigits;val pendingRevision=app.channels.revision;delay(CHANNEL_DIGIT_WAIT_MS);if(channelDigits!=pending)return@LaunchedEffect;if(!digitLifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)||playing!=null||sources||dialog.isNotBlank()||tab !in 0..1||app.channels.revision!=pendingRevision){channelDigits="";return@LaunchedEffect};val target=app.channels.displayChannels.firstOrNull{it.number==channelDigits.toIntOrNull()};channelDigits="";if(target!=null)playing=target else{homeNotice="没有该频道";homeNoticeEpoch++}}}
  val exitGate=remember{ExitConfirmation()}
  val settingsNavigation=remember{SettingsNavigation()}
  var settingsRestore by ui.settingsRestore

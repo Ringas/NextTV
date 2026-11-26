@@ -33,8 +33,8 @@ import kotlinx.coroutines.withContext
  *
  * Timing:
  *  - hidden routes are retried every 3 minutes, so recovery is automatic;
- *  - all other routes are swept every 30 minutes, plus once when the setting is
- *    enabled or the channel table changes;
+ *  - all other routes are swept over a four-hour window, a few dozen per pass;
+ *    the pass is incremental, never a full-library burst;
  *  - a request gets 8s for its first byte and 25s total once bytes start flowing.
  *    A server that accepts the connection but sends nothing is cut at 8s.
  */
@@ -42,11 +42,15 @@ internal object RouteHealthProbe {
     private const val STARTUP_DELAY_MS = 8_000L
     private const val TRANSIENT_RETRY_MS = 60_000L
     private const val HIDDEN_RETRY_MS = 3 * 60 * 1000L
-    private const val FULL_SWEEP_MS = 30 * 60 * 1000L
+    private const val FULL_SWEEP_MS = 4 * 60 * 60 * 1000L
     private const val IDLE_CONCURRENCY = 2
     private const val PLAYING_CONCURRENCY = 1
-    private const val IDLE_ROUTES_PER_PASS = 240
-    private const val PLAYING_ROUTES_PER_PASS = 80
+    // Small quotas keep a burst short: at most ~2 minutes idle / ~90 seconds while
+    // playing, then the loop backs off before the next batch.
+    private const val IDLE_ROUTES_PER_PASS = 40
+    private const val PLAYING_ROUTES_PER_PASS = 12
+    private const val IDLE_HIDDEN_PER_PASS = 20
+    private const val PLAYING_HIDDEN_PER_PASS = 6
 
     suspend fun run(app: App, priorityGroup: () -> String, visible: () -> Boolean) {
         delay(STARTUP_DELAY_MS)
@@ -76,19 +80,26 @@ internal object RouteHealthProbe {
             }
             val blocked = session?.current?.playbackRoutes?.mapTo(HashSet()) { routeIdentity(it) }
                 ?: emptySet()
+            val hidden = RouteHealth.hiddenRoutes(channels)
+                .filterNot { routeIdentity(it) in blocked }
+            val hiddenLimit = if (session == null) IDLE_HIDDEN_PER_PASS else PLAYING_HIDDEN_PER_PASS
+            val hiddenBatch = hidden.take(hiddenLimit)
+            val hiddenKeys = hidden.mapTo(HashSet()) { routeIdentity(it) }
             val targets = RouteHealth.routesNeedingProbe(
                 channels = channels,
                 staleBefore = now - FULL_SWEEP_MS,
                 priorityGroup = priorityGroup(),
                 retryBefore = now - TRANSIENT_RETRY_MS,
-            ).filterNot { routeIdentity(it) in blocked }
-            if (targets.isEmpty()) {
+            ).filterNot { routeIdentity(it) in blocked || routeIdentity(it) in hiddenKeys }
+            if (hiddenBatch.isEmpty() && targets.isEmpty()) {
                 delay(HIDDEN_RETRY_MS)
                 continue
             }
             val limit = if (session == null) IDLE_ROUTES_PER_PASS else PLAYING_ROUTES_PER_PASS
-            val backlog = targets.size > limit
-            val pass = targets.take(limit)
+            val scanLimit = (limit - hiddenBatch.size).coerceAtLeast(0)
+            val scanBatch = targets.take(scanLimit)
+            val backlog = hidden.size > hiddenBatch.size || targets.size > scanBatch.size
+            val pass = hiddenBatch + scanBatch
             var index = 0
             while (index < pass.size && currentCoroutineContext().isActive) {
                 if (!visible()) break
@@ -118,8 +129,8 @@ internal object RouteHealthProbe {
                 index += batch.size
                 delay(if (active == null) 120 else 700)
             }
-            // While the first full sweep still has a backlog, continue sooner; once
-            // it is caught up, each route is only rechecked on the 30-minute sweep.
+            // Backlog rotates through small batches; once caught up, idle for
+            // the hidden-route recovery interval.
             delay(if (backlog) 30_000L else HIDDEN_RETRY_MS)
         }
     }
@@ -128,10 +139,13 @@ internal object RouteHealthProbe {
         route.sourceId + "\u0000" + route.url.trim()
 
     private suspend fun probe(app: App, route: ChannelRoute) {
-        // A hidden route gets a deeper check (playlist + first segment) before it is
-        // restored; a never-probed route only needs the first request, which keeps
-        // the initial sweep cheap.
-        val deep = RouteHealth.status(route) == RouteHealth.Status.UNAVAILABLE
+        // Hidden routes and single-route channels get a deeper check (playlist +
+        // first segment), because one dead segment can hide the whole channel.
+        // Multi-route channels only need the first request during the light sweep.
+        val singleRoute = app.channels.channels.any { channel ->
+            channel.playbackRoutes.size == 1 && routeIdentity(channel.playbackRoutes.first()) == routeIdentity(route)
+        }
+        val deep = singleRoute || RouteHealth.status(route) == RouteHealth.Status.UNAVAILABLE
         when (val result = RouteProbe.check(app, route, deep)) {
             ProbeResult.AVAILABLE -> RouteHealth.markProbeSuccess(route)
             ProbeResult.UNAVAILABLE -> RouteHealth.markProbeFailure(route, definitive = true)
@@ -205,8 +219,9 @@ private object RouteProbe {
                     return ProbeResult.UNAVAILABLE
                 }
                 // Shallow sweep: a populated playlist is enough. This is one request
-                // per route, which keeps the 30-minute scan light. Hidden routes use
-                // the deep path so a playlist pointing at a 404 segment is not restored.
+                // per route, which keeps the four-hour scan light. Hidden/single-route
+                // routes use the deep path so a playlist pointing at a 404 segment is
+                // not treated as healthy.
                 val next = firstPlaylistUri(text) ?: return ProbeResult.TEMPORARY
                 if (!deep) return ProbeResult.AVAILABLE
                 val resolved = resolve(finalUrl, next) ?: return ProbeResult.TEMPORARY

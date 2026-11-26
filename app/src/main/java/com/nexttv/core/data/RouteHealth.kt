@@ -66,6 +66,7 @@ internal object RouteHealth {
             .flatMap { it.playbackRoutes.asSequence() }
             .distinctBy { key(it) }
             .filter { entries[key(it)]?.status == Status.UNAVAILABLE }
+            .sortedBy { entries[key(it)]?.checkedAt ?: 0L }
             .toList()
     }
 
@@ -93,6 +94,7 @@ internal object RouteHealth {
             if (routes.size == 1) singleKeys.add(key(routes.first()))
         }
         val hidden = all.filter { entries[key(it)]?.status == Status.UNAVAILABLE }
+            .sortedBy { entries[key(it)]?.checkedAt ?: 0L }
         val hiddenKeys = hidden.mapTo(HashSet()) { key(it) }
         // A single timeout is not hidden yet. Retry it sooner than the 30-minute
         // sweep so two consecutive failures can hide a no-data stream promptly.
