@@ -19,6 +19,7 @@ object CacheStore {
         filesDir.listFiles { file -> file.isFile && file.name.startsWith("pl_") }?.forEach { total += it.length() }
         total += directorySize(epgDir)
         total += directorySize(logoDir)
+        total += File(filesDir, "route_failures.json").length()
         return total
     }
 
@@ -30,6 +31,7 @@ object CacheStore {
         filesDir.listFiles { file -> file.isFile && file.name.startsWith("pl_") }?.forEach { it.delete() }
         deleteChildren(File(filesDir, "epg_feeds"))
         deleteChildren(File(context.cacheDir, "logos"))
+        RouteFailureJournal.clear(context)
         return before
     }
 

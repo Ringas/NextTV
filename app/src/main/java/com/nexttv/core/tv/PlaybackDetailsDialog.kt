@@ -84,26 +84,38 @@ private fun PlaybackSession.detailRows(): List<Pair<String, String>> {
     val route = current.playbackRoutes.getOrNull(routeIndex)
     val programme = replay ?: app.epg.nowNext(current).first
     val address = if (replay == null) route?.url else player.currentMediaItem?.localConfiguration?.uri?.toString()
-    return listOf(
-        "频道名" to Ui.displayName(current.name),
-        "分组" to current.groupName,
-        "节目" to programme?.title.orEmpty(),
-        "最近失败原因" to latestFailureDetail.ifBlank { "暂无失败记录" },
-        "地址" to address.orEmpty(),
-        "视频" to (videoCodecLabel(video?.sampleMimeType) ?: video?.sampleMimeType.orEmpty()),
-        "分辨率" to (video?.takeIf { it.width > 0 && it.height > 0 }
-            ?.let { "${resolutionLabel(it.height)} · ${it.width} × ${it.height}" }.orEmpty()),
-        "视频解码器" to videoDecoderLabel,
-        "音频" to (audioCodecLabel(audio?.sampleMimeType) ?: audio?.sampleMimeType.orEmpty()),
-        "声道" to audioChannelLabel(audio?.channelCount ?: 0),
-        "采样率" to (audio?.sampleRate?.takeIf { it > 0 }?.let { "$it Hz" }.orEmpty()),
-        "音频解码器" to audioDecoderLabel,
-        "缓冲" to String.format(Locale.ROOT, "%.1f 秒", player.totalBufferedDuration.coerceAtLeast(0) / 1000.0),
-        "播放器" to "Media3 ExoPlayer ${MediaLibraryInfo.VERSION}",
-        "解码策略" to when (selectedDecoderId) {
+    val failure = currentFailureRecord()
+    val recent = recentFailureRecords(3)
+    return buildList {
+        add("频道名" to Ui.displayName(current.name))
+        add("分组" to current.groupName)
+        add("线路" to routeLabel)
+        add("节目" to programme?.title.orEmpty())
+        add("该线路上次失败" to (failure?.let {
+            "${failureTime(it.at)} · ${it.code} · ${it.message}"
+        } ?: "暂无记录"))
+        if (recent.isNotEmpty()) add("最近失败线路" to recent.joinToString("\n\n") { record ->
+            "${record.channelName} · ${record.routeLabel}\n${failureTime(record.at)} · ${record.code} · ${record.message}"
+        })
+        add("地址" to address.orEmpty())
+        add("视频" to (videoCodecLabel(video?.sampleMimeType) ?: video?.sampleMimeType.orEmpty()))
+        add("分辨率" to (video?.takeIf { it.width > 0 && it.height > 0 }
+            ?.let { "${resolutionLabel(it.height)} · ${it.width} × ${it.height}" }.orEmpty()))
+        add("视频解码器" to videoDecoderLabel)
+        add("音频" to (audioCodecLabel(audio?.sampleMimeType) ?: audio?.sampleMimeType.orEmpty()))
+        add("声道" to audioChannelLabel(audio?.channelCount ?: 0))
+        add("采样率" to (audio?.sampleRate?.takeIf { it > 0 }?.let { "$it Hz" }.orEmpty()))
+        add("音频解码器" to audioDecoderLabel)
+        add("缓冲" to String.format(Locale.ROOT, "%.1f 秒", player.totalBufferedDuration.coerceAtLeast(0) / 1000.0))
+        add("播放器" to "Media3 ExoPlayer ${MediaLibraryInfo.VERSION}")
+        add("解码策略" to when (selectedDecoderId) {
             "hardware" -> "硬件解码"
             "software" -> "软件解码"
             else -> "自动（优先硬解）"
-        },
-    ).map { (label, value) -> label to value.ifBlank { "—" } }
+        })
+    }.map { (label, value) -> label to value.ifBlank { "—" } }
 }
+
+private fun failureTime(at: Long): String =
+    if (at <= 0L) "时间未知"
+    else java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.SIMPLIFIED_CHINESE).format(java.util.Date(at))

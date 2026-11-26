@@ -177,7 +177,7 @@ private typealias SettingsEntry = SettingsRowData
   "时间显示"->ChoiceDialog(edit,listOf(ChoiceOption("0","隐藏","不显示右上角时间"),ChoiceOption("1","始终显示","播放时始终显示右上角时间"),ChoiceOption("2","每小时显示","每小时整点显示 ${PLAYER_CLOCK_WINDOW_MS/1000} 秒"),ChoiceOption("3","每半小时显示","每小时 00 分和 30 分显示 ${PLAYER_CLOCK_WINDOW_MS/1000} 秒")),"${p.playerClockMode}",{dismissEdit()}){p.playerClockMode=it.toInt();changed();dismissEdit()}
   REQUEST_PARAMETERS->NetworkRequestDialog({dismissEdit()}){ua,ref->p.defaultUserAgent=ua;p.defaultReferer=ref;changed();dismissEdit()}
   "清除缓存"->TvDialog(edit,{dismissEdit()}){
-   AppText("将删除频道、节目单、播放源备份和台标缓存，不会删除订阅、收藏或设置。当前占用 ${CacheStore.format(cacheBytes)}。",Modifier.weight(1f,false).appVerticalScroll(rememberScrollState()),color=NextTvStyle.Text,fontSize=InteractionStyle.body)
+   AppText("将删除频道、节目单、播放源备份、台标缓存和线路失败记录，不会删除订阅、收藏或设置。当前占用 ${CacheStore.format(cacheBytes)}。",Modifier.weight(1f,false).appVerticalScroll(rememberScrollState()),color=NextTvStyle.Text,fontSize=InteractionStyle.body)
    Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){
     TvButton("取消",onClick={dismissEdit()})
     TvButton("清除",kind="danger",onClick={

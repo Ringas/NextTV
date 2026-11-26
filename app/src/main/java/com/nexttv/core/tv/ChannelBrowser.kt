@@ -60,6 +60,22 @@ import kotlinx.coroutines.flow.first
  }
 }
 
+/** Right-edge hint kept vertical and tight so every glyph fits on narrow TV rail. */
+@Composable internal fun BrowserEdgeHint(width:Dp,modifier:Modifier=Modifier){
+ Box(modifier.width(width).fillMaxHeight().padding(vertical=4.dp),contentAlignment=Alignment.Center){
+  AppText(
+   "向右查看节目单".toCharArray().joinToString("\n"),
+   fontSize=InteractionStyle.captionSmall,
+   lineHeight=InteractionStyle.captionSmall*1.05f,
+   letterSpacing=0.sp,
+   color=NextTvStyle.Text.copy(alpha=.8f),
+   textAlign=androidx.compose.ui.text.style.TextAlign.Center,
+   maxLines=9,
+   overflow=TextOverflow.Clip,
+  )
+ }
+}
+
 /** One rail, channel stack on top and the programme stack underneath. */
 @Composable internal fun ProgrammeSideSheet(width:Dp,candidate:Channel,channels:List<Channel>,showLogos:Boolean,list:LazyListState,requests:MutableMap<String,FocusRequester>,programs:List<Program>,epgList:LazyListState,epgRequests:MutableMap<Long,FocusRequester>,days:List<Int>,dateList:LazyListState,dateRequests:Map<Int,FocusRequester>,epgDay:Int,now:Long,region:BrowserRegion,onChannelFocus:(Channel)->Unit,onChannelClick:(Channel)->Unit,onProgramFocus:(Program)->Unit,onProgramClick:(Channel,Program)->Unit,onDate:(Int)->Unit,onDateFocus:(Int)->Unit){
  val scale=androidx.compose.ui.platform.LocalDensity.current.fontScale
@@ -305,7 +321,7 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
   val showLogos=app.prefs.showChannelLogos
   val widths=browserWidths(maxWidth.value,fontScale=androidx.compose.ui.platform.LocalDensity.current.fontScale)
   val gap=0.dp;val groupWidth=widths.group.dp;val channelWidth=widths.channel.dp;val dateWidth=widths.date.dp;val epgWidth=widths.programme.dp
-  val hintWidth=(12.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale).coerceIn(12.dp,22.dp)
+  val hintWidth=(18.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale).coerceIn(18.dp,30.dp)
   val reduced=app.prefs.reduceMotion
   val largeNarrowDate=dateWidth<72.dp&&androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f
   val anchor=if(navigation.pane.wire=="groups")groupWidth else 0.dp
@@ -352,7 +368,7 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
     }
    }
   }
-  if(navigation.pane.wire!="epg")Box(Modifier.offset{IntOffset(with(browserDensity){(anchorPosition.value.dp+channelWidth-hintWidth-2.dp).roundToPx()},0)}.width(hintWidth).fillMaxHeight(),contentAlignment=Alignment.Center){AppText("向右查看节目单".toCharArray().joinToString("\n"),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Text.copy(alpha=.8f),textAlign=androidx.compose.ui.text.style.TextAlign.Center)}
+  if(navigation.pane.wire!="epg")BrowserEdgeHint(hintWidth,Modifier.offset{IntOffset(with(browserDensity){(anchorPosition.value.dp+channelWidth-hintWidth-2.dp).roundToPx()},0)})
   if(navigation.pane.wire=="epg"){
    Column(Modifier.offset{IntOffset(with(browserDensity){(anchorPosition.value.dp+channelWidth+gap).roundToPx()},0)}.width(epgWidth).fillMaxHeight().padding(start=0.dp,top=12.dp,end=12.dp,bottom=12.dp)){
     BrowserHeading(Ui.displayName(candidate.name))

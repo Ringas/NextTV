@@ -30,7 +30,7 @@ internal fun homeEmptyMessage(
 ): String = when {
     tab == 1 && favoritesEmpty -> "还没有收藏频道"
     tab == 1 -> "收藏的频道暂不可用，请更新订阅"
-    noSources -> "添加订阅后开始使用"
+    noSources -> "当前无订阅"
     addingSubscription || updating -> "正在更新订阅…"
     !anyEnabled -> "所有订阅均已停用"
     hasLoadedChannels -> "当前分组下没有频道"
@@ -38,12 +38,12 @@ internal fun homeEmptyMessage(
 }
 
 internal fun homeEmptyHint(tab: Int, noSources: Boolean, favoritesEmpty: Boolean): String? = when {
-    tab == 0 && noSources -> "粘贴 M3U 地址即可导入频道，无需经过多层设置"
     tab == 1 && favoritesEmpty -> "在频道上长按可添加收藏"
     else -> null
 }
 
 internal fun homeEmptyActionLabel(noSources: Boolean, anyEnabled: Boolean, hasLoadedChannels: Boolean, tab: Int = 0): String? {
+    if (tab == 1 && noSources) return null
     val label = if (noSources) "添加订阅" else if (anyEnabled && !hasLoadedChannels) "重试" else "管理订阅"
     return label.takeUnless { tab == 1 && it == "管理订阅" }
 }

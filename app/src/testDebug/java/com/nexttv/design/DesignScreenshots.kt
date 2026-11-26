@@ -93,6 +93,14 @@ class DesignScreenshots {
         shoot("06-settings") { SettingsScene() }
     }
 
+    @Test fun edgeHint() {
+        shoot("07-edge-hint") {
+            Box(Modifier.fillMaxSize().background(NextTvStyle.Home), contentAlignment = Alignment.Center) {
+                BrowserEdgeHint(30.dp, Modifier.height(420.dp))
+            }
+        }
+    }
+
     private fun shoot(name: String, content: @Composable () -> Unit) {
         compose.mainClock.autoAdvance = false
         compose.setContent {

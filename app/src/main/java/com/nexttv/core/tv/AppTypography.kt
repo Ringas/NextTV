@@ -20,9 +20,9 @@ internal object NextTvTypography {
  val material=androidx.compose.material3.Typography(bodyLarge=body,bodyMedium=body,bodySmall=caption,labelLarge=body,labelMedium=caption,labelSmall=caption,titleMedium=heading,titleSmall=body)
 }
 
-@Composable internal fun AppText(text:String,modifier:Modifier=Modifier,color:Color=Color.Unspecified,fontSize:TextUnit=InteractionStyle.body,fontWeight:FontWeight?=null,maxLines:Int=Int.MAX_VALUE,overflow:TextOverflow=TextOverflow.Ellipsis,textAlign:TextAlign?=null,shadow:androidx.compose.ui.graphics.Shadow?=null,fontFeatureSettings:String?=null,lineHeight:TextUnit?=null){
+@Composable internal fun AppText(text:String,modifier:Modifier=Modifier,color:Color=Color.Unspecified,fontSize:TextUnit=InteractionStyle.body,fontWeight:FontWeight?=null,maxLines:Int=Int.MAX_VALUE,overflow:TextOverflow=TextOverflow.Ellipsis,textAlign:TextAlign?=null,shadow:androidx.compose.ui.graphics.Shadow?=null,fontFeatureSettings:String?=null,lineHeight:TextUnit?=null,letterSpacing:TextUnit=TextUnit.Unspecified){
  val base=if(shadow==null)androidx.tv.material3.LocalTextStyle.current else androidx.tv.material3.LocalTextStyle.current.copy(shadow=shadow)
- androidx.tv.material3.Text(text,modifier,style=if(fontFeatureSettings==null)base else base.copy(fontFeatureSettings=fontFeatureSettings),color=if(color==Color.Unspecified)LocalAppForeground.current else color,fontSize=fontSize,fontWeight=fontWeight,fontFamily=FontFamily.SansSerif,lineHeight=lineHeight?:fontSize*1.3f,maxLines=maxLines,overflow=overflow,textAlign=textAlign)
+ androidx.tv.material3.Text(text,modifier,style=if(fontFeatureSettings==null)base else base.copy(fontFeatureSettings=fontFeatureSettings),color=if(color==Color.Unspecified)LocalAppForeground.current else color,fontSize=fontSize,fontWeight=fontWeight,fontFamily=FontFamily.SansSerif,lineHeight=lineHeight?:fontSize*1.3f,maxLines=maxLines,overflow=overflow,textAlign=textAlign,letterSpacing=letterSpacing)
 }
 
 /** Honor the system font scale and the viewport reference without double-enlarging the new type scale. */

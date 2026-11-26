@@ -72,6 +72,7 @@ class App : Application() {
         }
         instance = this
         prefs = Prefs(this)
+        com.nexttv.core.data.RouteFailureJournal.attach(this)
         RouteHealth.attach(this)
         com.nexttv.core.tv.AppMotionScale.install(this)
         channels = ChannelRepository(this, prefs)

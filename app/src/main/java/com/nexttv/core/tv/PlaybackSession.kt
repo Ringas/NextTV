@@ -74,12 +74,12 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
  private var decoderName=""
  private var softwareDecoder=false
  private val recentFailures=java.util.ArrayDeque<String>()
- internal var latestFailureDetail by mutableStateOf("")
-  private set
  private fun recordFailure(code:String,message:String){
   if(recentFailures.size>=16)recentFailures.removeFirst()
   recentFailures.addLast("${current.name}[${visibleRouteIndex+1}] "+code.take(160))
-  latestFailureDetail="${com.nexttv.core.ui.Ui.displayName(current.name)} · $routeLabel · $message"
+  currentRoute?.let{
+   RouteFailureJournal.record(routeKey(current,routeIndex),com.nexttv.core.ui.Ui.displayName(current.name),routeLabel,code,message)
+  }
  }
  private fun failWithReason(code:String,message:String,serial:Int){
   if(closed||serial!=tuneSerial||recovering||!foreground)return
@@ -93,6 +93,8 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
  private var warmHits=0
  private var warmMisses=0
  fun diagnostics()="warmSlots=$warmSlots prepared=${preloadPool.size()} deep=${preloadPool.deepCount()} shallow=${preloadPool.shallowCount()} readyIds=${preloadPool.readyIds()} confirmedWarmFailures=${preloader.confirmedFailureCount} hits=$warmHits misses=$warmMisses firstFrameMs=$firstFrameMs softwareAttempts=${softwareAttempts.size} decoder=$decoderName software=$softwareDecoder audioDecoder=$audioDecoderName audioSoftware=$audioSoftwareDecoder pcm=${decoderPreferences.forcePcm} audioRetries=${audioRecoveryAttempts.size} failures=${recentFailures.joinToString(" | ")}"
+ internal fun currentFailureRecord(): RouteFailureRecord? = currentRoute?.let{RouteFailureJournal.get(routeKey(current,routeIndex))}
+ internal fun recentFailureRecords(limit:Int=4): List<RouteFailureRecord> = RouteFailureJournal.recent(limit)
  fun trimMemory(){warmJob?.cancel();clearWarm();preloader.clearFailures()}
  private fun clearWarm(){preloadPool.clear()}
  private var prepareJob:Job?=null;private var warmJob:Job?=null;private var retryJob:Job?=null;private var loadingJob:Job?=null;private var timeoutJob:Job?=null;private var watchSerial=0
