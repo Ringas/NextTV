@@ -113,16 +113,17 @@ internal class PlaybackPreloader(
       pending.result.onAwait{it}
      }
      if(error==null)ready=true
-     else if(pending.routeIndex==index&&isConfirmedPreloadFailure(error))definitiveFailures++
+     else if(pending.routeIndex==index&&isConfirmedPreloadFailure(error)){definitiveFailures++;RouteAvailability.markFailed(routes[index])}
     }
     if(ready){
+     RouteAvailability.markHealthy(routes[index])
      unavailableWarmChannels.remove(channel.id)
      return true
     }
    } catch(e:CancellationException){
     throw e
    } catch(e:Exception){
-    if(isConfirmedPreloadFailure(e))definitiveFailures++
+    if(isConfirmedPreloadFailure(e)){definitiveFailures++;RouteAvailability.markFailed(routes[index])}
    } finally {
     if(!ready)entry?.let(preloadPool::discard)
    }

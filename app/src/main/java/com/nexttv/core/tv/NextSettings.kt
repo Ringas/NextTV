@@ -87,6 +87,7 @@ private typealias SettingsEntry = SettingsRowData
    SettingsEntry(START_PAGE,if(p.startLive)LIVE_PAGE else HOME_PAGE,"「主页」打开频道首页。「直播」直接播放上次观看的频道，找不到时播放列表中的第一个频道。",{edit=START_PAGE}),
    SettingsEntry("换台预加载",listOf("关闭","下一台","上一台","上下台")[p.preloadMode],"提前准备相邻频道；「上下台」会同时预加载上一台和下一台，会增加网络与内存占用。",{edit="换台预加载"}),
    SettingsEntry("换台保留画面",if(p.keepLastFrame)"开启"else"关闭","切换频道或线路时保留上一画面，直到新画面出现。",{p.keepLastFrame=!p.keepLastFrame;changed()},false),
+   SettingsEntry("隐藏不可用线路",if(p.hideUnavailableRoutes)"开启"else"关闭","在线路选择中隐藏最近探测返回 404/410 或地址无效的线路；加载慢、超时不算失效。全部线路都不可用时仍显示全部。",{p.hideUnavailableRoutes=!p.hideUnavailableRoutes;changed()},false),
    SettingsEntry("时间显示",playerClockTitle(p.playerClockMode),"设置播放器右上角时间：隐藏、始终显示、每小时显示或每半小时显示。",{edit="时间显示"}))
   category=="频道与外观"->listOf(
    SettingsEntry("频道合并",if(p.mergeChannelsAcrossSources)"开启"else"关闭","将不同订阅中的同一频道合成多条播放线路，并汇总节目单。优先匹配频道标识，缺少标识时匹配无歧义的频道名。",{p.mergeChannelsAcrossSources=!p.mergeChannelsAcrossSources;scope.launch{app.channels.rebuildChannelsAsync();changed()}},false),

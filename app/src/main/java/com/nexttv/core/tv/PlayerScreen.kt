@@ -214,7 +214,7 @@ import kotlin.math.roundToInt
   when(key.action){
    InputAction.UP,InputAction.PREVIOUS_CHANNEL->{engine.zap(-1);true}
    InputAction.DOWN,InputAction.NEXT_CHANNEL->{engine.zap(1);true}
-   InputAction.LEFT,InputAction.RIGHT->{val direction=key.horizontal!!;if(engine.replay!=null){seekStep((if ((context as TvActivity).pointerNavigation) -direction else direction),key.repeated)}else if(engine.switchRoute(direction))notice="线路 ${engine.routeIndex+1}";true}
+   InputAction.LEFT,InputAction.RIGHT->{val direction=key.horizontal!!;if(engine.replay!=null){seekStep((if ((context as TvActivity).pointerNavigation) -direction else direction),key.repeated)}else if(engine.switchRoute(direction))notice=engine.routeLabel;true}
    InputAction.CONFIRM->{consumeOkUp=true;longOk=false;true}
    InputAction.PLAY_PAUSE->{notice=if(engine.player.togglePlaybackIntent())"继续播放"else"已暂停";true}
    InputAction.SEEK_FORWARD->{if(engine.replay!=null)seekStep(1,key.repeated);true}
@@ -253,7 +253,7 @@ import kotlin.math.roundToInt
   }
   "播放详情"->PlaybackDetailsDialog(engine,onDismiss={dismissOverlays()})
   "解码选择"->ChoiceDialog("解码方式",listOf(ChoiceOption("auto","自动",engine.decoderAutomaticDescription))+engine.decoderChoices().map{ChoiceOption(it.id,it.label,it.detail,it.enabled)},engine.selectedDecoderId,onDismiss={dismissOverlays()},uniformRows=true){id->val changed=engine.selectDecoder(id);dismissOverlays();if(changed)showBars(false)}
-  "线路选择"->RouteChoiceDialog(engine,onDismiss={dismissOverlays()}){id->val changed=engine.chooseRoute(id.toInt());dismissOverlays();if(changed){showBars(false);notice="线路 ${engine.routeIndex+1}"}}
+  "线路选择"->RouteChoiceDialog(engine,onDismiss={dismissOverlays()}){id->val changed=engine.chooseRoute(id.toInt());dismissOverlays();if(changed){showBars(false);notice=engine.routeLabel}}
   "音轨选择"->{val tracks=engine.audioChoices();ChoiceDialog("音轨选择",listOf(ChoiceOption("auto","自动","自动选择可用音轨"))+tracks.map{ChoiceOption(it.id,it.label,it.detail,it.supported)},if(engine.automaticAudio)"auto"else tracks.firstOrNull{it.selected}?.id,onDismiss={dismissOverlays()},uniformRows=true){id->if(id=="auto")engine.selectAutomaticAudio()else tracks.firstOrNull{it.id==id}?.let{engine.selectAudio(it.group,it.index)};dismissOverlays()}}
   "画面适配"->ChoiceDialog("画面适配",listOf(ChoiceOption("0","适应画面","保持原始比例，完整显示画面"),ChoiceOption("1","裁切填充","保持比例填满屏幕，可能裁去边缘"),ChoiceOption("2","拉伸全屏","填满屏幕，可能改变画面比例")),engine.aspect.toString(),onDismiss={dismissOverlays()}){id->engine.aspect=id.toInt();dismissOverlays()}
  }
@@ -270,7 +270,7 @@ import kotlin.math.roundToInt
  val badgeStyle=androidx.tv.material3.LocalTextStyle.current.copy(fontSize=InteractionStyle.micro,fontWeight=FontWeight.Bold,fontFamily=androidx.compose.ui.text.font.FontFamily.SansSerif,lineHeight=InteractionStyle.micro*1.4f)
  val routeDigits=remember(app.channels.revision){app.channels.channels.maxOfOrNull{it.playbackRoutes.size}?.toString()?.length?:1}
  val density=LocalDensity.current
- val facts=playbackIdentityFacts(engine.routeCount,engine.routeIndex,engine.player.videoFormat?.height?:0,engine.player.audioFormat?.channelCount?:0,engine.bytesPerSecond.takeIf{it>0||engine.player.videoFormat!=null||engine.player.audioFormat!=null})
+ val facts=playbackIdentityFacts(engine.visibleRouteCount,engine.visibleRouteIndex,engine.player.videoFormat?.height?:0,engine.player.audioFormat?.channelCount?:0,engine.bytesPerSecond.takeIf{it>0||engine.player.videoFormat!=null||engine.player.audioFormat!=null})
  val factWidths=remember(textMeasurer,badgeStyle,density,routeDigits,facts){
   val samples=listOf(listOf("8".repeat(routeDigits)+"/"+"8".repeat(routeDigits)),listOf("1080P","1440P","4K"),listOf("立体声","单声道","99声道"),listOf("888.8 MB/s","8888 KB/s","88.8 GB/s"))
   samples.map{sample->with(density){sample.maxOf{textMeasurer.measure(it,badgeStyle).size.width}.toDp()}+13.dp}
@@ -293,7 +293,7 @@ import kotlin.math.roundToInt
       Column(Modifier.weight(1f).height(identityHeight).padding(start=8.dp),verticalArrangement=Arrangement.Center){
        AppText(Ui.displayName(c.name),Modifier.fillMaxWidth().height(27.dp*scale),fontSize=InteractionStyle.subheading,fontWeight=FontWeight.SemiBold,color=NextTvStyle.MediaText,maxLines=1,overflow=TextOverflow.Ellipsis,lineHeight=InteractionStyle.subheading*1.2f)
        Row(Modifier.padding(top=3.dp*scale).height(20.dp*scale),horizontalArrangement=Arrangement.spacedBy(4.dp),verticalAlignment=Alignment.CenterVertically){
-        val descriptions=listOf("线路 ${engine.routeIndex+1}，共 ${engine.routeCount} 条","分辨率 ${facts[1]}","声道 ${facts[2]}","接收速率 ${facts[3]}")
+        val descriptions=listOf("${engine.routeLabel}，共 ${engine.visibleRouteCount} 条","分辨率 ${facts[1]}","声道 ${facts[2]}","接收速率 ${facts[3]}")
         facts.forEachIndexed{i,value->Box(Modifier.width(factWidths[i]).fillMaxHeight().semantics(mergeDescendants=true){contentDescription=descriptions[i]},contentAlignment=Alignment.CenterStart){InfoBadge(value,tone=when{i==1&&(value.contains("4K")||value.contains("8K"))->BadgeTone.Warm;i==1->BadgeTone.Cool;i==2&&(engine.player.audioFormat?.channelCount?:0)>2->BadgeTone.Cool;else->BadgeTone.Neutral},modifier=Modifier.fillMaxWidth(),horizontalPadding=if(i==3)0.dp else 6.dp,bordered=i<3,onMedia=true)}}
        }
       }
@@ -327,12 +327,12 @@ import kotlin.math.roundToInt
     Row(Modifier.fillMaxWidth()
      .onGloballyPositioned{activity.quickActionsPointerRegion=it.boundsInWindow()}
      .horizontalScroll(rememberScrollState(),flingBehavior=appFlingBehavior()).padding(vertical=4.dp),horizontalArrangement=Arrangement.spacedBy(7.dp)){
-     val actions=buildList{if(engine.replay!=null){add("播放暂停");add("返回直播")}else if(engine.routeCount>1)add("线路");add("音轨");add("画面适配");add("收藏");add("解码");add("详情");add("主页")}
+     val actions=buildList{if(engine.replay!=null){add("播放暂停");add("返回直播")}else if(engine.visibleRouteCount>1)add("线路");add("音轨");add("画面适配");add("收藏");add("解码");add("详情");add("主页")}
      val playing=engine.player.playWhenReady
      val favorite=app.prefs.isFavorite(c)
      actions.forEachIndexed{i,id->key(id){
-      val label=when(id){"解码"->"解码方式";"线路"->"线路 ${engine.routeIndex+1}";"播放暂停"->if(playing)"暂停"else"继续播放";"收藏"->if(favorite)"取消收藏"else"添加收藏";"画面适配"->"画面适配";"返回直播"->"返回直播";else->id}
-      val description=when(id){"解码"->"解码方式";"线路"->"当前线路 ${engine.routeIndex+1}，共 ${engine.routeCount} 条";"播放暂停"->if(playing)"暂停播放"else"继续播放";"收藏"->if(favorite)"取消收藏"else"添加收藏";"画面适配"->listOf("画面适应","画面填充","画面拉伸")[engine.aspect];"返回直播"->"返回直播";else->id}
+      val label=when(id){"解码"->"解码方式";"线路"->engine.routeLabel;"播放暂停"->if(playing)"暂停"else"继续播放";"收藏"->if(favorite)"取消收藏"else"添加收藏";"画面适配"->"画面适配";"返回直播"->"返回直播";else->id}
+      val description=when(id){"解码"->"解码方式";"线路"->"当前 ${engine.routeLabel}，共 ${engine.visibleRouteCount} 条";"播放暂停"->if(playing)"暂停播放"else"继续播放";"收藏"->if(favorite)"取消收藏"else"添加收藏";"画面适配"->listOf("画面适应","画面填充","画面拉伸")[engine.aspect];"返回直播"->"返回直播";else->id}
       val buttonRequest=if(i==0)action else remember(id){FocusRequester()}
       QuickActionButton(label,description,Modifier.focusRequester(buttonRequest).focusEdges(up=engine.replay==null,down=true,left=i==0,right=i==actions.lastIndex).focusProperties{up=if(engine.replay!=null)replaySeek else FocusRequester.Cancel;down=FocusRequester.Cancel;if(i==0)left=FocusRequester.Cancel;if(i==actions.lastIndex)right=FocusRequester.Cancel},onFocus={replayActionReturn[0]=buttonRequest},onClick={onAction(id)})
      }}

@@ -43,6 +43,9 @@ class Prefs(context: Context) {
 
     var keepLastFrame by booleanSetting("keep_last_frame", true)
 
+    /** 在线路选择中隐藏最近确认失效的线路；加载慢或暂时超时的线路不算失效。 */
+    var hideUnavailableRoutes by booleanSetting("hide_unavailable_routes", false)
+
     /** 开启后拒绝 http:// 订阅、节目单与播放地址；默认关闭以兼容局域网 IPTV。 */
     var httpsOnly by booleanSetting("https_only", false)
 
