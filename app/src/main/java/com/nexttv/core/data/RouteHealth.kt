@@ -15,10 +15,15 @@ package com.nexttv.core.data
 internal object RouteHealth {
     internal enum class Status { UNKNOWN, AVAILABLE, UNAVAILABLE }
 
+    private const val STORE = "route_health"
+    private const val HIDDEN_KEY = "hidden"
+    private const val MAX_PERSISTED = 512
+
     private data class Entry(val status: Status, val failures: Int, val checkedAt: Long)
 
     private val lock = Any()
     private val entries = HashMap<String, Entry>()
+    private var store: android.content.SharedPreferences? = null
 
     @Volatile
     var revision: Int = 0
@@ -34,8 +39,48 @@ internal object RouteHealth {
         return "${route.sourceId}\u0000${route.url.trim()}\u0000$headers"
     }
 
+    /** Restore confirmed dead routes before the first home frame, without probing. */
+    fun attach(context: android.content.Context) {
+        val prefs = context.getSharedPreferences(STORE, android.content.Context.MODE_PRIVATE)
+        synchronized(lock) {
+            store = prefs
+            prefs.getStringSet(HIDDEN_KEY, emptySet()).orEmpty().forEach { encoded ->
+                decode(encoded)?.let { entries[it] = Entry(Status.UNAVAILABLE, 2, 0L) }
+            }
+        }
+    }
+
+    private fun persist() {
+        val target = store ?: return
+        val snapshot = synchronized(lock) {
+            entries.asSequence()
+                .filter { it.value.status == Status.UNAVAILABLE }
+                .sortedByDescending { it.value.checkedAt }
+                .map { encode(it.key) }
+                .take(MAX_PERSISTED)
+                .toSet()
+        }
+        target.edit().putStringSet(HIDDEN_KEY, snapshot).apply()
+    }
+
+    private fun encode(value: String): String = android.util.Base64.encodeToString(
+        value.toByteArray(Charsets.UTF_8),
+        android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING,
+    )
+
+    private fun decode(value: String): String? = runCatching {
+        String(
+            android.util.Base64.decode(
+                value,
+                android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING,
+            ),
+            Charsets.UTF_8,
+        )
+    }.getOrNull()
+
     private fun changed() {
         revision++
+        persist()
         onChanged?.invoke()
     }
 

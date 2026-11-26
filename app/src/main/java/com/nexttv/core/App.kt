@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import com.nexttv.core.data.ChannelRepository
 import com.nexttv.core.data.EpgRepository
 import com.nexttv.core.data.Prefs
+import com.nexttv.core.data.RouteHealth
 
 class App : Application() {
 
@@ -71,6 +72,7 @@ class App : Application() {
         }
         instance = this
         prefs = Prefs(this)
+        RouteHealth.attach(this)
         com.nexttv.core.tv.AppMotionScale.install(this)
         channels = ChannelRepository(this, prefs)
         epg = EpgRepository(this, prefs)
