@@ -265,7 +265,7 @@ import kotlin.math.roundToInt
  val replaySeek=remember{FocusRequester()}
  val replayInput=remember(engine.replay?.start){ReplayTimelineInput()}
  val replayActionReturn=remember(engine.replay?.start){arrayOf(action)}
- val identityHeight=56.dp*scale
+ val identityHeight=64.dp*scale
  val textMeasurer=androidx.compose.ui.text.rememberTextMeasurer()
  val badgeStyle=androidx.tv.material3.LocalTextStyle.current.copy(fontSize=InteractionStyle.micro,fontWeight=FontWeight.Bold,fontFamily=androidx.compose.ui.text.font.FontFamily.SansSerif,lineHeight=InteractionStyle.micro*1.4f)
  val routeDigits=remember(app.channels.revision){app.channels.channels.maxOfOrNull{it.playbackRoutes.size}?.toString()?.length?:1}
@@ -285,7 +285,7 @@ import kotlin.math.roundToInt
     val gap=17.dp
     val logoWidth=68.dp*scale
     val identityWidth=factWidths.fold(0.dp){sum,v->sum+v}+9.dp+logoWidth+8.dp
-    val clockWidth=112.dp*scale
+    val clockWidth=132.dp*scale
     val programmeWidth=maxWidth-identityWidth-clockWidth-gap*2
     val identity:@Composable (Modifier)->Unit={m->
      Row(m.height(identityHeight),verticalAlignment=Alignment.CenterVertically){
@@ -312,7 +312,7 @@ import kotlin.math.roundToInt
      }
     }
     val clock:@Composable (Modifier)->Unit={m->Column(m.height(identityHeight),horizontalAlignment=Alignment.End,verticalArrangement=Arrangement.Center){
-      AppText(Ui.hhmm(now),Modifier.fillMaxWidth(),fontSize=InteractionStyle.heading,fontWeight=FontWeight.SemiBold,color=NextTvStyle.MediaText,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End,lineHeight=InteractionStyle.heading)
+      AppText(Ui.hhmm(now),Modifier.fillMaxWidth(),fontSize=InteractionStyle.clock,fontWeight=FontWeight.SemiBold,color=NextTvStyle.MediaText,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End,lineHeight=InteractionStyle.clock)
       AppText("${Ui.weekday(now)} ${Ui.monthDay(now)}",Modifier.fillMaxWidth().padding(top=2.dp*scale),fontSize=InteractionStyle.captionSmall,fontWeight=FontWeight.Medium,color=NextTvStyle.MediaMuted,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End)
     }}
     if(programmeWidth<200.dp*scale)Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(9.dp)){
@@ -353,7 +353,7 @@ import kotlin.math.roundToInt
 
 /** Optional frameless wall clock; visibility is controlled by the Time display menu. */
 @Composable private fun PlayerPersistentHud(now:Long,modifier:Modifier){
- AppText(Ui.hhmm(now),modifier.semantics{contentDescription="当前时间 ${Ui.hhmm(now)}"},fontSize=InteractionStyle.displaySmall,fontWeight=FontWeight.Bold,color=Color.White,maxLines=1,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.82f),androidx.compose.ui.geometry.Offset(0f,1f),5f))
+ AppText(Ui.hhmm(now),modifier.semantics{contentDescription="当前时间 ${Ui.hhmm(now)}"},fontSize=InteractionStyle.clockLarge,fontWeight=FontWeight.Bold,color=Color.White,maxLines=1,lineHeight=InteractionStyle.clockLarge,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.82f),androidx.compose.ui.geometry.Offset(0f,1f),5f))
 }
 
 internal enum class BadgeTone{Neutral,Warm,Cool,Live}

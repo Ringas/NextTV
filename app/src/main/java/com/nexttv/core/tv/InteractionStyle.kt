@@ -22,6 +22,9 @@ object InteractionStyle {
  val displayLarge=46.sp
  val display=24.sp
  val displaySmall=22.sp
+ // Wall clocks are read from across a room, not at monitor distance.
+ val clock=32.sp
+ val clockLarge=38.sp
  val panelRadius=16.dp
  val cardRadius=12.dp
  val controlRadius=12.dp
