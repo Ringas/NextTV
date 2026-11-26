@@ -94,7 +94,7 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
  private var warmMisses=0
  fun diagnostics()="warmSlots=$warmSlots prepared=${preloadPool.size()} deep=${preloadPool.deepCount()} shallow=${preloadPool.shallowCount()} readyIds=${preloadPool.readyIds()} confirmedWarmFailures=${preloader.confirmedFailureCount} hits=$warmHits misses=$warmMisses firstFrameMs=$firstFrameMs softwareAttempts=${softwareAttempts.size} decoder=$decoderName software=$softwareDecoder audioDecoder=$audioDecoderName audioSoftware=$audioSoftwareDecoder pcm=${decoderPreferences.forcePcm} audioRetries=${audioRecoveryAttempts.size} failures=${recentFailures.joinToString(" | ")}"
  internal fun currentFailureRecord(): RouteFailureRecord? = currentRoute?.let{RouteFailureJournal.get(routeKey(current,routeIndex))}
- internal fun recentFailureRecords(limit:Int=4): List<RouteFailureRecord> = RouteFailureJournal.recent(limit)
+ internal fun recentFailureRecords(limit:Int=1): List<RouteFailureRecord> = RouteFailureJournal.recent(limit)
  fun trimMemory(){warmJob?.cancel();clearWarm();preloader.clearFailures()}
  private fun clearWarm(){preloadPool.clear()}
  private var prepareJob:Job?=null;private var warmJob:Job?=null;private var retryJob:Job?=null;private var loadingJob:Job?=null;private var timeoutJob:Job?=null;private var watchSerial=0

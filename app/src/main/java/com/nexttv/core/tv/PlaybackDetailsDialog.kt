@@ -85,7 +85,7 @@ private fun PlaybackSession.detailRows(): List<Pair<String, String>> {
     val programme = replay ?: app.epg.nowNext(current).first
     val address = if (replay == null) route?.url else player.currentMediaItem?.localConfiguration?.uri?.toString()
     val failure = currentFailureRecord()
-    val recent = recentFailureRecords(3)
+    val recent = recentFailureRecords(1)
     return buildList {
         add("频道名" to Ui.displayName(current.name))
         add("分组" to current.groupName)

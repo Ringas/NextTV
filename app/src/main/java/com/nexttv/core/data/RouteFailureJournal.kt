@@ -59,7 +59,7 @@ object RouteFailureJournal {
 
     fun get(key: String): RouteFailureRecord? = records[key]
 
-    fun recent(limit: Int = 4): List<RouteFailureRecord> =
+    fun recent(limit: Int = 1): List<RouteFailureRecord> =
         records.values.sortedByDescending { it.at }.take(limit.coerceAtLeast(1))
 
     @Synchronized
