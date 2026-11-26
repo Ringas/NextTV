@@ -87,7 +87,7 @@ private typealias SettingsEntry = SettingsRowData
    SettingsEntry(START_PAGE,if(p.startLive)LIVE_PAGE else HOME_PAGE,"「主页」打开频道首页。「直播」直接播放上次观看的频道，找不到时播放列表中的第一个频道。",{edit=START_PAGE}),
    SettingsEntry("换台预加载",listOf("关闭","下一台","上一台","上下台")[p.preloadMode],"提前准备相邻频道；「上下台」会同时预加载上一台和下一台，会增加网络与内存占用。",{edit="换台预加载"}),
    SettingsEntry("换台保留画面",if(p.keepLastFrame)"开启"else"关闭","切换频道或线路时保留上一画面，直到新画面出现。",{p.keepLastFrame=!p.keepLastFrame;changed()},false),
-   SettingsEntry("隐藏不可用线路",if(p.hideUnavailableRoutes)"开启"else"关闭","后台探测线路：启动后数秒内快速隐藏不可播线路，单线路频道失效时整台隐藏，多线路频道只隐藏坏线。隐藏线路每 8 秒复测，恢复后自动显示。",{p.hideUnavailableRoutes=!p.hideUnavailableRoutes;changed()},false),
+   SettingsEntry("自动隐藏不可播线路",if(p.hideUnavailableRoutes)"开启"else"关闭","后台探测线路：启动或开启后数秒内快速隐藏不可播线路，单线路频道失效时整台隐藏，多线路频道只隐藏坏线。隐藏线路每 8 秒复测，恢复后自动显示。",{p.hideUnavailableRoutes=!p.hideUnavailableRoutes;changed()},false),
    SettingsEntry("时间显示",playerClockTitle(p.playerClockMode),"设置播放器右上角时间：隐藏、始终显示、每小时显示或每半小时显示。",{edit="时间显示"}))
   category=="频道与外观"->listOf(
    SettingsEntry("频道合并",if(p.mergeChannelsAcrossSources)"开启"else"关闭","将不同订阅中的同一频道合成多条播放线路，并汇总节目单。优先匹配频道标识，缺少标识时匹配无歧义的频道名。",{p.mergeChannelsAcrossSources=!p.mergeChannelsAcrossSources;scope.launch{app.channels.rebuildChannelsAsync();changed()}},false),

@@ -32,12 +32,15 @@ import kotlinx.coroutines.withContext
  * background traffic.
  *
  * Timing:
+ *  - on launch, or when the hide switch is turned on, the first fast pass checks
+ *    every visible route with a 1s budget, so dead routes disappear before the
+ *    user starts zapping;
  *  - hidden routes are retried every few seconds in tiny batches, so recovery is
  *    visible while the user is still zapping rather than minutes later;
  *  - all other routes are swept over a four-hour window, a few dozen per pass;
  *    the pass is incremental, never a full-library burst;
- *  - a request gets 8s for its first byte and 25s total once bytes start flowing.
- *    A server that accepts the connection but sends nothing is cut at 8s.
+ *  - a normal request gets 8s for its first byte and 25s total once bytes start
+ *    flowing. A server that accepts the connection but sends nothing is cut at 8s.
  */
 internal object RouteHealthProbe {
     private const val STARTUP_DELAY_MS = 1_000L
@@ -47,9 +50,10 @@ internal object RouteHealthProbe {
     private const val FULL_SWEEP_MS = 4 * 60 * 60 * 1000L
     private const val IDLE_CONCURRENCY = 2
     private const val PLAYING_CONCURRENCY = 1
-    // The first seconds after launch are a dedicated fast sweep: one request per
-    // route, a 1s budget and six workers, so dead routes disappear before the
-    // user starts zapping. Normal sweeps keep the gentle limits.
+    // Launch and the moment the hide switch is turned on both start a dedicated
+    // fast sweep: one request per route, a 1s budget and six workers, so dead
+    // routes disappear before the user starts zapping. Normal sweeps keep the
+    // gentle limits.
     private const val FAST_PASSES = 2
     private const val STARTUP_CONCURRENCY = 6
     private const val STARTUP_ROUTES_PER_PASS = 40
@@ -65,6 +69,11 @@ internal object RouteHealthProbe {
         delay(STARTUP_DELAY_MS)
         var startingSince = 0L
         var fastPasses = FAST_PASSES
+        // The first fast pass after launch, or after the switch is turned on,
+        // checks every visible route regardless of the four-hour sweep window.
+        // Later passes fall back to normal freshness so they move on to the next
+        // batch instead of probing the same first forty routes twice.
+        var forceFastPass = true
         while (currentCoroutineContext().isActive) {
             val fastPass = fastPasses > 0
             if (!visible()) {
@@ -96,15 +105,17 @@ internal object RouteHealthProbe {
             val hiddenLimit = if (fastPass) 0 else if (session == null) IDLE_HIDDEN_PER_PASS else PLAYING_HIDDEN_PER_PASS
             val hiddenBatch = hidden.take(hiddenLimit)
             val hiddenKeys = hidden.mapTo(HashSet()) { routeIdentity(it) }
+            val forceThisPass = fastPass && forceFastPass
             val targets = RouteHealth.routesNeedingProbe(
                 channels = channels,
-                staleBefore = now - FULL_SWEEP_MS,
+                staleBefore = if (forceThisPass) Long.MAX_VALUE else now - FULL_SWEEP_MS,
                 priorityGroup = priorityGroup(),
-                retryBefore = now - TRANSIENT_RETRY_MS,
+                retryBefore = if (forceThisPass) Long.MAX_VALUE else now - TRANSIENT_RETRY_MS,
             ).filterNot { routeIdentity(it) in blocked || routeIdentity(it) in hiddenKeys }
             if (hiddenBatch.isEmpty() && targets.isEmpty()) {
                 if (fastPass) {
                     fastPasses = 0
+                    forceFastPass = false
                     continue
                 }
                 delay(if (hidden.isEmpty()) 30_000L else HIDDEN_RETRY_MS)
@@ -148,7 +159,10 @@ internal object RouteHealthProbe {
                 index += batch.size
                 delay(if (active == null) 120 else 700)
             }
-            if (fastPass && index >= pass.size) fastPasses--
+            if (fastPass && index >= pass.size) {
+                fastPasses--
+                forceFastPass = false
+            }
             // Hidden recovery gets a short gap between tiny batches. Normal
             // sweeps keep the old backoff so this does not become a hot loop.
             delay(when {
@@ -174,7 +188,7 @@ internal object RouteHealthProbe {
         when (val result = RouteProbe.check(app, route, deep = deep, fast = fast)) {
             ProbeResult.AVAILABLE -> RouteHealth.markProbeSuccess(route)
             ProbeResult.UNAVAILABLE -> RouteHealth.markProbeFailure(route, definitive = true)
-            // In the launch sweep a single 1s miss already hides the route; the
+            // In the fast sweep a single 1s miss already hides the route; the
             // normal 8s probe and the hidden retry can restore a slow-but-alive route.
             ProbeResult.TEMPORARY -> RouteHealth.markProbeFailure(route, definitive = fast)
         }
@@ -269,7 +283,7 @@ private object RouteProbe {
     /**
      * Returns null only when the first byte never arrived before the budget. Once
      * bytes start, the same request may continue until the total budget so a slow
-     * live stream is not mistaken for a dead route. The launch sweep uses a 1s
+     * live stream is not mistaken for a dead route. The fast sweep uses a 1s
      * budget to hide dead routes before the user starts zapping.
      */
     private fun readAdaptive(connection: HttpURLConnection, started: Long, maxBytes: Int, fast: Boolean): ByteArray? {

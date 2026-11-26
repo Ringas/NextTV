@@ -84,7 +84,6 @@ import kotlinx.coroutines.flow.first
      AppText("频道与节目单",fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1)
      AppText(Ui.displayName(candidate.name),fontSize=InteractionStyle.display,fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis)
     }
-    AppText("返回",Modifier.padding(top=2.dp,start=8.dp),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1)
    }
    Spacer(Modifier.height(8.dp))
    LazyColumn(flingBehavior=appFlingBehavior(),state=list,modifier=Modifier.fillMaxWidth().heightIn(max=156.dp).continuousWheel(list),contentPadding=PaddingValues(bottom=2.dp),verticalArrangement=Arrangement.spacedBy(2.dp)){
@@ -136,8 +135,7 @@ import kotlinx.coroutines.flow.first
     }
    }
    Box(Modifier.fillMaxWidth().padding(top=6.dp,bottom=6.dp).height(.5.dp).background(NextTvStyle.Divider))
-   AppText("左右切换日期 · 上下选择节目 · 返回键回频道",fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1)
-   AppText("上下选择节目 · 确认播放",fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1)
+   AppText("左右切换日期·上下选择节目·确认播放·返回键回频道",fontSize=11.sp,color=NextTvStyle.Muted,maxLines=1)
   }
  }
 }
