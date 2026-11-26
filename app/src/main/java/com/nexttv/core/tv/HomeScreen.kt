@@ -51,9 +51,9 @@ import com.nexttv.observeGridDraws
  val homeHorizontal=maxOf(safeInsets.horizontal,homeConfiguration.screenWidthDp*.05f)
  val app=App.get();val scope=rememberCoroutineScope();val context=LocalContext.current
  val cacheReady=app.cacheReady
- val digitCapacity=remember(cacheReady,app.channels.revision){channelDigitCapacity(if(cacheReady)app.channels.channels.maxOfOrNull{it.number}?:0 else 0)}
+ val digitCapacity=remember(cacheReady,app.channels.revision,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){channelDigitCapacity(if(cacheReady)app.channels.displayChannels.maxOfOrNull{it.number}?:0 else 0)}
  val ui = remember {
-  HomeUiState(initialPlaybackChannel(app.channels.channels, app.prefs.startLive, app.prefs.lastChannelId))
+  HomeUiState(initialPlaybackChannel(app.channels.displayChannels, app.prefs.startLive, app.prefs.lastChannelId))
  }
  var revision by ui.revision
  var tab by ui.tab
@@ -63,6 +63,14 @@ import com.nexttv.observeGridDraws
  var status by ui.status
  var channelDigits by ui.channelDigits
  val digitLifecycle=LocalLifecycleOwner.current.lifecycle
+ val probeGroup by rememberUpdatedState(group)
+ // Runs while the TV is visible, including during playback. The probe itself skips
+ // the playing channel and drops to one request at a time, so normal TV use still
+ // exercises the recovery path.
+ LaunchedEffect(cacheReady,app.channels.revision,app.prefs.hideUnavailableRoutes){
+  if(!cacheReady||!app.prefs.hideUnavailableRoutes)return@LaunchedEffect
+  RouteHealthProbe.run(app,{probeGroup}){digitLifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)}
+ }
  var firstCardFocusPending by ui.firstCardFocusPending
  var addingSubscription by ui.addingSubscription
  val emptyAction=remember{FocusRequester()}
@@ -77,7 +85,7 @@ import com.nexttv.observeGridDraws
  var homeNoticeEpoch by ui.homeNoticeEpoch
  var restoringHome by ui.restoringHome
  var homeNotice by ui.homeNotice
- LaunchedEffect(channelDigits,playing,sources,dialog,tab){if(playing!=null||sources||dialog.isNotBlank()||tab !in 0..1){channelDigits=""}else if(channelDigits.isNotBlank()){val pending=channelDigits;val pendingRevision=app.channels.revision;delay(CHANNEL_DIGIT_WAIT_MS);if(channelDigits!=pending)return@LaunchedEffect;if(!digitLifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)||playing!=null||sources||dialog.isNotBlank()||tab !in 0..1||app.channels.revision!=pendingRevision){channelDigits="";return@LaunchedEffect};val target=app.channels.channels.firstOrNull{it.number==channelDigits.toIntOrNull()};channelDigits="";if(target!=null)playing=target else{homeNotice="没有该频道";homeNoticeEpoch++}}}
+ LaunchedEffect(channelDigits,playing,sources,dialog,tab){if(playing!=null||sources||dialog.isNotBlank()||tab !in 0..1){channelDigits=""}else if(channelDigits.isNotBlank()){val pending=channelDigits;val pendingRevision=app.channels.revision;delay(CHANNEL_DIGIT_WAIT_MS);if(channelDigits!=pending)return@LaunchedEffect;if(!digitLifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)||playing!=null||sources||dialog.isNotBlank()||tab !in 0..1||app.channels.revision!=pendingRevision){channelDigits="";return@LaunchedEffect};val target=app.channels.displayChannels.firstOrNull{it.number==channelDigits.toIntOrNull()};channelDigits="";if(target!=null)playing=target else{homeNotice="没有该频道";homeNoticeEpoch++}}}
  val exitGate=remember{ExitConfirmation()}
  val settingsNavigation=remember{SettingsNavigation()}
  var settingsRestore by ui.settingsRestore
@@ -112,7 +120,7 @@ import com.nexttv.observeGridDraws
  }}
  var retryFromEmpty by remember{mutableStateOf(false)}
  val noSources=cacheReady&&app.channels.sources.isEmpty()
- val all=remember(cacheReady,revision,app.channels.revision,group,tab,noSources){if(!cacheReady||noSources)emptyList() else app.channels.channelsIn(if(group.isBlank()||tab==1)null else group,tab==1,"")}
+ val all=remember(cacheReady,revision,app.channels.revision,app.channels.displayRevision,app.prefs.hideUnavailableRoutes,group,tab,noSources){if(!cacheReady||noSources)emptyList() else app.channels.channelsIn(if(group.isBlank()||tab==1)null else group,tab==1,"")}
  LaunchedEffect(app.updatingAll){if(retryFromEmpty&&!app.updatingAll){retryFromEmpty=false;firstCardFocusPending=true}}
  // The filter click must not capture the previous list or race a fixed delay.
  LaunchedEffect(firstCardFocusPending,group,all,dialog,tab,sources,playing){
@@ -320,7 +328,7 @@ import com.nexttv.observeGridDraws
  if(key.down&&key.action==InputAction.LEFT&&playing==null&&restoringHome){runCatching{nav[0].requestFocus()};true}else if(key.down&&key.action==InputAction.DOWN&&navFocused&&playing==null&&!sources&&dialog.isBlank()){enterContent();true}else false}.onGloballyPositioned{firstFrameReady=true}.focusRequester(returnAnchor).focusProperties{canFocus=returningToTop}.focusable().background(NextTvStyle.Home)){
 
   if(playing==null&&tab!=2)HomeBackdrop(all.firstOrNull{it.id==restoreId}?:all.firstOrNull())
-  if(playing!=null){PlayerScreen(playing!!,onLaunchReady=onLaunchReady,onHome={resetCategory();playing=null;tab=0;restoringHome=true;revision++},onClose={current->if(app.prefs.startLive){onExit();return@PlayerScreen};if(tab==1)favoriteRestore.value=if(app.prefs.isFavorite(current))current.id else app.channels.channels.filter{app.prefs.isFavorite(it)}.minByOrNull{kotlin.math.abs(it.number-current.number)}?.id.orEmpty() else channelRestore.value=current.id;resetCategory();restoringHome=true;playing=null;revision++});return@Box}
+  if(playing!=null){PlayerScreen(playing!!,onLaunchReady=onLaunchReady,onHome={resetCategory();playing=null;tab=0;restoringHome=true;revision++},onClose={current->if(app.prefs.startLive){onExit();return@PlayerScreen};if(tab==1)favoriteRestore.value=if(app.prefs.isFavorite(current))current.id else app.channels.displayChannels.filter{app.prefs.isFavorite(it)}.minByOrNull{kotlin.math.abs(it.number-current.number)}?.id.orEmpty() else channelRestore.value=current.id;resetCategory();restoringHome=true;playing=null;revision++});return@Box}
   if(channelDigits.isNotBlank())AppText(channelDigits,Modifier.align(Alignment.TopEnd).padding(20.dp),fontSize=InteractionStyle.display,color=NextTvStyle.Text)
   Column(Modifier.fillMaxSize().padding(top=safeInsets.vertical.dp+58.dp)){
    when{
@@ -381,7 +389,7 @@ import com.nexttv.observeGridDraws
   val serial=gridInput.serial;val selected=tab
   scope.launch{withFrameNanos{};withFrameNanos{};if(serial==gridInput.serial&&selected==tab&&all.isEmpty()&&!sources&&playing==null)runCatching{emptyAction.requestFocus()}}
  }
- HomeChannelDialogs(dialog, app.channels.groups, group, ::dismissAddSubscription,
+ HomeChannelDialogs(dialog, app.channels.displayGroups, group, ::dismissAddSubscription,
   onSubscription={input->
    val source=subscriptionFromAddress(input,app.channels.sources)
    scope.launch{

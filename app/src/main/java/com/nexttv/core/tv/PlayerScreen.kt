@@ -83,7 +83,7 @@ import kotlin.math.roundToInt
    if(engine.rendered&&engine.tuneSerial==fadeSerial)retained.clear()
   }
  }
- val digitCapacity=remember(app.channels.revision){channelDigitCapacity(app.channels.channels.maxOfOrNull{it.number}?:0)}
+ val digitCapacity=remember(app.channels.revision,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){channelDigitCapacity(app.channels.displayChannels.maxOfOrNull{it.number}?:0)}
  val browserController=remember{BrowserController()}
  val root=remember{FocusRequester()};val actionFocus=remember{FocusRequester()}
  var bars by remember{mutableStateOf(true)};var actionsVisible by remember{mutableStateOf(false)};var side by remember{mutableStateOf(false)}
@@ -167,7 +167,7 @@ import kotlin.math.roundToInt
    val pending=digits;val generation=digitGeneration
    delay(CHANNEL_DIGIT_WAIT_MS)
    if(!foregroundUi||side||actionsVisible||dialog.isNotBlank()||generation!=digitGeneration||pending!=digits)return@LaunchedEffect
-   val c=app.channels.channels.firstOrNull{it.number==pending.toIntOrNull()};digits=""
+   val c=app.channels.displayChannels.firstOrNull{it.number==pending.toIntOrNull()};digits=""
    if(c!=null)engine.tune(c)else notice="没有该频道"
   }
  }

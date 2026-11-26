@@ -41,10 +41,13 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
  val player:ExoPlayer get()=checkNotNull(activePlayer)
  var routeIndex by mutableIntStateOf(0);private set
  val routeCount get()=current.playbackRoutes.size
+ val currentRoute: ChannelRoute? get()=current.playbackRoutes.getOrNull(routeIndex)
+ /** True while the player has not produced a stable first frame; background probes yield briefly. */
+ val starting: Boolean get()=loading||!ready||!rendered
  val visibleRouteCount get()=visibleRouteIndices().size
  val visibleRouteIndex get()=visibleRouteIndices().indexOf(routeIndex).takeIf{it>=0}?:routeIndex.coerceIn(0,(routeCount-1).coerceAtLeast(0))
- val routeLabel get()="线路 ${visibleRouteIndex+1}"
- private fun visibleRouteIndices()=RouteAvailability.visibleIndices(current.playbackRoutes,app.prefs.hideUnavailableRoutes)
+ val routeLabel get()=if(visibleRouteCount==0)"暂无可用线路" else "线路 ${visibleRouteIndex+1}"
+ private fun visibleRouteIndices()=if(!app.prefs.hideUnavailableRoutes)current.playbackRoutes.indices.toList()else RouteHealth.availableRoutes(current.playbackRoutes).mapNotNull{r->current.playbackRoutes.indexOf(r)}
  var loading by mutableStateOf(false);private set
  var error by mutableStateOf("");private set
  var ready by mutableStateOf(false);private set
@@ -198,7 +201,7 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
    if(ready&&rendered){stableJob?.cancel();stableJob=scope.launch{delay(30000);if(valid()&&target.isPlaying){exhausted.clear();recoveryBudget.reset();videoFailedRoutes.clear();recovery.reset(routeIndex);replayRecovery.reset(replayRoutes().indexOf(routeIndex))}};if(foreground&&replay==null&&warmJob?.isActive!=true)warmJob=scope.launch{delay(500);warm()}}
    if(state==Player.STATE_ENDED){if(replay!=null)returnLive()else failWithReason("LIVE_STREAM_ENDED","直播流已结束",serial)}
   }
-  override fun onRenderedFirstFrame(){if(!valid())return;rendered=true;surfaceHasFrame=true;current.playbackRoutes.getOrNull(routeIndex)?.let(RouteAvailability::markHealthy);recoveryBudget.pause();lastVideoFormat=target.videoFormat;target.videoFormat?.let{decoderHistory.success(routeKey(current,routeIndex),it.sampleMimeType.orEmpty(),decoderName)};lastGoodRoutes[current.id]=routeKey(current,routeIndex);preloadPool.releaseBorrowed();firstFrameMs=android.os.SystemClock.elapsedRealtime()-tuneStarted;timeoutJob?.cancel();loadingJob?.cancel();loading=false;stableJob?.cancel();stableJob=scope.launch{delay(30000);if(valid()&&target.isPlaying){exhausted.clear();recoveryBudget.reset();videoFailedRoutes.clear();recovery.reset(routeIndex);replayRecovery.reset(replayRoutes().indexOf(routeIndex))}};warmJob?.cancel();warmJob=scope.launch{delay(500);warm()}}
+  override fun onRenderedFirstFrame(){if(!valid())return;rendered=true;surfaceHasFrame=true;currentRoute?.let(RouteHealth::markPlaybackSuccess);recoveryBudget.pause();lastVideoFormat=target.videoFormat;target.videoFormat?.let{decoderHistory.success(routeKey(current,routeIndex),it.sampleMimeType.orEmpty(),decoderName)};lastGoodRoutes[current.id]=routeKey(current,routeIndex);preloadPool.releaseBorrowed();firstFrameMs=android.os.SystemClock.elapsedRealtime()-tuneStarted;timeoutJob?.cancel();loadingJob?.cancel();loading=false;stableJob?.cancel();stableJob=scope.launch{delay(30000);if(valid()&&target.isPlaying){exhausted.clear();recoveryBudget.reset();videoFailedRoutes.clear();recovery.reset(routeIndex);replayRecovery.reset(replayRoutes().indexOf(routeIndex))}};warmJob?.cancel();warmJob=scope.launch{delay(500);warm()}}
   override fun onPlayWhenReadyChanged(playWhenReady:Boolean,reason:Int){if(!valid())return
    if(!playWhenReady){timeoutJob?.cancel();recoveryBudget.pause()}
    else if(foreground&&(!ready||!rendered)){recoveryBudget.enter(current.id);watch(serial)}
@@ -215,7 +218,7 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
    val http=generateSequence<Throwable>(e){it.cause}.take(8).filterIsInstance<androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException>().firstOrNull()?.responseCode
    val message=playbackFailureMessage(e,e.errorCode)
    recordFailure(e.errorCodeName+(http?.let{" HTTP $it"}?:""),message)
-   if(RouteAvailability.isDefinitiveFailure(e))current.playbackRoutes.getOrNull(routeIndex)?.let(RouteAvailability::markFailed)
+   if(isDefinitiveRouteFailure(e))currentRoute?.let(RouteHealth::markPlaybackDefinitiveFailure)
    if(!tryDecoderRecovery(e))failed(message,serial)
   }}
  }
@@ -299,11 +302,14 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
   val index=preferredRoute(channel)
   recovery.reset(index);attempt(channel,index)
  }
- private fun preferredRoute(channel:Channel):Int =
-  preloadPool.routeIndex(channel.id)?.takeIf{it in channel.playbackRoutes.indices}
-   ?:channel.playbackRoutes.indices.firstOrNull{routeKey(channel,it)==lastGoodRoutes[channel.id]}
-   ?:channel.playbackRoutes.indices.firstOrNull{decoderHistory.hasSuccess(routeKey(channel,it))}
-   ?:0
+ private fun preferredRoute(channel:Channel):Int {
+  val available=if(app.prefs.hideUnavailableRoutes)channel.playbackRoutes.indices.filter{RouteHealth.isAvailable(channel.playbackRoutes[it])}else channel.playbackRoutes.indices.toList()
+  if(available.isEmpty())return 0
+  return preloadPool.routeIndex(channel.id)?.takeIf{it in available}
+   ?:available.firstOrNull{routeKey(channel,it)==lastGoodRoutes[channel.id]}
+   ?:available.firstOrNull{decoderHistory.hasSuccess(routeKey(channel,it))}
+   ?:available.first()
+ }
  fun chooseRoute(index:Int):Boolean{
   if(index !in current.playbackRoutes.indices||index==routeIndex)return false
   recoveryBudget.reset();videoFailedRoutes.clear()
@@ -392,9 +398,10 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
    val retry=next;retryJob=scope.launch{delay(1000);if(!closed&&serial==tuneSerial&&foreground){if(offline())waitForNetwork()else attempt(current,retry)}};return
   }
   recovering=true;ready=false;loadingJob?.cancel();timeoutJob?.cancel();loading=false
-  val nextRoute=if(recoveryBudget.remaining(stallTimeoutMillis)<=0)null else recovery.next(routeCount,routeIndex)
+  var nextRoute=if(recoveryBudget.remaining(stallTimeoutMillis)<=0)null else recovery.next(routeCount,routeIndex)
+  while(nextRoute!=null&&app.prefs.hideUnavailableRoutes&&!RouteHealth.isAvailable(current.playbackRoutes[nextRoute]))nextRoute=recovery.next(routeCount,nextRoute)
   val channel=current
-  val nextChannel=if(nextRoute==null){exhausted+=channel.id;val all=app.channels.channels;val at=all.indexOfFirst{it.id==channel.id};val remaining=PreloadPolicy.indices(all.size,at,direction).map(all::get).filterNot{it.id in exhausted};remaining.firstOrNull{!preloader.confirmedUnavailable(it)}?:remaining.firstOrNull()}else null
+  val nextChannel=if(nextRoute==null){exhausted+=channel.id;val all=app.channels.channels;val at=all.indexOfFirst{it.id==channel.id};val visibleCandidates=PreloadPolicy.indices(all.size,at,direction).map(all::get).filter{!app.prefs.hideUnavailableRoutes||RouteHealth.isChannelAvailable(it)};val remaining=visibleCandidates.filterNot{it.id in exhausted};remaining.firstOrNull{!preloader.confirmedUnavailable(it)}?:remaining.firstOrNull()}else null
   if(nextRoute==null&&nextChannel==null){player.pause();error="暂无可用频道\n$message";return}
   retryJob=scope.launch{
    delay(if(nextRoute!=null&&routeCount==1)1000 else 300)
@@ -406,13 +413,13 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
  }
  fun seekReplay(position:Long){if(replay==null)return;val duration=player.duration.takeIf{it>0}?:((replay!!.stop-replay!!.start).coerceAtLeast(1));player.seekTo(position.coerceIn(0,(duration-1000).coerceAtLeast(0)));resumePosition=player.currentPosition}
  fun zap(delta:Int) {
-  val channels=app.channels.channels
+  val channels=app.channels.displayChannels
   if(channels.isEmpty()||delta==0)return
   direction=if(delta<0)-1 else 1
   val index=channels.indexOfFirst{it.id==current.id}
   val candidates=PreloadPolicy.indices(channels.size,index,direction,PreloadPolicy.MAX_CHANNELS).map(channels::get)
   val target=candidates.firstOrNull{!preloader.confirmedUnavailable(it)}?:candidates.firstOrNull()
-   ?:channels.getOrNull(index)?:channels.first()
+   ?:channels.getOrNull(index.coerceAtLeast(0))?:channels.first()
   tuneChannel(target)
  }
  private suspend fun warm(){

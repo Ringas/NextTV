@@ -100,7 +100,7 @@ internal fun HomeChannelDialogs(
     when (dialog) {
         "添加订阅" -> AddressInputDialog("", epg = false, onDismiss = onDismissSubscription, onConfirm = onSubscription)
         "分类" -> {
-            val channels = App.get().channels.channels
+            val channels = App.get().channels.displayChannels
             CategoryDialog(
                 choices = listOf(CategoryChoice("", "全部频道", channels.size)) + groups.map { group ->
                     CategoryChoice(group, group, channels.count { it.groupName == group })

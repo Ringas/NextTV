@@ -6,6 +6,7 @@ import android.app.ActivityManager
 import com.nexttv.core.App
 import com.nexttv.core.data.Channel
 import com.nexttv.core.data.ChannelRoute
+import com.nexttv.core.data.RouteHealth
 import kotlinx.coroutines.*
 import kotlinx.coroutines.selects.select
 
@@ -34,7 +35,9 @@ internal class PlaybackPreloader(
    if(channels.size<2||index<0)return
    val now=android.os.SystemClock.elapsedRealtime()
    unavailableWarmChannels.entries.removeAll{it.value.expiresAt<=now}
+   val visibleIds=if(app.prefs.hideUnavailableRoutes)app.channels.visibleChannelsNow().mapTo(HashSet()){it.id}else null
    val plan=effectiveTargets(channels,PreloadPolicy.plan(channels.size,index,direction,mode))
+    .filter{visibleIds==null||channels[it.index].id in visibleIds}
    if(plan.isEmpty())return
    val keepIds=plan.mapTo(hashSetOf()){channels[it.index].id}
    preloadPool.retain(keepIds)
@@ -113,17 +116,17 @@ internal class PlaybackPreloader(
       pending.result.onAwait{it}
      }
      if(error==null)ready=true
-     else if(pending.routeIndex==index&&isConfirmedPreloadFailure(error)){definitiveFailures++;RouteAvailability.markFailed(routes[index])}
+     else if(pending.routeIndex==index&&isDefinitiveRouteFailure(error)){definitiveFailures++;RouteHealth.markProbeFailure(routes[index], definitive = true)}
     }
     if(ready){
-     RouteAvailability.markHealthy(routes[index])
+     RouteHealth.markProbeSuccess(routes[index])
      unavailableWarmChannels.remove(channel.id)
      return true
     }
    } catch(e:CancellationException){
     throw e
    } catch(e:Exception){
-    if(isConfirmedPreloadFailure(e)){definitiveFailures++;RouteAvailability.markFailed(routes[index])}
+    if(isDefinitiveRouteFailure(e)){definitiveFailures++;RouteHealth.markProbeFailure(routes[index], definitive = true)}
    } finally {
     if(!ready)entry?.let(preloadPool::discard)
    }

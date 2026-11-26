@@ -165,14 +165,14 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
  // Navigation owns the active region; delayed focus events from the outgoing column must not steal it.
  var navigation by remember{mutableStateOf(BrowserNavigation())}
  val sourceId=current.sourceId
- val sourceChannels=remember(sourceId,app.channels.revision){app.channels.channels.filter{it.sourceId==sourceId}}
- val categories=remember(sourceId,app.channels.revision){listOf<String?>(null)+sourceChannels.map{it.groupName}.distinct()}
+ val sourceChannels=remember(sourceId,app.channels.revision,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){app.channels.displayChannels.filter{it.sourceId==sourceId}}
+ val categories=remember(sourceId,app.channels.revision,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){listOf<String?>(null)+sourceChannels.map{it.groupName}.distinct()}
  var groupFocus by remember{mutableIntStateOf(categories.indexOf(group).coerceAtLeast(0))}
  val groupList=rememberLazyListState((categories.indexOf(group)-1).coerceAtLeast(0))
- val channels=remember(sourceId,activeGroup,app.channels.revision){sourceChannels.filter{activeGroup==null||it.groupName==activeGroup}}
+ val channels=remember(sourceId,activeGroup,app.channels.revision,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){sourceChannels.filter{activeGroup==null||it.groupName==activeGroup}}
  val latestChannels by rememberUpdatedState(channels)
  val list=rememberLazyListState((channels.indexOfFirst{it.id==current.id}.coerceAtLeast(0)-2).coerceAtLeast(0))
- LaunchedEffect(app.channels.revision){if(sourceChannels.isEmpty())onCloseAll()else if(activeGroup!=null&&activeGroup !in categories){activeGroup=null;onGroup(null)}}
+ LaunchedEffect(app.channels.revision,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){if(sourceChannels.isEmpty())onCloseAll()else if(activeGroup!=null&&activeGroup !in categories){activeGroup=null;onGroup(null)}}
  var candidateId by remember{mutableStateOf(current.id)}
  val candidate=channels.firstOrNull{it.id==candidateId}?:channels.firstOrNull()?:current
  val requests=remember{mutableStateMapOf<String,FocusRequester>()};val groupRequests=remember(categories){categories.map{FocusRequester()}}

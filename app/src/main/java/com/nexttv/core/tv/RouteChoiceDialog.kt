@@ -9,11 +9,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import com.nexttv.core.data.RouteHealth
 
 /** Only display stream metadata; no latency probes or extra live downloads on menu open. */
 @Composable internal fun RouteChoiceDialog(engine:PlaybackSession,onDismiss:()->Unit,onChoose:(String)->Unit){
  val routes=engine.current.playbackRoutes
- val visible=RouteAvailability.visible(routes,engine.app.prefs.hideUnavailableRoutes)
+ val visible=if(engine.app.prefs.hideUnavailableRoutes)RouteHealth.availableRoutes(routes)else routes
+ if(visible.isEmpty()){LaunchedEffect(Unit){onDismiss()};return}
  val sources=engine.app.channels.sources.associateBy{it.id}
  val crossSource=routes.map{it.sourceId}.distinct().size>1
  var inspected by remember{mutableStateOf<Int?>(null)}

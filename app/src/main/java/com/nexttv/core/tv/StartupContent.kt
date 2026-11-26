@@ -43,7 +43,7 @@ internal fun StartupContent(onExit: () -> Unit) {
     val liveRequested = remember { app.prefs.startLive }
     var pending by remember { mutableStateOf(true) }
     val markReady = remember { { pending = false } }
-    val live = liveRequested && (!app.cacheReady || app.channels.channels.isNotEmpty())
+    val live = liveRequested && (!app.cacheReady || app.channels.displayChannels.isNotEmpty())
     Box(Modifier.fillMaxSize()) {
         if (app.cacheReady || !liveRequested) {
             val visibility = if (pending) Modifier.clearAndSetSemantics {} else Modifier

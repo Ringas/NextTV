@@ -14,6 +14,20 @@ import javax.net.ssl.SSLException
 internal class UnsupportedPlaybackProtocol : IllegalArgumentException()
 internal class HttpsRequired : IllegalArgumentException()
 
+/** Route-level evidence that retrying the same URL will not help right now. */
+internal fun isDefinitiveRouteFailure(error: Throwable): Boolean {
+    val causes = generateSequence(error) { it.cause }.take(12).toList()
+    val status = causes.firstNotNullOfOrNull {
+        when (it) {
+            is HttpDataSource.InvalidResponseCodeException -> it.responseCode
+            is StreamHttpStatusException -> it.status
+            else -> null
+        }
+    }
+    if (status == 401 || status == 403 || status == 404 || status == 410) return true
+    return causes.any { it is UnsupportedPlaybackProtocol || it is MalformedURLException }
+}
+
 internal fun playbackFailureMessage(error: Throwable, playerErrorCode: Int? = null): String {
     val causes = generateSequence(error) { it.cause }.take(8).toList()
     val status = causes.firstNotNullOfOrNull {

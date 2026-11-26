@@ -1,0 +1,96 @@
+package com.nexttv
+
+import com.nexttv.core.data.Channel
+import com.nexttv.core.data.ChannelRoute
+import com.nexttv.core.data.RouteHealth
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+class RouteHealthTest {
+    private fun route(n: Int, source: String = "source") = ChannelRoute(
+        url = "https://example.test/live/$n.m3u8",
+        sourceId = source,
+        originalId = "$n",
+    )
+
+    private fun channel(id: String, vararg routes: ChannelRoute) = Channel(
+        id = id,
+        name = id,
+        tvgId = id,
+        logo = "",
+        group = "影音文娱",
+        url = routes.first().url,
+        sourceId = routes.first().sourceId,
+        routes = routes.toList(),
+    )
+
+    @Before fun reset() {
+        RouteHealth.clear()
+    }
+
+    @Test fun singleRouteChannelDisappearsWhenItsOnlyRouteIsDead() {
+        val only = route(1)
+        val ch = channel("english", only)
+        assertTrue(RouteHealth.isChannelAvailable(ch))
+        RouteHealth.markProbeFailure(only, definitive = true, now = 1_000L)
+        assertFalse(RouteHealth.isChannelAvailable(ch))
+        assertTrue(RouteHealth.displayChannels(listOf(ch), hideUnavailable = true).isEmpty())
+        assertTrue(RouteHealth.availableRoutes(listOf(only)).isEmpty())
+    }
+
+    @Test fun multiRouteChannelKeepsHealthyRoutesAndHidesOnlyDeadOnes() {
+        val dead = route(1)
+        val alive = route(2)
+        val ch = channel("multi", dead, alive)
+        RouteHealth.markProbeFailure(dead, definitive = true, now = 1_000L)
+        assertTrue(RouteHealth.isChannelAvailable(ch))
+        assertEquals(listOf(alive), RouteHealth.availableRoutes(ch.playbackRoutes))
+        assertEquals(listOf(ch), RouteHealth.displayChannels(listOf(ch), hideUnavailable = true))
+    }
+
+    @Test fun temporaryFailureNeedsTwoProbesButRecoveryRestoresImmediately() {
+        val only = route(1)
+        val ch = channel("slow", only)
+        RouteHealth.markProbeFailure(only, definitive = false, now = 1_000L)
+        assertTrue(RouteHealth.isChannelAvailable(ch))
+        RouteHealth.markProbeFailure(only, definitive = false, now = 2_000L)
+        assertFalse(RouteHealth.isChannelAvailable(ch))
+        RouteHealth.markProbeSuccess(only, now = 3_000L)
+        assertTrue(RouteHealth.isChannelAvailable(ch))
+    }
+
+    @Test fun unknownRoutesStayVisibleUntilAProbeHidesThem() {
+        val only = route(1)
+        val ch = channel("unknown", only)
+        assertEquals(RouteHealth.Status.UNKNOWN, RouteHealth.status(only))
+        assertTrue(RouteHealth.isChannelAvailable(ch))
+        assertEquals(listOf(ch), RouteHealth.displayChannels(listOf(ch), hideUnavailable = true))
+        assertEquals(listOf(ch), RouteHealth.displayChannels(listOf(ch), hideUnavailable = false))
+    }
+
+    @Test fun aSingleTimeoutIsRetriedBeforeTheThirtyMinuteSweep() {
+        val only = route(1)
+        val ch = channel("slow-retry", only)
+        RouteHealth.markProbeFailure(only, definitive = false, now = 1_000L)
+        val targets = RouteHealth.routesNeedingProbe(
+            channels = listOf(ch),
+            staleBefore = 100_000L,
+            priorityGroup = "",
+            retryBefore = 2_000L,
+        )
+        assertEquals(listOf(only), targets)
+    }
+
+    @Test fun hiddenRoutesAreProbedBeforeUnknownOnes() {
+        val dead = route(1)
+        val unknown = route(2)
+        val ch = channel("one", dead, unknown)
+        RouteHealth.markProbeFailure(dead, definitive = true, now = 1_000L)
+        val targets = RouteHealth.routesNeedingProbe(listOf(ch), staleBefore = 10_000L, priorityGroup = "影音文娱")
+        assertEquals(dead, targets.first())
+        assertEquals(unknown, targets.last())
+    }
+}

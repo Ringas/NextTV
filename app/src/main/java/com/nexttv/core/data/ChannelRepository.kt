@@ -23,6 +23,19 @@ import java.util.Locale
  */
 class ChannelRepository(private val context: Context, private val prefs: Prefs) {
     var revision by androidx.compose.runtime.mutableIntStateOf(0);private set
+
+    /**
+     * Mirrors RouteHealth.revision into Compose state. Home/grid/browser read this
+     * through [displayChannels], so a background probe can hide/restore a channel
+     * without rebuilding the whole subscription table.
+     */
+    private var healthRevision by androidx.compose.runtime.mutableIntStateOf(0)
+    val displayRevision: Int get() = healthRevision
+
+    init {
+        RouteHealth.onChanged = { healthRevision++ }
+    }
+
     internal var onChannelsChanged:(()->Unit)?=null
     private val refreshMutex = Mutex()
     private val cache = ChannelCache(context)
@@ -33,9 +46,45 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
     var channels: List<Channel> = emptyList()
         private set
 
+    /**
+     * Channel list after hiding unavailable routes. Playback and auto-skip keep
+     * using [channels]; only browsing/selection surfaces use this list.
+     */
+    private var displayCache: List<Channel> = emptyList()
+    private var displayCacheRevision = -1
+    private var displayCacheHide = false
+    private var displayCacheSource: List<Channel>? = null
+
+    val displayChannels: List<Channel>
+        get() {
+            val health = displayRevision
+            val hide = prefs.hideUnavailableRoutes
+            val source = channels
+            if (displayCacheSource !== source || displayCacheRevision != health || displayCacheHide != hide) {
+                displayCacheSource = source
+                displayCacheRevision = health
+                displayCacheHide = hide
+                displayCache = RouteHealth.displayChannels(source, hide)
+            }
+            return displayCache
+        }
+
     /** 分组顺序（按首次出现顺序，4K 专区固定排在最后） */
     var groups: List<String> = emptyList()
         private set
+
+    /** Non-Compose read for playback/preload background threads. */
+    internal fun visibleChannelsNow(): List<Channel> =
+        RouteHealth.displayChannels(channels, prefs.hideUnavailableRoutes)
+
+    /** Groups recomputed from visible channels, in the same 4K-last order. */
+    val displayGroups: List<String>
+        get() {
+            val ordered = LinkedHashSet<String>()
+            displayChannels.forEach { ordered.add(it.groupName) }
+            val head = ordered.filter { it != M3uParser.GROUP_4K }
+            return if (ordered.contains(M3uParser.GROUP_4K)) head + M3uParser.GROUP_4K else head
+        }
 
     var sources: List<Source> = emptyList()
         private set
@@ -246,7 +295,7 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
 
     fun channelsIn(group: String?, favoritesOnly: Boolean, query: String): List<Channel> {
         val fav = if (favoritesOnly) prefs.favorites else null
-        var list = channels
+        var list = displayChannels
         if (group != null && group.isNotBlank() && group != GROUP_ALL) {
             list = list.filter { it.groupName == group }
         }
