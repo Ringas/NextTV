@@ -73,10 +73,6 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
     var groups: List<String> = emptyList()
         private set
 
-    /** Non-Compose read for playback/preload background threads. */
-    internal fun visibleChannelsNow(): List<Channel> =
-        RouteHealth.displayChannels(channels, prefs.hideUnavailableRoutes)
-
     /** Groups recomputed from visible channels, in the same 4K-last order. */
     val displayGroups: List<String>
         get() {

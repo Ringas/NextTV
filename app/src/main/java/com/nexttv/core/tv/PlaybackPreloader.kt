@@ -35,9 +35,8 @@ internal class PlaybackPreloader(
    if(channels.size<2||index<0)return
    val now=android.os.SystemClock.elapsedRealtime()
    unavailableWarmChannels.entries.removeAll{it.value.expiresAt<=now}
-   val visibleIds=if(app.prefs.hideUnavailableRoutes)app.channels.visibleChannelsNow().mapTo(HashSet()){it.id}else null
    val plan=effectiveTargets(channels,PreloadPolicy.plan(channels.size,index,direction,mode))
-    .filter{visibleIds==null||channels[it.index].id in visibleIds}
+    .filter{!app.prefs.hideUnavailableRoutes||RouteHealth.isChannelAvailable(channels[it.index])}
    if(plan.isEmpty())return
    val keepIds=plan.mapTo(hashSetOf()){channels[it.index].id}
    preloadPool.retain(keepIds)
