@@ -244,7 +244,9 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
     delta>0&&epgDay==days.lastOrNull()->focusEpg()
     else->selectDate(delta)
    }
-   BrowserRegion.PROGRAMMES->if(delta<0)focusChannel(candidateId,closeAdjacent=false)else focusDates()
+   // Leaving the EPG back to the channel list is BACK only. Arrow keys may
+   // move within programmes/dates, but must not cross into the channel rail.
+   BrowserRegion.PROGRAMMES->if(delta>0)focusDates()
    BrowserRegion.CHANNELS->if(delta<0)focusChannel(candidateId,closeAdjacent=true)else focusEpg()
    BrowserRegion.GROUPS->Unit
   }
