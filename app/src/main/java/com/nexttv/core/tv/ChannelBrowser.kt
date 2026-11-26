@@ -136,7 +136,7 @@ import kotlinx.coroutines.flow.first
     }
    }
    Box(Modifier.fillMaxWidth().padding(top=6.dp,bottom=6.dp).height(.5.dp).background(NextTvStyle.Divider))
-   AppText("← 返回频道 · → 日期 · 日期上左右切换",fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1)
+   AppText("左右切换日期 · 上下选择节目 · 返回键回频道",fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1)
    AppText("上下选择节目 · 确认播放",fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1)
   }
  }
@@ -244,9 +244,9 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
     delta>0&&epgDay==days.lastOrNull()->focusEpg()
     else->selectDate(delta)
    }
-   // Leaving the EPG back to the channel list is BACK only. Arrow keys may
-   // move within programmes/dates, but must not cross into the channel rail.
-   BrowserRegion.PROGRAMMES->if(delta>0)focusDates()
+   // The EPG keeps focus on its programme list. Left/right switch the day
+   // directly; up/down stay inside the programme list. Only BACK leaves it.
+   BrowserRegion.PROGRAMMES->if(delta!=0)selectDate(delta)
    BrowserRegion.CHANNELS->if(delta<0)focusChannel(candidateId,closeAdjacent=true)else focusEpg()
    BrowserRegion.GROUPS->Unit
   }
@@ -296,7 +296,10 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
   if(navigation.pane==BrowserPane.PROGRAMMES){
    val action=TvInput.action(e.nativeKeyEvent.keyCode)
    if(action==InputAction.DOWN&&(navigation.region==BrowserRegion.DATES||(navigation.region==BrowserRegion.CHANNELS&&candidateId==channels.lastOrNull()?.id))){focusEpg();return@onPreviewKeyEvent true}
-   if(action==InputAction.UP&&navigation.region==BrowserRegion.PROGRAMMES&&epgFocusStart==epgPrograms.firstOrNull()?.start){focusDates();return@onPreviewKeyEvent true}
+   if(navigation.region==BrowserRegion.PROGRAMMES&&epgPrograms.isNotEmpty()){
+    if(action==InputAction.UP&&epgFocusStart==epgPrograms.first().start)return@onPreviewKeyEvent true
+    if(action==InputAction.DOWN&&epgFocusStart==epgPrograms.last().start)return@onPreviewKeyEvent true
+   }
   }
   val direction=TvInput.horizontal(e.nativeKeyEvent.keyCode)
   if(direction!=null){horizontal(direction);true}else false
