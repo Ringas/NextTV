@@ -56,7 +56,7 @@ import kotlinx.coroutines.flow.first
    AppText(if(text=="直播中")"直播" else text,fontSize=InteractionStyle.micro,fontWeight=androidx.compose.ui.text.font.FontWeight.Bold,color=NextTvStyle.Live,maxLines=1)
   }
  }else{
-  AppText("· $text",Modifier.padding(horizontal=2.dp),fontSize=InteractionStyle.micro,fontWeight=androidx.compose.ui.text.font.FontWeight.Medium,color=NextTvStyle.Muted.copy(alpha=.72f),maxLines=1)
+  AppText(text,Modifier.padding(horizontal=2.dp),fontSize=InteractionStyle.micro,fontWeight=androidx.compose.ui.text.font.FontWeight.Medium,color=NextTvStyle.Muted.copy(alpha=.82f),maxLines=1)
  }
 }
 
@@ -116,11 +116,12 @@ import kotlinx.coroutines.flow.first
      val request=remember(p.start){FocusRequester()}
      DisposableEffect(p.start,request){epgRequests[p.start]=request;onDispose{if(epgRequests[p.start]===request)epgRequests.remove(p.start)}}
      val live=now in p.start until p.stop
+     val replay=p.stop<=now&&candidate.playbackRoutes.any{replayAddress(it,p,now)!=null}
      TvSurface(Modifier.fillMaxWidth().heightIn(min=34.dp*scale).focusRequester(request).focusEdges(down=index==programs.lastIndex),kind="playerRow",onFocus={onProgramFocus(p)},onClick={onProgramClick(candidate,p)}){
       Row(Modifier.fillMaxWidth().padding(horizontal=8.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically){
        AppText(Ui.hhmm(p.start),Modifier.width(44.dp*scale),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,fontFeatureSettings="tnum")
        AppText(p.title,Modifier.weight(1f).padding(start=8.dp,end=6.dp),fontSize=InteractionStyle.body,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
-       if(live)BrowserBadge("直播中",true)
+       if(live)BrowserBadge("直播中",true)else if(replay)BrowserBadge("回放",false)
       }
      }
     }
