@@ -116,8 +116,6 @@ internal fun channelCoverMark(name: String): String {
      .border(if(focused) InteractionStyle.focusRing else .75.dp, if(focused) NextTvStyle.Ivory.copy(alpha=.92f) else NextTvStyle.PlayerInfoBorder, artworkShape), contentAlignment = Alignment.Center) {
      ChannelLogo(c, Modifier.fillMaxSize(), showFallback = false)
      CardText(c.groupName, 10, Color.White.copy(alpha=.55f), Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 11.dp), letterSpacing = .08.sp)
-     CardText(channelCoverMark(c.name), 20, Color.White.copy(alpha=.94f), Modifier.align(Alignment.BottomStart).padding(start = 14.dp, bottom = 12.dp), bold = true)
-     CardText(c.number.toString().padStart(2, '0'), 12, Color.White.copy(alpha=.42f), Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 10.dp), letterSpacing = .08.sp)
      if (preview) ChannelPreview(c, previewRunning, previewSlot, Modifier.fillMaxSize())
      if (favorite && showFavorite) {
       CardText("★", 13, Color(0xFFFFD469), Modifier.align(Alignment.TopEnd).padding(end = 8.dp, top = 6.dp))

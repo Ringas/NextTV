@@ -125,6 +125,7 @@ import kotlin.math.roundToInt
  LaunchedEffect(engine.current.id,engine.replay?.start){seekFeedback=null}
 
  val exitGate=remember{ExitConfirmation()}
+ var lastBackAt by remember{mutableLongStateOf(0L)}
  var selectedProgram by remember{mutableStateOf<com.nexttv.core.data.Program?>(null)}
  var consumeOkUp by remember{mutableStateOf(false)}
  var longOk by remember{mutableStateOf(false)}
@@ -149,6 +150,9 @@ import kotlin.math.roundToInt
  };deadline=System.currentTimeMillis()+InteractionStyle.actionsMillis}
  fun dismissOverlays(){cancelPendingDigits();browserController.move=null;browserController.pending=0;dialog="";side=false;bars=false;actionsVisible=false;digits="";notice="";actionFocused=false;exitGate.reset();runCatching{root.requestFocus()}}
  fun back(){
+  val backAt=android.os.SystemClock.elapsedRealtime()
+  if(backAt-lastBackAt<220)return
+  lastBackAt=backAt
   if(side&&browserController.back?.invoke()==true)return
   if(dialog.isNotBlank()||side||bars||digits.isNotBlank())dismissOverlays()
   else if(engine.error.isNotBlank()&&app.prefs.startLive&&onHome!=null)onHome(engine.current)
@@ -198,7 +202,7 @@ import kotlin.math.roundToInt
   if(dialog.isNotBlank())return@onPreviewKeyEvent false
   if(key.up&&consumeOkUp&&key.action==InputAction.CONFIRM){consumeOkUp=false;if(!longOk)openSide();longOk=false;return@onPreviewKeyEvent true}
   if(!key.down){if(key.action==InputAction.LEFT||key.action==InputAction.RIGHT||key.action==InputAction.SEEK_FORWARD||key.action==InputAction.SEEK_BACKWARD)replayHold[0]=0;return@onPreviewKeyEvent false}
-  if(key.escape){back();return@onPreviewKeyEvent true}
+  if(key.action==InputAction.BACK){back();return@onPreviewKeyEvent true}
   if(key.action==InputAction.MENU){showBars(true);return@onPreviewKeyEvent true}
   if(key.action==InputAction.INFO){if(!bars)showBars(false);return@onPreviewKeyEvent true}
   if(consumeOkUp&&key.action==InputAction.CONFIRM){if(key.repeated&&!longOk){longOk=true;showBars(true)};return@onPreviewKeyEvent true}
@@ -223,7 +227,7 @@ import kotlin.math.roundToInt
   }
  }.focusable()){
   PlaybackVideoSurface(engine.player,engine.aspect,app.prefs.keepLastFrame,retained)
-  retained.bitmap?.takeIf{app.prefs.keepLastFrame}?.let{frame->androidx.compose.foundation.Image(frame.asImageBitmap(),null,Modifier.fillMaxSize().graphicsLayer{alpha=frameOpacity.value}.background(Color.Black),contentScale=when(engine.aspect){1->androidx.compose.ui.layout.ContentScale.Crop;2->androidx.compose.ui.layout.ContentScale.FillBounds;else->androidx.compose.ui.layout.ContentScale.Fit})}
+  retained.bitmap?.takeIf{app.prefs.keepLastFrame}?.let{frame->androidx.compose.foundation.Image(frame.asImageBitmap(),null,Modifier.fillMaxSize().graphicsLayer{alpha=frameOpacity.value}.background(Color.Black),contentScale=playbackContentScale(engine.aspect))}
   if(videoTransitionNeedsCover(app.prefs.keepLastFrame,retained.bitmap!=null,engine.surfaceHasFrame,engine.rendered))Box(Modifier.fillMaxSize().graphicsLayer{alpha=revealOpacity.value}.background(Color.Black))
   Box(Modifier.fillMaxSize().pointerInput(Unit){awaitPointerEventScope{var secondaryHeld=false;while(true){val event=awaitPointerEvent(PointerEventPass.Initial);if(event.type==PointerEventType.Press&&event.buttons.isSecondaryPressed){secondaryHeld=true;showBars(true)};if(secondaryHeld){event.changes.forEach{it.consume()};if(event.type==PointerEventType.Release)secondaryHeld=false};if(actionsVisible&&(event.type==PointerEventType.Press||event.type==PointerEventType.Scroll))deadline=System.currentTimeMillis()+InteractionStyle.actionsMillis}}}.pointerInput(side,bars){detectTapGestures(onLongPress={showBars(true)},onTap={if(side||actionsVisible)dismissOverlays()else openSide()})})
   if(onLaunchReady==null&&engine.loading&&engine.error.isBlank())Column(Modifier.align(Alignment.Center).padding(horizontal=36.dp,vertical=24.dp),horizontalAlignment=Alignment.CenterHorizontally){if(app.prefs.reduceMotion)AppText("◌",fontSize=InteractionStyle.title,color=androidx.compose.ui.graphics.Color.White)else androidx.compose.material3.CircularProgressIndicator(Modifier.size(42.dp),color=NextTvStyle.Accent);AppText("正在连接…",shadow=androidx.compose.ui.graphics.Shadow(Color.Black,androidx.compose.ui.geometry.Offset(0f,1f),4f),fontSize=InteractionStyle.body,color=androidx.compose.ui.graphics.Color.White,modifier=Modifier.padding(top=12.dp))}

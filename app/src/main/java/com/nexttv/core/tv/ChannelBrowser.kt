@@ -8,9 +8,11 @@ import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -66,7 +68,7 @@ import kotlinx.coroutines.flow.first
   AppText(
    "向右查看节目单".toCharArray().joinToString("\n"),
    fontSize=InteractionStyle.captionSmall,
-   lineHeight=InteractionStyle.captionSmall*1.18f,
+   lineHeight=InteractionStyle.captionSmall*1.5f,
    letterSpacing=0.sp,
    color=NextTvStyle.Text.copy(alpha=.8f),
    textAlign=androidx.compose.ui.text.style.TextAlign.Center,
@@ -77,7 +79,7 @@ import kotlinx.coroutines.flow.first
 }
 
 /** One rail, channel stack on top and the programme stack underneath. */
-@Composable internal fun ProgrammeSideSheet(width:Dp,candidate:Channel,channels:List<Channel>,showLogos:Boolean,list:LazyListState,requests:MutableMap<String,FocusRequester>,programs:List<Program>,epgList:LazyListState,epgRequests:MutableMap<Long,FocusRequester>,days:List<Int>,dateList:LazyListState,dateRequests:Map<Int,FocusRequester>,epgDay:Int,now:Long,region:BrowserRegion,onChannelFocus:(Channel)->Unit,onChannelClick:(Channel)->Unit,onProgramFocus:(Program)->Unit,onProgramClick:(Channel,Program)->Unit,onDate:(Int)->Unit,onDateFocus:(Int)->Unit){
+@Composable internal fun ProgrammeSideSheet(width:Dp,candidate:Channel,channels:List<Channel>,showLogos:Boolean,list:LazyListState,requests:MutableMap<String,FocusRequester>,programs:List<Program>,epgList:LazyListState,epgRequests:MutableMap<Long,FocusRequester>,days:List<Int>,dateList:LazyListState,dateRequests:Map<Int,FocusRequester>,epgDay:Int,now:Long,region:BrowserRegion,onChannelFocus:(Channel)->Unit,onChannelClick:(Channel)->Unit,onProgramFocus:(Program)->Unit,onProgramClick:(Channel,Program)->Unit,onDate:(Int)->Unit,onDateFocus:(Int)->Unit,reduced:Boolean=false,enabled:Boolean=true){
  val scale=androidx.compose.ui.platform.LocalDensity.current.fontScale
  val density=androidx.compose.ui.platform.LocalDensity.current
  val logoWidth=(width.value*.14f).coerceIn(24f,44f).coerceAtMost(width.value*.4f).dp
@@ -87,7 +89,7 @@ import kotlinx.coroutines.flow.first
   if(index>=0){
    snapshotFlow{list.layoutInfo.totalItemsCount>0}.first{it}
    withFrameNanos{}
-   list.revealFocusRow(index)
+   list.revealFocusRow(index,animated=!reduced)
   }
  }
  Box(Modifier.width(width).fillMaxHeight().playerSidebarSurface{with(density){width.toPx()}}){
@@ -106,7 +108,7 @@ import kotlinx.coroutines.flow.first
     itemsIndexed(channels,key={_,it->it.id}){index,c->
      val request=remember(c.id){FocusRequester()}
      DisposableEffect(c.id){requests[c.id]=request;onDispose{if(requests[c.id]===request)requests.remove(c.id)}}
-     TvSurface(Modifier.fillMaxWidth().heightIn(min=44.dp).focusRequester(request).focusEdges(up=index==0,down=index==channels.lastIndex).focusProperties{canFocus=region==BrowserRegion.CHANNELS;if(index==0)up=FocusRequester.Cancel;if(index==channels.lastIndex)down=FocusRequester.Cancel},kind="categoryRow",selected=c.id==candidate.id&&!InteractionStyle.pointer,onFocus={onChannelFocus(c)},onClick={onChannelClick(c)}){
+     TvSurface(Modifier.fillMaxWidth().heightIn(min=44.dp).focusRequester(request).focusEdges(up=index==0,down=index==channels.lastIndex).focusProperties{canFocus=enabled&&region==BrowserRegion.CHANNELS;if(index==0)up=FocusRequester.Cancel;if(index==channels.lastIndex)down=FocusRequester.Cancel},kind="categoryRow",selected=c.id==candidate.id&&!InteractionStyle.pointer,onFocus={onChannelFocus(c)},onClick={onChannelClick(c)}){
       Row(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically){
        val slot=Modifier.width(logoWidth).height(38.dp)
        if(showLogos)PlayerLogo(c,slot,fallback=c.number.toString().padStart(3,'0'))
@@ -124,7 +126,7 @@ import kotlinx.coroutines.flow.first
      items(days,key={it}){day->
       val date=remember(day,now){java.util.Calendar.getInstance().apply{timeInMillis=now;add(java.util.Calendar.DAY_OF_YEAR,day)}.time}
       val label=when(day){0->"今天 "+java.text.SimpleDateFormat("EEE",java.util.Locale.SIMPLIFIED_CHINESE).format(date);1->"明天 "+java.text.SimpleDateFormat("EEE",java.util.Locale.SIMPLIFIED_CHINESE).format(date);else->java.text.SimpleDateFormat("EEE MM-dd",java.util.Locale.SIMPLIFIED_CHINESE).format(date)}
-      TvSurface(Modifier.focusRequester(dateRequests.getValue(day)).focusEdges(left=day==days.firstOrNull(),right=day==days.lastOrNull()).focusProperties{canFocus=region==BrowserRegion.DATES;if(day==days.firstOrNull())left=FocusRequester.Cancel;if(day==days.lastOrNull())right=FocusRequester.Cancel}.semantics{stateDescription=if(day==epgDay)"已选择"else""},kind="date",selected=false,focusRing=false,onFocus={onDateFocus(day)},onClick={onDate(day)}){
+      TvSurface(Modifier.focusRequester(dateRequests.getValue(day)).focusEdges(left=day==days.firstOrNull(),right=day==days.lastOrNull()).focusProperties{canFocus=enabled&&region==BrowserRegion.DATES;if(day==days.firstOrNull())left=FocusRequester.Cancel;if(day==days.lastOrNull())right=FocusRequester.Cancel}.semantics{stateDescription=if(day==epgDay)"已选择"else""},kind="date",selected=false,focusRing=false,onFocus={onDateFocus(day)},onClick={onDate(day)}){
        Box(Modifier.padding(horizontal=2.dp,vertical=3.dp)){
         AppText(label,fontSize=InteractionStyle.captionSmall,color=if(day==epgDay)NextTvStyle.Text else NextTvStyle.Muted,maxLines=1)
         if(day==epgDay)Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(top=4.dp).height(1.5.dp).background(NextTvStyle.Ivory))
@@ -141,7 +143,7 @@ import kotlinx.coroutines.flow.first
      DisposableEffect(p.start,request){epgRequests[p.start]=request;onDispose{if(epgRequests[p.start]===request)epgRequests.remove(p.start)}}
      val live=now in p.start until p.stop
      val replay=p.stop<=now&&candidate.playbackRoutes.any{replayAddress(it,p,now)!=null}
-     TvSurface(Modifier.fillMaxWidth().heightIn(min=34.dp*scale).focusRequester(request).focusEdges(up=index==0,down=index==programs.lastIndex).focusProperties{canFocus=region==BrowserRegion.PROGRAMMES;if(index==0)up=FocusRequester.Cancel;if(index==programs.lastIndex)down=FocusRequester.Cancel},kind="playerRow",onFocus={onProgramFocus(p)},onClick={onProgramClick(candidate,p)}){
+     TvSurface(Modifier.fillMaxWidth().heightIn(min=34.dp*scale).focusRequester(request).focusEdges(up=index==0,down=index==programs.lastIndex).focusProperties{canFocus=enabled&&region==BrowserRegion.PROGRAMMES;if(index==0)up=FocusRequester.Cancel;if(index==programs.lastIndex)down=FocusRequester.Cancel},kind="playerRow",onFocus={onProgramFocus(p)},onClick={onProgramClick(candidate,p)}){
       Row(Modifier.fillMaxWidth().padding(horizontal=8.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically){
        AppText(Ui.hhmm(p.start),Modifier.width(44.dp*scale),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,fontFeatureSettings="tnum")
        AppText(p.title,Modifier.weight(1f).padding(start=8.dp,end=6.dp),fontSize=InteractionStyle.body,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
@@ -157,21 +159,28 @@ import kotlinx.coroutines.flow.first
 }
 
 /** Move once when the target is clipped, then let the mounted item take focus. */
-private suspend fun LazyListState.revealFocusRow(index: Int) {
+private suspend fun LazyListState.revealFocusRow(index: Int, animated: Boolean = false) {
  val layout = layoutInfo
  val item = layout.visibleItemsInfo.firstOrNull { it.index == index }
  val start = layout.viewportStartOffset + layout.beforeContentPadding
  val end = layout.viewportEndOffset - layout.afterContentPadding
  when {
-  item == null -> scrollToItem((index - 1).coerceAtLeast(0))
-  item.offset < start -> scrollBy((item.offset - start).toFloat())
-  item.offset + item.size > end -> scrollBy((item.offset + item.size - end).toFloat())
+  item == null -> if (animated) animateScrollToItem((index - 1).coerceAtLeast(0)) else scrollToItem((index - 1).coerceAtLeast(0))
+  item.offset < start -> {
+   val delta = (item.offset - start).toFloat()
+   if (animated) animateScrollBy(delta, tween(180, easing = FastOutSlowInEasing)) else scrollBy(delta)
+  }
+  item.offset + item.size > end -> {
+   val delta = (item.offset + item.size - end).toFloat()
+   if (animated) animateScrollBy(delta, tween(180, easing = FastOutSlowInEasing)) else scrollBy(delta)
+  }
  }
 }
 
 /** GROUPS ↔ CHANNELS ↔ EPG. Stable channel column and list state; never mount all three. */
 @Composable internal fun ChannelSidePanel(current:Channel,group:String?,generation:Int,onGroup:(String?)->Unit,onSelect:(Channel)->Unit,onProgram:(Channel,Program)->Unit,controller:BrowserController,onCloseAll:()->Unit,playingReplay:Boolean=false,playingPaused:Boolean=false,modifier:Modifier){
  val app=App.get();val scope=rememberCoroutineScope();val hostView=androidx.compose.ui.platform.LocalView.current
+ val reducedMotion=app.prefs.reduceMotion
  var epgDay by remember{mutableIntStateOf(0)}
  var now by remember{mutableLongStateOf(System.currentTimeMillis())}
  LaunchedEffect(Unit){while(true){delay(15000);now=System.currentTimeMillis()}}
@@ -189,6 +198,8 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
  LaunchedEffect(app.channels.revision,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){if(sourceChannels.isEmpty())onCloseAll()else if(activeGroup!=null&&activeGroup !in categories){activeGroup=null;onGroup(null)}}
  var candidateId by remember{mutableStateOf(current.id)}
  val candidate=channels.firstOrNull{it.id==candidateId}?:channels.firstOrNull()?:current
+ val epgChannelList=remember(channels){LazyListState((channels.indexOfFirst{it.id==candidateId}-2).coerceAtLeast(0))}
+ val epgChannelRequests=remember(channels){mutableStateMapOf<String,FocusRequester>()}
  val requests=remember{mutableStateMapOf<String,FocusRequester>()};val groupRequests=remember(categories){categories.map{FocusRequester()}}
  val days=remember(candidate.id,app.epg.revision,now){app.epg.availableDays(candidate)}
  LaunchedEffect(days){if(epgDay !in days)epgDay=0}
@@ -205,7 +216,7 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
  LaunchedEffect(epgDay,days,navigation.pane){
   if(navigation.pane!=BrowserPane.PROGRAMMES)return@LaunchedEffect
   val at=days.indexOf(epgDay)
-  if(at>=0){withFrameNanos{};dateList.animateScrollToItem(at)}
+  if(at>=0){withFrameNanos{};if(reducedMotion)dateList.scrollToItem(at)else dateList.animateScrollToItem(at)}
  }
  val epgRequests=remember{mutableStateMapOf<Long,FocusRequester>()}
  val browserActivity=checkNotNull(androidx.activity.compose.LocalActivity.current as? TvActivity)
@@ -218,7 +229,7 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
   val index=choices.indexOfFirst{it.id==id}.takeIf{it>=0}?:choices.indexOfFirst{it.id==current.id}.coerceAtLeast(0);val target=choices.getOrNull(index)?:return@launch
   candidateId=target.id
   snapshotFlow{list.layoutInfo.totalItemsCount>0}.first{it}
-  list.revealFocusRow(index)
+  list.revealFocusRow(index,animated=!reducedMotion)
   snapshotFlow{list.layoutInfo.visibleItemsInfo.any{it.key==target.id}&&requests.containsKey(target.id)}.first{it}
   withFrameNanos{};if(navigation.region.wire=="channels")requests[target.id]?.requestFocus()
  }}
@@ -226,19 +237,24 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
  fun focusEpg(preferLive:Boolean=false){focusJob?.cancel();navigation=BrowserNavigation.Programmes;focusJob=scope.launch{
   while(!hostView.hasWindowFocus())withFrameNanos{}
   withFrameNanos{}
+  // The sheet reuses one channel list across openings. Put the selected channel
+  // back under the viewport before the programme column starts moving, otherwise
+  // the last channels appear to jump once their sheet is mounted.
+  val channelAt=latestChannels.indexOfFirst{it.id==candidateId}
+  if(channelAt>=0){snapshotFlow{epgChannelList.layoutInfo.totalItemsCount>0}.first{it};epgChannelList.revealFocusRow(channelAt,animated=!reducedMotion)}
   val programs=app.epg.programsForDay(candidate,epgDay)
   val layout=latestEpgList.layoutInfo
   val visible=layout.visibleItemsInfo.filter{it.offset>=layout.viewportStartOffset+layout.beforeContentPadding&&it.offset+it.size<=layout.viewportEndOffset-layout.afterContentPadding}
   val saved=programs.indexOfFirst{it.start==latestEpgFocusStart}
   val live=programs.indexOfFirst{System.currentTimeMillis() in it.start until it.stop}
   val index=if(preferLive)live.takeIf{it>=0}?:programs.indexOfFirst{it.stop>System.currentTimeMillis()}.coerceAtLeast(0)else if(visible.any{it.index==saved})saved else visible.firstOrNull()?.index?:latestEpgList.firstVisibleItemIndex
-  if(preferLive&&programs.isNotEmpty()&&visible.none{it.index==index}){latestEpgList.revealFocusRow(index);withFrameNanos{}}
+  if(preferLive&&programs.isNotEmpty()&&visible.none{it.index==index}){latestEpgList.revealFocusRow(index,animated=!reducedMotion);withFrameNanos{}}
   val target=programs.getOrNull(index.coerceIn(0,programs.lastIndex.coerceAtLeast(0)))
   if(target!=null){snapshotFlow{epgRequests[target.start]}.first{it!=null};withFrameNanos{};if(navigation.region.wire=="epg")epgRequests[target.start]?.requestFocus()}else if(navigation.region.wire=="epg"){navigation=BrowserNavigation.Dates;withFrameNanos{};dateRequests[epgDay]?.requestFocus()}
  }}
  fun openEpg(){epgDay=0;navigation=BrowserNavigation.Programmes;focusEpg(preferLive=true)}
  fun focusDate(day:Int){focusJob?.cancel();navigation=BrowserNavigation.Dates;focusJob=scope.launch{
-  val at=days.indexOf(day).coerceAtLeast(0);snapshotFlow{dateList.layoutInfo.totalItemsCount>0}.first{it};dateList.revealFocusRow(at);withFrameNanos{};withFrameNanos{};if(navigation.region.wire=="dates")dateRequests[day]?.requestFocus()
+  val at=days.indexOf(day).coerceAtLeast(0);snapshotFlow{dateList.layoutInfo.totalItemsCount>0}.first{it};dateList.revealFocusRow(at,animated=!reducedMotion);withFrameNanos{};withFrameNanos{};if(navigation.region.wire=="dates")dateRequests[day]?.requestFocus()
  }}
  fun focusDates(){focusDate(epgDay)}
  fun selectDate(delta:Int){
@@ -288,9 +304,19 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
   return runCatching{request.requestFocus();true}.getOrDefault(false)
  }
  fun backPane():Boolean{
-  if(navigation.pane!=BrowserPane.PROGRAMMES)return false
-  focusChannel(candidateId,closeAdjacent=true)
+  focusJob?.cancel()
+  if(navigation.pane==BrowserPane.PROGRAMMES){
+   focusChannel(candidateId,closeAdjacent=true)
+   return true
+  }
+  onCloseAll()
   return true
+ }
+ // A channel with a slow guide response opens the sheet before programmes arrive.
+ // Finish the first programme placement when the data lands so the last channels
+ // get the same entry motion instead of remaining parked on an empty rail.
+ LaunchedEffect(candidate.id,epgDay,epgPrograms.isNotEmpty(),navigation.pane){
+  if(navigation.pane==BrowserPane.PROGRAMMES&&epgFocusStart==null&&epgPrograms.isNotEmpty())focusEpg(preferLive=true)
  }
  SideEffect {
   controller.move = { horizontal(it) }
@@ -320,26 +346,13 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
  }){
   val showLogos=app.prefs.showChannelLogos
   val widths=browserWidths(maxWidth.value,fontScale=androidx.compose.ui.platform.LocalDensity.current.fontScale)
-  val gap=0.dp;val groupWidth=widths.group.dp;val channelWidth=widths.channel.dp;val dateWidth=widths.date.dp;val epgWidth=widths.programme.dp
+  val groupWidth=widths.group.dp;val channelWidth=widths.channel.dp
   val hintWidth=(18.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale).coerceIn(18.dp,30.dp)
   val reduced=app.prefs.reduceMotion
-  val largeNarrowDate=dateWidth<72.dp&&androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f
   val anchor=if(navigation.pane.wire=="groups")groupWidth else 0.dp
   val anchorPosition=animateFloatAsState(anchor.value,if(reduced)snap()else tween(160,easing=FastOutSlowInEasing),label="browser-anchor")
   val browserDensity=androidx.compose.ui.platform.LocalDensity.current
-  if(navigation.pane.wire=="epg"){
-   ProgrammeSideSheet(
-    width=channelWidth,candidate=candidate,channels=channels,showLogos=showLogos,list=list,requests=requests,
-    programs=epgPrograms,epgList=epgList,epgRequests=epgRequests,days=days,dateList=dateList,dateRequests=dateRequests,epgDay=epgDay,now=now,region=navigation.region,
-    onChannelFocus={c->navigation=BrowserNavigation(BrowserPane.PROGRAMMES,BrowserRegion.CHANNELS);candidateId=c.id},
-    onChannelClick=onSelect,
-    onProgramFocus={p->navigation=BrowserNavigation.Programmes;epgFocusStart=p.start},
-    onProgramClick=onProgram,
-    onDate={day->epgDay=day;dateFocus=day;navigation=BrowserNavigation.Programmes;focusEpg(preferLive=true)},
-    onDateFocus={day->navigation=BrowserNavigation.Dates;dateFocus=day}
-   )
-   return@BoxWithConstraints
-  }
+  val epgVisible=navigation.pane.wire=="epg"
   val panelWidth=channelWidth+when(navigation.pane.wire){"groups"->groupWidth;else->0.dp}
   val panelExtent=animateFloatAsState(panelWidth.value,if(reduced)snap()else tween(160,easing=FastOutSlowInEasing),label="browser-panel")
   Box(Modifier.width(panelWidth).fillMaxHeight().playerSidebarSurface{with(browserDensity){panelExtent.value.dp.toPx()}})
@@ -350,7 +363,7 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
   }
   Column(Modifier.offset{IntOffset(with(browserDensity){anchorPosition.value.dp.roundToPx()},0)}.width(channelWidth).fillMaxHeight().padding(start=12.dp,top=12.dp,end=hintWidth+2.dp,bottom=12.dp)){
    BrowserHeading(activeGroup?:if(app.channels.sources.count{it.enabled}>1)"本订阅全部频道"else"全部频道")
-   LazyColumn(flingBehavior=appFlingBehavior(),state=list,modifier=Modifier.continuousWheel(list),contentPadding=PaddingValues(start=12.dp,end=8.dp,top=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
+   LazyColumn(flingBehavior=appFlingBehavior(),state=list,modifier=Modifier.continuousWheel(list),contentPadding=PaddingValues(start=12.dp,end=2.dp,top=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
     itemsIndexed(channels,key={_,it->it.id}){index,c->val request=remember(c.id){FocusRequester()}
      DisposableEffect(c.id){requests[c.id]=request;onDispose{if(requests[c.id]===request)requests.remove(c.id)}}
      TvSurface(Modifier.fillMaxWidth().semantics{stateDescription=if(c.id==current.id)if(playingPaused)"已暂停"else if(playingReplay)"正在播放回放"else"正在播放直播"else if(c.id==candidate.id)"正在浏览"else""}.heightIn(min=64.dp).focusEdges(up=index==0,down=index==channels.lastIndex).focusProperties{canFocus=navigation.region.wire=="channels";if(index==0)up=FocusRequester.Cancel;if(index==channels.lastIndex)down=FocusRequester.Cancel}.focusRequester(request),kind="channelRow",selected=c.id==candidate.id&&!InteractionStyle.pointer,onFocus={if(navigation.region.wire=="channels")candidateId=c.id},onClick={onSelect(c)}){
@@ -369,36 +382,23 @@ private suspend fun LazyListState.revealFocusRow(index: Int) {
    }
   }
   if(navigation.pane.wire!="epg")BrowserEdgeHint(hintWidth,Modifier.offset{IntOffset(with(browserDensity){(anchorPosition.value.dp+channelWidth-hintWidth-2.dp).roundToPx()},0)})
-  if(navigation.pane.wire=="epg"){
-   Column(Modifier.offset{IntOffset(with(browserDensity){(anchorPosition.value.dp+channelWidth+gap).roundToPx()},0)}.width(epgWidth).fillMaxHeight().padding(start=0.dp,top=12.dp,end=12.dp,bottom=12.dp)){
-    BrowserHeading(Ui.displayName(candidate.name))
-    val programs=app.epg.programsForDay(candidate,epgDay)
-    if(programs.isEmpty())Box(Modifier.fillMaxWidth().weight(1f),contentAlignment=Alignment.Center){AppText("暂无节目单",textAlign=androidx.compose.ui.text.style.TextAlign.Center,fontSize=InteractionStyle.body,color=NextTvStyle.Muted)}
-    LazyColumn(flingBehavior=appFlingBehavior(),state=epgList,modifier=Modifier.continuousWheel(epgList),contentPadding=PaddingValues(start=6.dp,end=12.dp,top=12.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){itemsIndexed(programs,key={_,it->"${it.channelKey}:${it.start}:${it.stop}"}){index,p->
-     val request=remember(p.start){FocusRequester()};DisposableEffect(p.start,request){epgRequests[p.start]=request;onDispose{if(epgRequests[p.start]===request)epgRequests.remove(p.start)}}
-     val live=now in p.start until p.stop
-     val badge=if(live)"直播中"else if(p.stop<=now&&candidate.playbackRoutes.any{replayAddress(it,p,now)!=null})"回放"else""
-     TvSurface(Modifier.fillMaxWidth().heightIn(min=48.dp).focusRequester(request).focusEdges(up=index==0,down=index==programs.lastIndex).focusProperties{canFocus=navigation.region.wire=="epg";if(index==0)up=FocusRequester.Cancel;if(index==programs.lastIndex)down=FocusRequester.Cancel},kind="playerRow",selected=live,onFocus={if(navigation.region.wire=="epg")epgFocusStart=p.start},onClick={onProgram(candidate,p)}){
-      Row(Modifier.fillMaxWidth().align(Alignment.Center).padding(horizontal=10.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically){
-       AppText(Ui.hhmm(p.start),Modifier.width(48.dp*androidx.compose.ui.platform.LocalDensity.current.fontScale),fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.End,fontFeatureSettings="tnum")
-       AppText(p.title,Modifier.weight(1f).padding(start=10.dp,end=10.dp),fontSize=InteractionStyle.body,color=NextTvStyle.Text,maxLines=1,overflow=TextOverflow.Ellipsis)
-       if(badge.isNotBlank())BrowserBadge(badge,live)
-      }
-     }
-    }}
-   }
-   Column(Modifier.offset{IntOffset(with(browserDensity){(anchorPosition.value.dp+channelWidth+epgWidth).roundToPx()},0)}.width(dateWidth).fillMaxHeight().padding(vertical=12.dp,horizontal=if(largeNarrowDate)2.dp else 4.dp)){
-    BrowserHeading("日期",centered=true)
-    LazyColumn(flingBehavior=appFlingBehavior(),state=dateList,modifier=Modifier.continuousWheel(dateList),contentPadding=PaddingValues(horizontal=if(largeNarrowDate)2.dp else 6.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){items(days,key={it}){day->
-     val date=remember(day,now){java.util.Calendar.getInstance().apply{timeInMillis=now;add(java.util.Calendar.DAY_OF_YEAR,day)}.time}
-     TvSurface(Modifier.fillMaxWidth().heightIn(min=60.dp).focusRequester(dateRequests.getValue(day)).focusEdges(up=day==days.firstOrNull(),down=day==days.lastOrNull()).focusProperties{canFocus=navigation.region.wire=="dates";if(day==days.firstOrNull())up=FocusRequester.Cancel;if(day==days.lastOrNull())down=FocusRequester.Cancel},kind="date",selected=day==epgDay,onFocus={if(navigation.region==BrowserRegion.DATES)dateFocus=day},onClick={dateFocus=day;epgDay=day;focusEpg()}){
-      Column(Modifier.fillMaxWidth().padding(vertical=10.dp),horizontalAlignment=Alignment.CenterHorizontally){
-       AppText(if(day==0)"今天"else java.text.SimpleDateFormat("EEE",java.util.Locale.SIMPLIFIED_CHINESE).format(date),fontSize=InteractionStyle.body,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
-       AppText(java.text.SimpleDateFormat("MM-dd",java.util.Locale.ROOT).format(date),fontSize=InteractionStyle.caption,color=NextTvStyle.Muted,maxLines=1,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
-      }
-     }
-    }}
-   }
+  AnimatedVisibility(
+   visible=epgVisible,
+   enter=slideInHorizontally(animationSpec=tween(if(reduced)0 else 220,easing=FastOutSlowInEasing),initialOffsetX={it})+fadeIn(tween(if(reduced)0 else 180,easing=LinearOutSlowInEasing)),
+   exit=slideOutHorizontally(animationSpec=tween(if(reduced)0 else 180,easing=FastOutSlowInEasing),targetOffsetX={it})+fadeOut(tween(if(reduced)0 else 140,easing=LinearOutSlowInEasing)),
+   modifier=Modifier.offset{IntOffset(with(browserDensity){anchorPosition.value.dp.roundToPx()},0)}.clipToBounds()
+  ){
+   ProgrammeSideSheet(
+    width=channelWidth,candidate=candidate,channels=channels,showLogos=showLogos,list=epgChannelList,requests=epgChannelRequests,
+    programs=epgPrograms,epgList=epgList,epgRequests=epgRequests,days=days,dateList=dateList,dateRequests=dateRequests,epgDay=epgDay,now=now,region=navigation.region,
+    onChannelFocus={c->if(navigation.pane==BrowserPane.PROGRAMMES){navigation=BrowserNavigation(BrowserPane.PROGRAMMES,BrowserRegion.CHANNELS);candidateId=c.id}},
+    onChannelClick=onSelect,
+    onProgramFocus={p->if(navigation.pane==BrowserPane.PROGRAMMES){navigation=BrowserNavigation.Programmes;epgFocusStart=p.start}},
+    onProgramClick=onProgram,
+    onDate={day->if(navigation.pane==BrowserPane.PROGRAMMES){epgDay=day;dateFocus=day;navigation=BrowserNavigation.Programmes;focusEpg(preferLive=true)}},
+    onDateFocus={day->if(navigation.pane==BrowserPane.PROGRAMMES){navigation=BrowserNavigation.Dates;dateFocus=day}},
+    reduced=reduced,enabled=epgVisible
+   )
   }
  }
 

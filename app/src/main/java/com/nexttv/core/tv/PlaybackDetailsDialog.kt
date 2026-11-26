@@ -85,18 +85,14 @@ private fun PlaybackSession.detailRows(): List<Pair<String, String>> {
     val programme = replay ?: app.epg.nowNext(current).first
     val address = if (replay == null) route?.url else player.currentMediaItem?.localConfiguration?.uri?.toString()
     val failure = currentFailureRecord()
-    val recent = recentFailureRecords(1)
     return buildList {
         add("频道名" to Ui.displayName(current.name))
         add("分组" to current.groupName)
         add("线路" to routeLabel)
         add("节目" to programme?.title.orEmpty())
-        add("该线路上次失败" to (failure?.let {
+        add("上次失败" to (failure?.let {
             "${failureTime(it.at)} · ${it.code} · ${it.message}"
         } ?: "暂无记录"))
-        if (recent.isNotEmpty()) add("最近失败线路" to recent.joinToString("\n\n") { record ->
-            "${record.channelName} · ${record.routeLabel}\n${failureTime(record.at)} · ${record.code} · ${record.message}"
-        })
         add("地址" to address.orEmpty())
         add("视频" to (videoCodecLabel(video?.sampleMimeType) ?: video?.sampleMimeType.orEmpty()))
         add("分辨率" to (video?.takeIf { it.width > 0 && it.height > 0 }
