@@ -60,13 +60,13 @@ import kotlinx.coroutines.flow.first
  }
 }
 
-/** Right-edge hint kept vertical and tight so every glyph fits on narrow TV rail. */
+/** Right-edge hint kept compact but with enough leading to stay legible on the TV rail. */
 @Composable internal fun BrowserEdgeHint(width:Dp,modifier:Modifier=Modifier){
  Box(modifier.width(width).fillMaxHeight().padding(vertical=4.dp),contentAlignment=Alignment.Center){
   AppText(
    "向右查看节目单".toCharArray().joinToString("\n"),
    fontSize=InteractionStyle.captionSmall,
-   lineHeight=InteractionStyle.captionSmall*1.05f,
+   lineHeight=InteractionStyle.captionSmall*1.18f,
    letterSpacing=0.sp,
    color=NextTvStyle.Text.copy(alpha=.8f),
    textAlign=androidx.compose.ui.text.style.TextAlign.Center,

@@ -96,7 +96,7 @@ class DesignScreenshots {
     @Test fun edgeHint() {
         shoot("07-edge-hint") {
             Box(Modifier.fillMaxSize().background(NextTvStyle.Home), contentAlignment = Alignment.Center) {
-                BrowserEdgeHint(30.dp, Modifier.height(420.dp))
+                BrowserEdgeHint(18.dp, Modifier.height(420.dp))
             }
         }
     }
