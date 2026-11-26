@@ -19,6 +19,53 @@ class SixOptimizationTest {
   assertEquals(24_000L,PreloadPolicy.refreshIntervalMillis(256,lowRam=true))
   assertEquals(24_000L,PreloadPolicy.refreshIntervalMillis(96,lowRam=false))
   assertEquals(8_000L,PreloadPolicy.refreshIntervalMillis(256,lowRam=false))
+  assertEquals(8_000L,PreloadPolicy.deepTtlMillis(256,lowRam=false))
+  assertEquals(30_000L,PreloadPolicy.shallowTtlMillis(256,lowRam=false))
+ }
+
+ @Test fun preloadPlanDeepensOnlyFirstCandidate() {
+  assertEquals(
+   listOf(
+    PreloadPolicy.Target(0,0,true),
+    PreloadPolicy.Target(1,0,false),
+    PreloadPolicy.Target(2,0,false),
+   ),
+   PreloadPolicy.plan(5,4,1,1),
+  )
+  assertEquals(
+   listOf(
+    PreloadPolicy.Target(3,0,true),
+    PreloadPolicy.Target(2,0,false),
+    PreloadPolicy.Target(1,0,false),
+   ),
+   PreloadPolicy.plan(5,4,1,2),
+  )
+ }
+
+ @Test fun bothDirectionsFollowLastZapAndKeepOppositeShallow() {
+  assertEquals(
+   listOf(
+    PreloadPolicy.Target(0,0,true),
+    PreloadPolicy.Target(1,0,false),
+    PreloadPolicy.Target(2,0,false),
+    PreloadPolicy.Target(3,1,false),
+   ),
+   PreloadPolicy.plan(5,4,1,3),
+  )
+  assertEquals(
+   listOf(
+    PreloadPolicy.Target(3,0,true),
+    PreloadPolicy.Target(2,0,false),
+    PreloadPolicy.Target(1,0,false),
+    PreloadPolicy.Target(0,1,false),
+   ),
+   PreloadPolicy.plan(5,4,-1,3),
+  )
+ }
+
+ @Test fun smallChannelListDoesNotDuplicateCandidates() {
+  assertEquals(listOf(PreloadPolicy.Target(1,0,true)),PreloadPolicy.plan(2,0,1,3))
+  assertTrue(PreloadPolicy.plan(5,4,1,0).isEmpty())
  }
 
  @Test fun softwareFallbackBudget(){assertFalse(softwareVideoBudget("video/hevc",3840,2160,30f,512,8,false));assertFalse(softwareVideoBudget("video/hevc",1920,1080,30f,128,8,false));assertFalse(softwareVideoBudget("video/hevc",1920,1080,30f,256,2,false));assertTrue(softwareVideoBudget("video/hevc",1920,1080,30f,256,4,false));assertTrue(softwareVideoBudget("video/avc",1280,720,30f,192,2,false))}

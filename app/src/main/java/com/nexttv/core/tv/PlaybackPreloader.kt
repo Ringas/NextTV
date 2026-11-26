@@ -25,7 +25,7 @@ internal class PlaybackPreloader(
  }
  val confirmedFailureCount get()=unavailableWarmChannels.size
  fun clearFailures(){unavailableWarmChannels.clear()}
- suspend fun warm(channelId:String,stillCurrent:()->Boolean){
+ suspend fun warm(channelId:String,direction:Int,stillCurrent:()->Boolean){
   val mode=app.prefs.preloadMode
   if(mode==0||!stillCurrent())return
   while(currentCoroutineContext().isActive&&stillCurrent()&&app.prefs.preloadMode==mode){
@@ -34,14 +34,29 @@ internal class PlaybackPreloader(
    if(channels.size<2||index<0)return
    val now=android.os.SystemClock.elapsedRealtime()
    unavailableWarmChannels.entries.removeAll{it.value.expiresAt<=now}
-   preloadPool.clear()
+   val plan=effectiveTargets(channels,PreloadPolicy.plan(channels.size,index,direction,mode))
+   if(plan.isEmpty())return
+   val keepIds=plan.mapTo(hashSetOf()){channels[it.index].id}
+   preloadPool.retain(keepIds)
+   preloadPool.pruneStale(
+    now,
+    PreloadPolicy.deepTtlMillis(resources.memoryClass,resources.isLowRamDevice),
+    PreloadPolicy.shallowTtlMillis(resources.memoryClass,resources.isLowRamDevice),
+   )
+   val primary=plan.firstOrNull{it.deep}
+   val backups=plan.filter{it!==primary}
+   var primaryReady=false
    coroutineScope {
-    PreloadPolicy.directions(mode).forEachIndexed { slot, offset ->
-     launch {
-      withTimeoutOrNull(PreloadPolicy.DIRECTION_TIMEOUT_MS) {
-       for(candidate in PreloadPolicy.indices(channels.size,index,offset,PreloadPolicy.MAX_CHANNELS)){
-        if(warmChannel(channels[candidate],slot))break
-       }
+    val primaryJob=primary?.let{target->async{warmTarget(channels[target.index],target.slot,true,stillCurrent)}}
+    val backupJobs=backups.map{target->async{warmTarget(channels[target.index],target.slot,false,stillCurrent)}}
+    primaryReady=primaryJob?.await()?:false
+    backupJobs.awaitAll()
+    if(primary!=null&&!primaryReady&&confirmedUnavailable(channels[primary.index])){
+     val promote=backups.firstOrNull{it.slot==0}
+     if(promote!=null){
+      preloadPool.remove(channels[promote.index].id)
+      withTimeoutOrNull(PreloadPolicy.DIRECTION_TIMEOUT_MS){
+       warmChannel(channels[promote.index],promote.slot,true,stillCurrent)
       }
      }
     }
@@ -49,23 +64,48 @@ internal class PlaybackPreloader(
    delay(PreloadPolicy.refreshIntervalMillis(resources.memoryClass,resources.isLowRamDevice))
   }
  }
- private suspend fun warmChannel(channel:Channel,slot:Int):Boolean {
+ /**
+  * 已确认不可用的台不再反复深预热；它的下一个候选会自动接替深预热位。
+  * 另一方向仍只保留一个浅候选，避免「上下台」模式把线路放大成 6 路。
+  */
+ private fun effectiveTargets(channels:List<Channel>,plan:List<PreloadPolicy.Target>):List<PreloadPolicy.Target> {
+  val primary=plan.filter{it.slot==0}
+  val available=primary.filterNot{confirmedUnavailable(channels[it.index])}
+  val chosen=(available.firstOrNull()?:primary.firstOrNull())?.copy(deep=true)?:return emptyList()
+  val rest=primary.filter{
+   it.index!=chosen.index&&!confirmedUnavailable(channels[it.index])
+  }.map{it.copy(deep=false)}
+  val opposite=plan.filter{it.slot!=0}.map{it.copy(deep=false)}
+  return listOf(chosen)+rest+opposite
+ }
+ private suspend fun warmTarget(channel:Channel,slot:Int,deep:Boolean,stillCurrent:()->Boolean):Boolean {
+  if(!stillCurrent())return false
+  return withTimeoutOrNull(if(deep)PreloadPolicy.DIRECTION_TIMEOUT_MS else PreloadPolicy.SHALLOW_TIMEOUT_MS){
+   warmChannel(channel,slot,deep,stillCurrent)
+  }?:false
+ }
+ private suspend fun warmChannel(channel:Channel,slot:Int,deep:Boolean,stillCurrent:()->Boolean):Boolean {
   val routes=channel.playbackRoutes
   val attempts=PreloadPolicy.routeAttempts(routes.size,preferredRoute(channel))
   var definitiveFailures=0
   for(index in attempts){
+   if(!stillCurrent())return false
    var entry:DataPreloadPool.Entry?=null
    var ready=false
    try {
     withTimeoutOrNull(PreloadPolicy.ATTEMPT_TIMEOUT_MS) {
+     if(!stillCurrent())return@withTimeoutOrNull
      if(!com.nexttv.supportsHttpPlayback(routes[index].url)){
       definitiveFailures++
       return@withTimeoutOrNull
      }
+     preloadPool.existing(channel.id)?.let{existing->
+      if(existing.failed||(deep&&!existing.deep))preloadPool.remove(channel.id)
+     }
      val httpFailure=CompletableDeferred<Exception>()
      val media=sourceFactory.create(channel,index,onPreloadHttpFailure={httpFailure.complete(it)})
      ensureActive()
-     val owned=preloadPool.add(channel.id,slot,media,index)
+     val owned=preloadPool.add(channel.id,slot,media,index,deep)
      val pending=owned?:preloadPool.existing(channel.id)?:return@withTimeoutOrNull
      entry=owned
      val error=select<Throwable?> {

@@ -4,6 +4,7 @@ package com.nexttv.core.tv
 
 import android.content.Context
 import android.os.HandlerThread
+import android.os.SystemClock
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.source.MediaSource
@@ -12,21 +13,37 @@ import kotlinx.coroutines.CompletableDeferred
 
 /** Two data loaders share the main playback looper/allocator. They do not create video decoders. */
 internal class DataPreloadPool(private val context:Context) {
+ private companion object {
+  const val KIND_SOURCE=0
+  const val KIND_DEEP=1
+  const val KIND_SHALLOW=2
+ }
+
  private val thread=HandlerThread("NextTV-media").apply{start()}
  val looper get()=thread.looper
  val loadControl=DefaultLoadControl.Builder().setBufferDurationsMs(800,25000,400,600).build()
  private val activityManager=context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
  private val bufferMillis=PreloadPolicy.bufferMillis(activityManager.memoryClass,activityManager.isLowRamDevice)
  private val builders=mutableMapOf<Int,DefaultPreloadManager>()
- internal data class Entry(val channelId:String,val manager:DefaultPreloadManager,val item:MediaItem,val source:MediaSource,val routeIndex:Int,var ready:Boolean=false,var failed:Boolean=false){
+ internal data class Entry(
+  val channelId:String,
+  val manager:DefaultPreloadManager,
+  val item:MediaItem,
+  val source:MediaSource,
+  val routeIndex:Int,
+  val deep:Boolean,
+  val createdAt:Long=SystemClock.elapsedRealtime(),
+  var ready:Boolean=false,
+  var failed:Boolean=false,
+ ){
   val result=CompletableDeferred<PreloadException?>()
  }
  private val entries=linkedMapOf<String,Entry>()
  private var borrowed:Entry?=null
  private fun manager(slot:Int)=builders.getOrPut(slot){
   val control=TargetPreloadStatusControl<Int,DefaultPreloadManager.PreloadStatus>{kind->
-   if(kind==0||bufferMillis==0L)DefaultPreloadManager.PreloadStatus.PRELOAD_STATUS_SOURCE_PREPARED
-   else DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(bufferMillis)
+   if(kind==KIND_DEEP&&bufferMillis>0L)DefaultPreloadManager.PreloadStatus.specifiedRangeLoaded(bufferMillis)
+   else DefaultPreloadManager.PreloadStatus.PRELOAD_STATUS_SOURCE_PREPARED
   }
   DefaultPreloadManager.Builder(context,control).setPreloadLooper(looper).setLoadControl(loadControl)
    .setRenderersFactory(DecoderCompatibility.renderers(context)).build().also{m->
@@ -36,11 +53,13 @@ internal class DataPreloadPool(private val context:Context) {
     })
    }
  }
- fun add(channelId:String,slot:Int,source:MediaSource,routeIndex:Int):Entry?{
+ fun add(channelId:String,slot:Int,source:MediaSource,routeIndex:Int,deep:Boolean):Entry?{
   if(channelId in entries)return null
-  val m=manager(slot);m.add(source,if(source.mediaItem.localConfiguration?.mimeType==com.nexttv.HLS_MIME)1 else 0)
+  val m=manager(slot)
+  val hls=source.mediaItem.localConfiguration?.mimeType==com.nexttv.HLS_MIME
+  m.add(source,when{!deep->KIND_SHALLOW;hls->KIND_DEEP;else->KIND_SOURCE})
   val wrapped=m.getMediaSource(source.mediaItem)?:error("预热源创建失败")
-  val entry=Entry(channelId,m,source.mediaItem,wrapped,routeIndex)
+  val entry=Entry(channelId,m,source.mediaItem,wrapped,routeIndex,deep)
   entries[channelId]=entry
   m.invalidate()
   return entry
@@ -48,15 +67,30 @@ internal class DataPreloadPool(private val context:Context) {
  fun existing(channelId:String):Entry?=entries[channelId]
  fun routeIndex(channelId:String):Int?=entries[channelId]?.takeUnless{it.failed}?.routeIndex
  fun take(channelId:String,index:Int):Entry?=entries[channelId]?.takeIf{it.routeIndex==index&&!it.failed}?.also{entries.remove(channelId)}
+ fun remove(channelId:String):Entry?{
+  val entry=entries.remove(channelId) ?: return null
+  entry.manager.remove(entry.item)
+  return entry
+ }
  fun discard(entry:Entry){
   if(entries[entry.channelId]!==entry)return
-  entries.remove(entry.channelId)
-  entry.manager.remove(entry.item)
+  remove(entry.channelId)
+ }
+ fun retain(keepIds:Set<String>){
+  entries.keys.toList().filterNot{it in keepIds}.forEach{remove(it)}
+ }
+ fun pruneStale(now:Long,deepTtl:Long,shallowTtl:Long){
+  entries.values.toList().forEach{entry->
+   val ttl=if(entry.deep)deepTtl else shallowTtl
+   if(now-entry.createdAt>=ttl)discard(entry)
+  }
  }
  fun adopt(entry:Entry){borrowed=entry}
  fun releaseBorrowed(){borrowed?.let{it.manager.remove(it.item)};borrowed=null}
- fun clear(){entries.values.forEach{it.manager.remove(it.item)};entries.clear()}
+ fun clear(){entries.values.toList().forEach{it.manager.remove(it.item)};entries.clear()}
  fun readyIds()=entries.values.filter{it.ready}.map{it.channelId}
+ fun deepCount()=entries.values.count{it.deep}
+ fun shallowCount()=entries.values.count{!it.deep}
  fun size()=entries.size
  fun release(){clear();releaseBorrowed();builders.values.forEach{it.release()};builders.clear();thread.quitSafely()}
 }

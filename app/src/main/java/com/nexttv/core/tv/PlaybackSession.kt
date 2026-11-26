@@ -85,7 +85,7 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
  private var audioSoftwareDecoder=false
  private var warmHits=0
  private var warmMisses=0
- fun diagnostics()="warmSlots=$warmSlots prepared=${preloadPool.size()} readyIds=${preloadPool.readyIds()} confirmedWarmFailures=${preloader.confirmedFailureCount} hits=$warmHits misses=$warmMisses firstFrameMs=$firstFrameMs softwareAttempts=${softwareAttempts.size} decoder=$decoderName software=$softwareDecoder audioDecoder=$audioDecoderName audioSoftware=$audioSoftwareDecoder pcm=${decoderPreferences.forcePcm} audioRetries=${audioRecoveryAttempts.size} failures=${recentFailures.joinToString(" | ")}"
+ fun diagnostics()="warmSlots=$warmSlots prepared=${preloadPool.size()} deep=${preloadPool.deepCount()} shallow=${preloadPool.shallowCount()} readyIds=${preloadPool.readyIds()} confirmedWarmFailures=${preloader.confirmedFailureCount} hits=$warmHits misses=$warmMisses firstFrameMs=$firstFrameMs softwareAttempts=${softwareAttempts.size} decoder=$decoderName software=$softwareDecoder audioDecoder=$audioDecoderName audioSoftware=$audioSoftwareDecoder pcm=${decoderPreferences.forcePcm} audioRetries=${audioRecoveryAttempts.size} failures=${recentFailures.joinToString(" | ")}"
  fun trimMemory(){warmJob?.cancel();clearWarm();preloader.clearFailures()}
  private fun clearWarm(){preloadPool.clear()}
  private var prepareJob:Job?=null;private var warmJob:Job?=null;private var retryJob:Job?=null;private var loadingJob:Job?=null;private var timeoutJob:Job?=null
@@ -190,8 +190,8 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
   private fun valid()=target===player&&!closed&&serial==tuneSerial
   override fun onPlaybackStateChanged(state:Int){if(!valid())return;ready=state==Player.STATE_READY
    if(ready){if(rendered){timeoutJob?.cancel();recoveryBudget.pause()};loadingJob?.cancel();loading=false;if(!recovering&&target.playWhenReady)error=""}
-   if(state==Player.STATE_BUFFERING){stableJob?.cancel();if(foreground&&target.playWhenReady)watch(serial)}
-   if(ready&&rendered){stableJob?.cancel();stableJob=scope.launch{delay(30000);if(valid()&&target.isPlaying){exhausted.clear();recoveryBudget.reset();videoFailedRoutes.clear();recovery.reset(routeIndex);replayRecovery.reset(replayRoutes().indexOf(routeIndex))}}}
+   if(state==Player.STATE_BUFFERING){stableJob?.cancel();if(warmJob?.isActive==true){warmJob?.cancel();clearWarm()};if(foreground&&target.playWhenReady)watch(serial)}
+   if(ready&&rendered){stableJob?.cancel();stableJob=scope.launch{delay(30000);if(valid()&&target.isPlaying){exhausted.clear();recoveryBudget.reset();videoFailedRoutes.clear();recovery.reset(routeIndex);replayRecovery.reset(replayRoutes().indexOf(routeIndex))}};if(foreground&&replay==null&&warmJob?.isActive!=true)warmJob=scope.launch{delay(500);warm()}}
    if(state==Player.STATE_ENDED){if(replay!=null)returnLive()else failWithReason("LIVE_STREAM_ENDED","直播流已结束",serial)}
   }
   override fun onRenderedFirstFrame(){if(!valid())return;rendered=true;surfaceHasFrame=true;recoveryBudget.pause();lastVideoFormat=target.videoFormat;target.videoFormat?.let{decoderHistory.success(routeKey(current,routeIndex),it.sampleMimeType.orEmpty(),decoderName)};lastGoodRoutes[current.id]=routeKey(current,routeIndex);preloadPool.releaseBorrowed();firstFrameMs=android.os.SystemClock.elapsedRealtime()-tuneStarted;timeoutJob?.cancel();loadingJob?.cancel();loading=false;stableJob?.cancel();stableJob=scope.launch{delay(30000);if(valid()&&target.isPlaying){exhausted.clear();recoveryBudget.reset();videoFailedRoutes.clear();recovery.reset(routeIndex);replayRecovery.reset(replayRoutes().indexOf(routeIndex))}};warmJob?.cancel();warmJob=scope.launch{delay(500);warm()}}
@@ -389,7 +389,10 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
  }
  private suspend fun warm(){
   val serial=tuneSerial
-  preloader.warm(current.id){serial==tuneSerial&&!closed&&foreground&&replay==null&&!offline()}
+  val direction=direction
+  preloader.warm(current.id,direction){
+   serial==tuneSerial&&!closed&&foreground&&replay==null&&!offline()&&!loading&&!recovering
+  }
  }
  data class DecoderChoice(val id:String,val label:String,val detail:String,val enabled:Boolean=true)
  val selectedDecoderId get()=manualDecoderMode
