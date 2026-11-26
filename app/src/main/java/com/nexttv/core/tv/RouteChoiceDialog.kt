@@ -9,9 +9,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import com.nexttv.core.data.ChannelRoute
 import com.nexttv.core.data.RouteHealth
 
-/** Only display stream metadata; no latency probes or extra live downloads on menu open. */
+/** Only display stream metadata; latency is measured at most two at a time when the picker opens. */
 @Composable internal fun RouteChoiceDialog(engine:PlaybackSession,onDismiss:()->Unit,onChoose:(String)->Unit){
  val routes=engine.current.playbackRoutes
  val visible=if(engine.app.prefs.hideUnavailableRoutes)RouteHealth.availableRoutes(routes)else routes
@@ -19,6 +20,9 @@ import com.nexttv.core.data.RouteHealth
  val sources=engine.app.channels.sources.associateBy{it.id}
  val crossSource=routes.map{it.sourceId}.distinct().size>1
  var inspected by remember{mutableStateOf<Int?>(null)}
+ var latencies by remember{mutableStateOf<Map<ChannelRoute,Long?>>(emptyMap())}
+ val routeKeys=visible.map{it.sourceId to it.url}
+ LaunchedEffect(routeKeys){latencies=RouteLatency.measure(engine.app,visible)}
  val index=inspected
  StableDialogHost(onDismiss,transitionKey=index){
  if(index!=null&&index in routes.indices){
@@ -38,7 +42,10 @@ import com.nexttv.core.data.RouteHealth
   val raw=routes.indexOf(r)
   val replay=com.nexttv.core.data.supportsReplay(r)
   val label=listOfNotNull("线路 ${position+1}",sources[r.sourceId]?.name?.takeIf{crossSource&&it.isNotBlank()}, "回放".takeIf{replay}).joinToString(" · ")
-  ChoiceOption(raw.toString(),label,r.url,engine.replay==null||com.nexttv.core.data.replayAddress(r,engine.replay!!,System.currentTimeMillis())!=null)
+  val latency=latencies[r]
+  val tone=latency?.let{RouteLatency.tone(it)}
+  val color=when(tone){RouteLatency.Tone.GOOD->NextTvStyle.LatencyGood;RouteLatency.Tone.FAIR->NextTvStyle.LatencyFair;RouteLatency.Tone.SLOW->NextTvStyle.LatencySlow;null->null}
+  ChoiceOption(raw.toString(),label,r.url,engine.replay==null||com.nexttv.core.data.replayAddress(r,engine.replay!!,System.currentTimeMillis())!=null,latency?.let{"${it}ms"}?:"",color)
  },engine.routeIndex.toString(),onDismiss,onInspect={inspected=it.toIntOrNull()},singleLineDetails=true,width=520.dp,onChoose=onChoose)
  }
 }

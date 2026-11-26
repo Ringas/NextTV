@@ -18,7 +18,7 @@ import androidx.tv.material3.Text
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
-internal data class ChoiceOption(val id:String,val label:String,val detail:String="",val enabled:Boolean=true)
+internal data class ChoiceOption(val id:String,val label:String,val detail:String="",val enabled:Boolean=true,val latency:String="",val latencyColor:Color?=null)
 
 /** Constrain the viewport, not the scroll content; open at the actual selected item. */
 @Composable internal fun ChoiceDialog(title:String,options:List<ChoiceOption>,selectedId:String?,onDismiss:()->Unit,uniformRows:Boolean=false,onInspect:((String)->Unit)?=null,singleLineDetails:Boolean=false,width:Dp=440.dp,onChoose:(String)->Unit){
@@ -57,6 +57,7 @@ internal data class ChoiceOption(val id:String,val label:String,val detail:Strin
     TvSurface(Modifier.fillMaxWidth().focusRequester(request).focusEdges(up=option.id==options.firstOrNull{it.enabled}?.id,down=option.id==options.lastOrNull{it.enabled}?.id,left=true,right=true).focusProperties{canFocus=option.enabled;left=FocusRequester.Cancel;right=FocusRequester.Cancel;if(option.id==options.firstOrNull{it.enabled}?.id)up=FocusRequester.Cancel;if(option.id==options.lastOrNull{it.enabled}?.id)down=FocusRequester.Cancel}.semantics{if(selectedId!=null){selected=option.id==selectedId;role=Role.RadioButton};stateDescription=if(!option.enabled)"不可用"else if(option.id==selectedId)"已选择"else""},kind="categoryRow",selected=option.id==selectedId,enabled=option.enabled,onFocus={focusedId=option.id},longClickLabel=if(onInspect!=null)"查看完整地址"else null,onLongClick=onInspect?.let{inspect->{inspect(option.id)}},onClick={if(option.enabled)onChoose(option.id)}){
      Row(Modifier.fillMaxWidth().then(if(uniformRows)Modifier.height(rowHeight)else Modifier).padding(horizontal=14.dp,vertical=if(uniformRows)10.dp else 12.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically){
       Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(if(uniformRows)2.dp else 0.dp)){AppText(option.label,fontSize=InteractionStyle.body,maxLines=if(uniformRows||singleLineDetails)1 else 2,overflow=TextOverflow.Ellipsis);if(option.detail.isNotBlank()||uniformRows)AppText(option.detail.ifBlank{" "},color=if(uniformRows||singleLineDetails)if(option.enabled)NextTvStyle.Muted else NextTvStyle.Disabled else Color.Unspecified,fontSize=InteractionStyle.caption,maxLines=if(uniformRows||singleLineDetails)1 else 2,overflow=TextOverflow.Ellipsis)}
+      if(option.latency.isNotBlank())AppText(option.latency,Modifier.padding(start=10.dp),fontSize=InteractionStyle.caption,fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold,color=option.latencyColor?:NextTvStyle.Muted,maxLines=1)
      }
     }
    }

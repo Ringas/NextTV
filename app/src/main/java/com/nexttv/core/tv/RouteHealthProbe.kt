@@ -32,7 +32,8 @@ import kotlinx.coroutines.withContext
  * background traffic.
  *
  * Timing:
- *  - hidden routes are retried every 3 minutes, so recovery is automatic;
+ *  - hidden routes are retried every few seconds in tiny batches, so recovery is
+ *    visible while the user is still zapping rather than minutes later;
  *  - all other routes are swept over a four-hour window, a few dozen per pass;
  *    the pass is incremental, never a full-library burst;
  *  - a request gets 8s for its first byte and 25s total once bytes start flowing.
@@ -41,16 +42,17 @@ import kotlinx.coroutines.withContext
 internal object RouteHealthProbe {
     private const val STARTUP_DELAY_MS = 8_000L
     private const val TRANSIENT_RETRY_MS = 60_000L
-    private const val HIDDEN_RETRY_MS = 3 * 60 * 1000L
+    private const val HIDDEN_RETRY_MS = 8_000L
+    private const val HIDDEN_PASS_GAP_MS = 3_000L
     private const val FULL_SWEEP_MS = 4 * 60 * 60 * 1000L
     private const val IDLE_CONCURRENCY = 2
     private const val PLAYING_CONCURRENCY = 1
-    // Small quotas keep a burst short: at most ~2 minutes idle / ~90 seconds while
-    // playing, then the loop backs off before the next batch.
+    // Hidden recovery uses small batches so a recovered route returns to the
+    // channel list within seconds, not after a 20-route burst.
     private const val IDLE_ROUTES_PER_PASS = 40
     private const val PLAYING_ROUTES_PER_PASS = 12
-    private const val IDLE_HIDDEN_PER_PASS = 20
-    private const val PLAYING_HIDDEN_PER_PASS = 6
+    private const val IDLE_HIDDEN_PER_PASS = 4
+    private const val PLAYING_HIDDEN_PER_PASS = 2
 
     suspend fun run(app: App, priorityGroup: () -> String, visible: () -> Boolean) {
         delay(STARTUP_DELAY_MS)
@@ -92,7 +94,7 @@ internal object RouteHealthProbe {
                 retryBefore = now - TRANSIENT_RETRY_MS,
             ).filterNot { routeIdentity(it) in blocked || routeIdentity(it) in hiddenKeys }
             if (hiddenBatch.isEmpty() && targets.isEmpty()) {
-                delay(HIDDEN_RETRY_MS)
+                delay(if (hidden.isEmpty()) 30_000L else HIDDEN_RETRY_MS)
                 continue
             }
             val limit = if (session == null) IDLE_ROUTES_PER_PASS else PLAYING_ROUTES_PER_PASS
@@ -129,9 +131,13 @@ internal object RouteHealthProbe {
                 index += batch.size
                 delay(if (active == null) 120 else 700)
             }
-            // Backlog rotates through small batches; once caught up, idle for
-            // the hidden-route recovery interval.
-            delay(if (backlog) 30_000L else HIDDEN_RETRY_MS)
+            // Hidden recovery gets a short gap between tiny batches. Normal
+            // sweeps keep the old backoff so this does not become a hot loop.
+            delay(when {
+                hiddenBatch.isNotEmpty() -> HIDDEN_PASS_GAP_MS
+                backlog -> 30_000L
+                else -> HIDDEN_RETRY_MS
+            })
         }
     }
 
