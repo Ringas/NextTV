@@ -7,11 +7,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -38,19 +35,8 @@ private val artworkBrushes = artworkColors.map { (base, highlight) -> Brush.line
 
 private fun artworkIndex(c: Channel): Int = (if (c.number > 0) c.number - 1 else c.id.hashCode() and Int.MAX_VALUE)
 
-/** One stable artwork tint per channel, shared by cards and the ambient home backdrop. */
+/** One stable artwork tint per channel, used by the channel cards. */
 internal fun channelArtworkBrush(c: Channel): Brush = artworkBrushes[artworkIndex(c) % artworkBrushes.size]
-internal fun channelArtworkColors(c: Channel): Pair<Color, Color> = artworkColors[artworkIndex(c) % artworkColors.size]
-
-/** A low-saturation wash pulled from the first visible channel; never a full-bleed poster. */
-@Composable internal fun HomeBackdrop(channel: Channel?) {
- val colors = remember(channel?.id) { channel?.let(::channelArtworkColors) ?: (Color(0xFF4B6C8C) to Color(0xFF89A7C2)) }
- Box(Modifier.fillMaxSize().drawBehind {
-  drawRect(Brush.radialGradient(listOf(colors.first.copy(alpha = .26f), Color.Transparent), center = Offset(size.width * .18f, -size.height * .08f), radius = size.width * .62f))
-  drawRect(Brush.radialGradient(listOf(colors.second.copy(alpha = .12f), Color.Transparent), center = Offset(size.width * .84f, 0f), radius = size.width * .5f))
-  drawRect(Brush.verticalGradient(listOf(Color.Transparent, NextTvStyle.Home.copy(alpha = .92f)), startY = size.height * .4f))
- })
-}
 
 @Composable
 private fun CardText(text: String, size: Int, color: Color, modifier: Modifier = Modifier, bold: Boolean = false, letterSpacing: TextUnit = 0.sp) {

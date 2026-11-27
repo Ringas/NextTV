@@ -46,9 +46,10 @@ object NextTvStyle {
  private val light get()=com.nexttv.core.App.get().prefs.lightGlass
  private fun tone(dark:Long,pale:Long)=Color(if(light)pale else dark)
  // Nocturne: one near-black canvas, two graphite surface levels and an ivory interaction ink.
- // Body colour comes from artwork; chrome stays monochrome.
+ // Channel cards carry artwork colour; page canvas and chrome stay monochrome.
  val Background get()=tone(0xFF0A0C10,0xFFF4F5F7)
- val Home get()=tone(0xFF0A0C10,0xFFF4F5F7)
+ // The home canvas is the app canvas; keep them the same source so they cannot drift.
+ val Home get()=Background
  val Text get()=tone(0xFFF4F6F8,0xFF101318)
  val Muted get()=tone(0xFF98A1AE,0xFF5F6875)
  val AccentText get()=tone(0xFFB9D0FF,0xFF1D4F9E)

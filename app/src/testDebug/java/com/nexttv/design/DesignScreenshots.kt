@@ -183,8 +183,7 @@ private fun HomeScene(tab: Int) {
     val first = remember { FocusRequester() }
     val category = remember { FocusRequester() }
     val focusers = remember { mutableStateMapOf<String, FocusRequester>() }
-    Box(Modifier.fillMaxSize()) {
-        HomeBackdrop(demoChannels.firstOrNull { it.id == "cctv5" })
+    Box(Modifier.fillMaxSize().background(NextTvStyle.Home)) {
         HomeNavigation(
             tab, true, nav,
             Modifier.align(Alignment.TopCenter).padding(top = 20.dp),
