@@ -67,6 +67,7 @@ private typealias SettingsEntry = SettingsRowData
    android.provider.Settings.Global.getString(view.context.contentResolver, "device_name")
   }.getOrNull()?.trim()?.takeIf { it.isNotEmpty() } ?: android.os.Build.MODEL
  }
+ val resolution = rememberWindowResolution()
  val hardware = listOf(android.os.Build.MANUFACTURER, android.os.Build.MODEL)
   .map(String::trim)
   .filter { it.isNotEmpty() && !it.equals("unknown", ignoreCase = true) }
@@ -102,6 +103,7 @@ private typealias SettingsEntry = SettingsRowData
    SettingsEntry("清除缓存",CacheStore.format(cacheBytes),"删除频道、节目单、播放源备份和台标缓存；不会删除订阅、收藏或设置。",{edit="清除缓存"}))
   else -> listOf(
    SettingsEntry("应用版本", BuildConfig.VERSION_NAME),
+   SettingsEntry("当前分辨率", resolution, "本应用当前渲染窗口的物理像素尺寸。"),
    SettingsEntry("设备名称", deviceName),
    SettingsEntry("设备信息", deviceInfo),
    SettingsEntry("设备架构", android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "未知")
@@ -192,6 +194,27 @@ private typealias SettingsEntry = SettingsRowData
   }
  }}
 }
+
+/** Window pixels, not the design-scaled dp canvas, so HDMI mode changes stay truthful. */
+@Composable private fun rememberWindowResolution():String{
+ val view=LocalView.current
+ var resolution by remember{mutableStateOf("检测中…")}
+ DisposableEffect(view){
+  val root=view.rootView
+  fun refresh(){
+   val next=formatWindowResolution(root.width,root.height)
+   if(next!=resolution)resolution=next
+  }
+  refresh()
+  val observer=root.viewTreeObserver
+  val listener=android.view.ViewTreeObserver.OnGlobalLayoutListener{refresh()}
+  observer.addOnGlobalLayoutListener(listener)
+  onDispose{if(observer.isAlive)observer.removeOnGlobalLayoutListener(listener)}
+ }
+ return resolution
+}
+
+internal fun formatWindowResolution(width:Int,height:Int):String=if(width>0&&height>0)"$width × $height" else "检测中…"
 
 /** Two editable fields have explicit remote/Tab order; the IME owns text entry only after confirmation. */
 @Composable private fun NetworkRequestDialog(onDismiss:()->Unit,onSave:(String,String)->Unit){

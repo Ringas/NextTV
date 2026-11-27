@@ -2,6 +2,7 @@ package com.nexttv
 import com.nexttv.core.tv.homeSafeInsets
 import com.nexttv.core.tv.tvViewportScale
 import com.nexttv.core.tv.homeColumnCount
+import com.nexttv.core.tv.formatWindowResolution
 import org.junit.Assert.*
 import org.junit.Test
 class TvLayoutReferenceTest {
@@ -9,4 +10,5 @@ class TvLayoutReferenceTest {
  @Test fun logicalHalfScale(){val i=homeSafeInsets(960,540);assertEquals(40f,i.horizontal,.01f);assertEquals(30f,i.vertical,.01f)}
  @Test fun shortWideWindowFitsThreeCards(){assertEquals(3,homeColumnCount(640,true,360));assertEquals(4,homeColumnCount(1138,true,640));assertEquals(1,homeColumnCount(640,false,360))}
  @Test fun viewportScaleTracksPhysicalScreenHeight(){assertEquals(1f,tvViewportScale(360),.001f);assertEquals(1f,tvViewportScale(540),.001f);assertEquals(4f/3f,tvViewportScale(720),.001f);assertEquals(2f,tvViewportScale(1080),.001f);assertEquals(4f,tvViewportScale(2160),.001f)}
+ @Test fun windowResolutionShowsPhysicalPixels(){assertEquals("3840 × 2160",formatWindowResolution(3840,2160));assertEquals("1920 × 1080",formatWindowResolution(1920,1080));assertEquals("检测中…",formatWindowResolution(0,2160))}
 }
