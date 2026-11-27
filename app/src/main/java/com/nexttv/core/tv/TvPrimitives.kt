@@ -100,9 +100,6 @@ object NextTvStyle {
  val MediaPressed=Color(0x38FFFFFF)
  val MediaChipFill=Color(0x1FFFFFFF)
  val MediaChipStroke=Color(0x47FFFFFF)
- // Persistent player clocks sit directly on the video, so they need a darker
- // reading surface than the chips used inside the bottom scrim.
- val MediaHudFill=Color(0xB30A0C10)
  // Flat surfaces share one graphite fill and one hairline; no glass tokens remain.
  val Panel get()=tone(0xFF14171D,0xFFFFFFFF)
  val Decelerate=Easing {1f-(1f-it)*(1f-it)}

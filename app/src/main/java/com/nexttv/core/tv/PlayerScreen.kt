@@ -238,7 +238,9 @@ import kotlin.math.roundToInt
   PlayerBottomBar(engine,tick,actionsVisible,actionFocus,onActionFocus={actionFocused=it},onAction={perform(it)},modifier=Modifier.align(Alignment.BottomCenter).onSizeChanged{bottomPanelHeight=it.height})
  }
   val clockMode=app.prefs.playerClockMode
-  if(!side&&dialog.isBlank()&&digits.isBlank()&&engine.error.isBlank()&&engine.ready&&playerClockVisible(clockMode,tick))PlayerPersistentHud(tick,Modifier.align(Alignment.TopEnd).padding(top=18.dp,end=26.dp))
+  // A clock the viewer explicitly turned on is not an action overlay: information
+  // panels (side rail, dialogs, channel digits) must not make it disappear.
+  if(engine.error.isBlank()&&engine.ready&&playerClockVisible(clockMode,tick))PlayerPersistentHud(tick,Modifier.align(Alignment.TopEnd).padding(top=18.dp,end=26.dp))
   if(side)key(engine.current.sourceId,sideGeneration){ChannelSidePanel(engine.current,group,sideGeneration,onGroup={group=it},onSelect={if(it.id!=engine.current.id)engine.tune(it);side=false;root.requestFocus()},controller=browserController,onCloseAll={dismissOverlays()},playingReplay=engine.replay!=null,playingPaused=engine.ready&&!engine.player.playWhenReady,onProgram={c,p->if(engine.playReplay(c,p)){side=false;root.requestFocus()}else if(System.currentTimeMillis() in p.start until p.stop){engine.tune(c);side=false;root.requestFocus()}else if(p.desc.isNotBlank()){selectedProgram=p;dialog="节目详情"}else notice=if(p.start>System.currentTimeMillis())"节目尚未开始"else"该节目暂不支持回放"},modifier=Modifier.align(Alignment.CenterStart))}
   if(!actionsVisible)seekFeedback?.let{ReplaySeekOverlay(it,Modifier.align(Alignment.BottomCenter))}
   if(digits.isNotBlank())AppText(
@@ -358,10 +360,9 @@ import kotlin.math.roundToInt
 
 /** Optional wall clock on the media layer; visibility is controlled by the Time display menu. */
 @Composable internal fun PlayerPersistentHud(now:Long,modifier:Modifier){
- val shape=RoundedCornerShape(10.dp)
  AppText(
   Ui.hhmm(now),
-  modifier.background(NextTvStyle.MediaHudFill,shape).padding(horizontal=14.dp,vertical=7.dp).semantics{contentDescription="当前时间 ${Ui.hhmm(now)}"},
+  modifier.semantics{contentDescription="当前时间 ${Ui.hhmm(now)}"},
   fontSize=InteractionStyle.clock,
   fontWeight=FontWeight.SemiBold,
   color=NextTvStyle.MediaText,
