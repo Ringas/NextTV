@@ -49,6 +49,7 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
  val routeLabel get()=if(visibleRouteCount==0)"暂无可用线路" else "线路 ${visibleRouteIndex+1}"
  private fun visibleRouteIndices()=if(!app.prefs.hideUnavailableRoutes)current.playbackRoutes.indices.toList()else RouteHealth.availableRoutes(current.playbackRoutes).mapNotNull{r->current.playbackRoutes.indexOf(r)}
  var loading by mutableStateOf(false);private set
+ var quietRecovery by mutableStateOf(false);private set
  var error by mutableStateOf("");private set
  var ready by mutableStateOf(false);private set
  var rendered by mutableStateOf(false);private set
@@ -81,10 +82,10 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
    RouteFailureJournal.record(routeKey(current,routeIndex),com.nexttv.core.ui.Ui.displayName(current.name),routeLabel,code,message)
   }
  }
- private fun failWithReason(code:String,message:String,serial:Int){
+ private fun failWithReason(code:String,message:String,serial:Int,definitive:Boolean=false){
   if(closed||serial!=tuneSerial||recovering||!foreground)return
   recordFailure(code,message)
-  failed(message,serial)
+  failed(message,serial,definitive)
  }
  private var audioDecoderName=""
  internal val videoDecoderLabel get()=decoderName
@@ -124,9 +125,11 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
  }
  private fun restartCurrentRoute(autoplay:Boolean=requestedAutoplay){
   exhausted.clear();recoveryBudget.reset();videoFailedRoutes.clear()
+  resetAutoHopWindow()
   recovery.reset(routeIndex);replayRecovery.reset(replayRoutes().indexOf(routeIndex))
   attempt(current,routeIndex,autoplay)
  }
+ private fun resetAutoHopWindow(){autoChannelHops=0;softChannelHops=0;quietRecovery=false}
  private fun waitForNetwork(){
   if(waitingForNetwork)return
   waitingForNetwork=true
@@ -140,6 +143,7 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
   clearWarm();preloadPool.releaseBorrowed();preloader.clearFailures()
  }
  private var direction=1;private var closed=false;private var recovering=false
+ private var autoChannelHops=0;private var softChannelHops=0
  private var foreground=true;private var resumeMain=false;private var resumePosition=0L;private var pendingPosition:Long?=null
  private val recovery get()=playbackRecovery.liveRoutes
  private val replayRecovery get()=playbackRecovery.replayRoutes
@@ -200,10 +204,10 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
   override fun onPlaybackStateChanged(state:Int){if(!valid())return;ready=state==Player.STATE_READY
    if(ready){if(rendered){timeoutJob?.cancel();recoveryBudget.pause()};loadingJob?.cancel();loading=false;if(!recovering&&target.playWhenReady)error=""}
    if(state==Player.STATE_BUFFERING){stableJob?.cancel();if(warmJob?.isActive==true){warmJob?.cancel();clearWarm()};if(foreground&&target.playWhenReady)watch(serial)}
-   if(ready&&rendered){stableJob?.cancel();stableJob=scope.launch{delay(30000);if(valid()&&target.isPlaying){exhausted.clear();recoveryBudget.reset();videoFailedRoutes.clear();recovery.reset(routeIndex);replayRecovery.reset(replayRoutes().indexOf(routeIndex))}};if(foreground&&replay==null&&warmJob?.isActive!=true)warmJob=scope.launch{delay(500);warm()}}
+   if(ready&&rendered){stableJob?.cancel();stableJob=scope.launch{delay(30000);if(valid()&&target.isPlaying){exhausted.clear();recoveryBudget.reset();videoFailedRoutes.clear();resetAutoHopWindow();recovery.reset(routeIndex);replayRecovery.reset(replayRoutes().indexOf(routeIndex))}};if(foreground&&replay==null&&warmJob?.isActive!=true)warmJob=scope.launch{delay(500);warm()}}
    if(state==Player.STATE_ENDED){if(replay!=null)returnLive()else failWithReason("LIVE_STREAM_ENDED","直播流已结束",serial)}
   }
-  override fun onRenderedFirstFrame(){if(!valid())return;rendered=true;surfaceHasFrame=true;currentRoute?.let(RouteHealth::markPlaybackSuccess);recoveryBudget.pause();lastVideoFormat=target.videoFormat;target.videoFormat?.let{decoderHistory.success(routeKey(current,routeIndex),it.sampleMimeType.orEmpty(),decoderName)};lastGoodRoutes[current.id]=routeKey(current,routeIndex);preloadPool.releaseBorrowed();firstFrameMs=android.os.SystemClock.elapsedRealtime()-tuneStarted;timeoutJob?.cancel();loadingJob?.cancel();loading=false;stableJob?.cancel();stableJob=scope.launch{delay(30000);if(valid()&&target.isPlaying){exhausted.clear();recoveryBudget.reset();videoFailedRoutes.clear();recovery.reset(routeIndex);replayRecovery.reset(replayRoutes().indexOf(routeIndex))}};warmJob?.cancel();warmJob=scope.launch{delay(500);warm()}}
+  override fun onRenderedFirstFrame(){if(!valid())return;rendered=true;surfaceHasFrame=true;quietRecovery=false;currentRoute?.let(RouteHealth::markPlaybackSuccess);recoveryBudget.pause();lastVideoFormat=target.videoFormat;target.videoFormat?.let{decoderHistory.success(routeKey(current,routeIndex),it.sampleMimeType.orEmpty(),decoderName)};lastGoodRoutes[current.id]=routeKey(current,routeIndex);preloadPool.releaseBorrowed();firstFrameMs=android.os.SystemClock.elapsedRealtime()-tuneStarted;timeoutJob?.cancel();loadingJob?.cancel();loading=false;stableJob?.cancel();stableJob=scope.launch{delay(30000);if(valid()&&target.isPlaying){exhausted.clear();recoveryBudget.reset();videoFailedRoutes.clear();resetAutoHopWindow();recovery.reset(routeIndex);replayRecovery.reset(replayRoutes().indexOf(routeIndex))}};warmJob?.cancel();warmJob=scope.launch{delay(500);warm()}}
   override fun onPlayWhenReadyChanged(playWhenReady:Boolean,reason:Int){if(!valid())return
    if(!playWhenReady){timeoutJob?.cancel();recoveryBudget.pause()}
    else if(foreground&&(!ready||!rendered)){recoveryBudget.enter(current.id);watch(serial)}
@@ -221,7 +225,7 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
    val message=playbackFailureMessage(e,e.errorCode)
    recordFailure(e.errorCodeName+(http?.let{" HTTP $it"}?:""),message)
    if(isDefinitiveRouteFailure(e))currentRoute?.let(RouteHealth::markPlaybackDefinitiveFailure)
-   if(!tryDecoderRecovery(e))failed(message,serial)
+   if(!tryDecoderRecovery(e))failed(message,serial,isDefinitiveRouteFailure(e))
   }}
  }
  init{
@@ -297,10 +301,10 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
   }
  }
  fun applyPreloadSetting(){warmJob?.cancel();clearWarm();preloader.clearFailures();warmJob=scope.launch{warm()}}
- fun playReplay(channel:Channel,program:Program):Boolean{recoveryBudget.reset();videoFailedRoutes.clear();val i=preferredReplayRoute(channel,program,System.currentTimeMillis());if(i<0)return false;resumePosition=0;pendingPosition=null;replay=program;current=channel;replayRecovery.reset(replayRoutes().indexOf(i));exhausted.clear();recovery.reset(i);attempt(channel,i);return true}
+ fun playReplay(channel:Channel,program:Program):Boolean{recoveryBudget.reset();videoFailedRoutes.clear();resetAutoHopWindow();val i=preferredReplayRoute(channel,program,System.currentTimeMillis());if(i<0)return false;resumePosition=0;pendingPosition=null;replay=program;current=channel;replayRecovery.reset(replayRoutes().indexOf(i));exhausted.clear();recovery.reset(i);attempt(channel,i);return true}
  fun returnLive(){replay=null;tune(current)}
  fun tune(channel:Channel){direction=1;tuneChannel(channel)}
- private fun tuneChannel(channel:Channel){if(closed)return;recoveryBudget.reset();videoFailedRoutes.clear();if(channel.id!=current.id){manualDecoderMode="auto";manualDecoderMime=null;lastVideoFormat=null};recentFailures.clear();if(channel.id!=current.id){softwareAttempts.clear();audioRecoveryAttempts.clear()};replay=null;pendingPosition=null;resumePosition=0;exhausted.clear()
+ private fun tuneChannel(channel:Channel){if(closed)return;recoveryBudget.reset();videoFailedRoutes.clear();resetAutoHopWindow();if(channel.id!=current.id){manualDecoderMode="auto";manualDecoderMime=null;lastVideoFormat=null};recentFailures.clear();if(channel.id!=current.id){softwareAttempts.clear();audioRecoveryAttempts.clear()};replay=null;pendingPosition=null;resumePosition=0;exhausted.clear()
   val index=preferredRoute(channel)
   recovery.reset(index);attempt(channel,index)
  }
@@ -314,7 +318,7 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
  }
  fun chooseRoute(index:Int):Boolean{
   if(index !in current.playbackRoutes.indices||index==routeIndex)return false
-  recoveryBudget.reset();videoFailedRoutes.clear()
+  recoveryBudget.reset();videoFailedRoutes.clear();resetAutoHopWindow()
   if(replay!=null&&replayAddress(current.playbackRoutes[index],replay!!,System.currentTimeMillis())==null)return false
   if(replay!=null){pendingPosition=player.currentPosition.coerceAtLeast(0);replayRecovery.reset(replayRoutes().indexOf(index))};exhausted.clear();recovery.reset(index);attempt(current,index);return true
  }
@@ -381,10 +385,10 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
   if(cached!=null){preloadPool.adopt(cached);target.setMediaSource(cached.source);target.prepare();target.playWhenReady=foreground&&autoplay;return}
   prepareJob=scope.launch{
    try{val media=sourceFactory.create(channel,index,replay);ensureActive();if(serial==tuneSerial&&!closed){val position=pendingPosition;pendingPosition=null;if(position!=null)target.setMediaSource(media,position)else target.setMediaSource(media);target.prepare();target.playWhenReady=foreground&&autoplay}}
-   catch(e:CancellationException){throw e}catch(e:Exception){failWithReason(e.javaClass.simpleName,playbackFailureMessage(e),serial)}
+   catch(e:CancellationException){throw e}catch(e:Exception){failWithReason(e.javaClass.simpleName,playbackFailureMessage(e),serial,isDefinitiveRouteFailure(e))}
   }
  }
- private fun failed(message:String,serial:Int){
+ private fun failed(message:String,serial:Int,definitive:Boolean=false){
   if(closed||serial!=tuneSerial||recovering||!foreground)return
   if(offline()){
    if(replay!=null)pendingPosition=pendingPosition?:player.currentPosition.coerceAtLeast(resumePosition)
@@ -393,18 +397,30 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
   }
   stableJob?.cancel();recoveryBudget.enter(current.id)
   if(replay!=null){
-   recovering=true;loadingJob?.cancel();timeoutJob?.cancel();loading=false
+   recovering=true;quietRecovery=true;loadingJob?.cancel();timeoutJob?.cancel();loading=false
    resumePosition=player.currentPosition.coerceAtLeast(resumePosition);pendingPosition=resumePosition
    val eligible=replayRoutes();val next=if(recoveryBudget.remaining(stallTimeoutMillis)<=0)null else replayRecovery.next(eligible.size,eligible.indexOf(routeIndex))?.let{eligible[it]}
-   if(next==null){error="回放暂不可用，可在快捷菜单中返回直播\n$message";return}
+   if(next==null){quietRecovery=false;error="回放暂不可用，可在快捷菜单中返回直播\n$message";return}
    val retry=next;retryJob=scope.launch{delay(1000);if(!closed&&serial==tuneSerial&&foreground){if(offline())waitForNetwork()else attempt(current,retry)}};return
   }
-  recovering=true;ready=false;loadingJob?.cancel();timeoutJob?.cancel();loading=false
+  recovering=true;quietRecovery=true;ready=false;loadingJob?.cancel();timeoutJob?.cancel();loading=false
   var nextRoute=if(recoveryBudget.remaining(stallTimeoutMillis)<=0)null else recovery.next(routeCount,routeIndex)
-  while(nextRoute!=null&&app.prefs.hideUnavailableRoutes&&!RouteHealth.isAvailable(current.playbackRoutes[nextRoute]))nextRoute=recovery.next(routeCount,nextRoute)
+  while(nextRoute!=null&&!RouteHealth.isAvailable(current.playbackRoutes[nextRoute]))nextRoute=recovery.next(routeCount,nextRoute)
   val channel=current
-  val nextChannel=if(nextRoute==null){exhausted+=channel.id;val all=app.channels.channels;val at=all.indexOfFirst{it.id==channel.id};val visibleCandidates=PreloadPolicy.indices(all.size,at,direction).map(all::get).filter{!app.prefs.hideUnavailableRoutes||RouteHealth.isChannelAvailable(it)};val remaining=visibleCandidates.filterNot{it.id in exhausted};remaining.firstOrNull{!preloader.confirmedUnavailable(it)}?:remaining.firstOrNull()}else null
-  if(nextRoute==null&&nextChannel==null){player.pause();error="暂无可用频道\n$message";return}
+  val nextChannel=if(nextRoute==null){
+   exhausted+=channel.id
+   if(!AutoRecoveryPolicy.canHop(autoChannelHops,softChannelHops,definitive)) null else {
+    val all=app.channels.channels
+    val ordered=if(app.prefs.hideUnavailableRoutes) all.filter{it.id==channel.id||RouteHealth.isChannelAvailable(it)} else all
+    val at=ordered.indexOfFirst{it.id==channel.id}
+    ChannelSwitchPolicy.directionalIndices(ordered.size,at,direction)
+     .map(ordered::get)
+     .firstOrNull{it.id!=channel.id && it.id !in exhausted &&
+       RouteHealth.isChannelAvailable(it) && !preloader.confirmedUnavailable(it)}
+   }
+  }else null
+  if(nextChannel!=null){if(definitive)autoChannelHops++ else softChannelHops++}
+  if(nextRoute==null&&nextChannel==null){quietRecovery=false;player.pause();error="暂无可用频道\n$message";return}
   retryJob=scope.launch{
    delay(if(nextRoute!=null&&routeCount==1)1000 else 300)
    if(closed||serial!=tuneSerial||!foreground)return@launch

@@ -44,19 +44,20 @@ import kotlinx.coroutines.withContext
  */
 internal object RouteHealthProbe {
     private const val STARTUP_DELAY_MS = 1_000L
-    private const val TRANSIENT_RETRY_MS = 60_000L
+    private const val TRANSIENT_RETRY_MS = 10_000L
     private const val HIDDEN_RETRY_MS = 8_000L
     private const val HIDDEN_PASS_GAP_MS = 3_000L
     private const val FULL_SWEEP_MS = 4 * 60 * 60 * 1000L
     private const val IDLE_CONCURRENCY = 2
     private const val PLAYING_CONCURRENCY = 1
     // Launch and the moment the hide switch is turned on both start a dedicated
-    // fast sweep: one request per route, a 1s budget and six workers, so dead
-    // routes disappear before the user starts zapping. Normal sweeps keep the
-    // gentle limits.
+    // fast sweep: one light request per route, a 2s first-byte budget and eight
+    // workers. Two passes cover up to 150 routes, so dead routes disappear before
+    // the user starts zapping. A timeout stays visible as SUSPECT until a second
+    // probe confirms it. Normal sweeps keep the gentle limits.
     private const val FAST_PASSES = 2
-    private const val STARTUP_CONCURRENCY = 6
-    private const val STARTUP_ROUTES_PER_PASS = 40
+    private const val STARTUP_CONCURRENCY = 8
+    private const val STARTUP_ROUTES_PER_PASS = 75
     private const val STARTUP_PASS_GAP_MS = 1_000L
     // Hidden recovery uses small batches so a recovered route returns to the
     // channel list within seconds, not after a 20-route burst.
@@ -67,32 +68,25 @@ internal object RouteHealthProbe {
 
     suspend fun run(app: App, priorityGroup: () -> String, visible: () -> Boolean) {
         delay(STARTUP_DELAY_MS)
-        var startingSince = 0L
         var fastPasses = FAST_PASSES
-        // The first fast pass after launch, or after the switch is turned on,
-        // checks every visible route regardless of the four-hour sweep window.
-        // Later passes fall back to normal freshness so they move on to the next
-        // batch instead of probing the same first forty routes twice.
         var forceFastPass = true
         while (currentCoroutineContext().isActive) {
-            val fastPass = fastPasses > 0
             if (!visible()) {
                 delay(2_000)
                 continue
             }
             val session = PlaybackSession.active
-            val now = SystemClock.elapsedRealtime()
-            if (session?.starting == true) {
-                if (startingSince == 0L) startingSince = now
-                // A dead stream can stay in "starting" forever; only yield the first
-                // 12 seconds, then let the probe continue at low concurrency.
-                if (now - startingSince < 12_000) {
-                    delay(3_000)
-                    continue
-                }
-            } else {
-                startingSince = 0L
+            val gate = ProbeGatePolicy.mode(
+                playbackActive = session != null,
+                starting = session?.starting == true,
+                quietRecovery = session?.quietRecovery == true,
+            )
+            if (gate == ProbeGatePolicy.Mode.RECOVERING) {
+                delay(2_000)
+                continue
             }
+            val fastPass = fastPasses > 0 && gate == ProbeGatePolicy.Mode.IDLE
+            val now = SystemClock.elapsedRealtime()
             val channels = app.channels.channels
             if (channels.isEmpty()) {
                 delay(30_000)
@@ -102,43 +96,51 @@ internal object RouteHealthProbe {
                 ?: emptySet()
             val hidden = RouteHealth.hiddenRoutes(channels)
                 .filterNot { routeIdentity(it) in blocked }
-            val hiddenLimit = if (fastPass) 0 else if (session == null) IDLE_HIDDEN_PER_PASS else PLAYING_HIDDEN_PER_PASS
+            val hiddenLimit = when {
+                fastPass -> 0
+                gate == ProbeGatePolicy.Mode.IDLE -> IDLE_HIDDEN_PER_PASS
+                else -> PLAYING_HIDDEN_PER_PASS
+            }
             val hiddenBatch = hidden.take(hiddenLimit)
             val hiddenKeys = hidden.mapTo(HashSet()) { routeIdentity(it) }
             val forceThisPass = fastPass && forceFastPass
-            val targets = RouteHealth.routesNeedingProbe(
-                channels = channels,
-                staleBefore = if (forceThisPass) Long.MAX_VALUE else now - FULL_SWEEP_MS,
-                priorityGroup = priorityGroup(),
-                retryBefore = if (forceThisPass) Long.MAX_VALUE else now - TRANSIENT_RETRY_MS,
-            ).filterNot { routeIdentity(it) in blocked || routeIdentity(it) in hiddenKeys }
+            // Full fast sweeps only happen while the home screen is idle. A
+            // stable playback keeps a low-rate background sweep: tiny batches,
+            // one worker, ordinary timeouts, and never the channel being watched.
+            // First-frame loading and automatic retune stay completely silent.
+            val targets = if (!ProbeGatePolicy.allowsBackgroundSweep(gate)) emptyList() else {
+                RouteHealth.routesNeedingProbe(
+                    channels = channels,
+                    staleBefore = if (forceThisPass) Long.MAX_VALUE else now - FULL_SWEEP_MS,
+                    priorityGroup = priorityGroup(),
+                    retryBefore = if (forceThisPass) Long.MAX_VALUE else now - TRANSIENT_RETRY_MS,
+                ).filterNot { routeIdentity(it) in blocked || routeIdentity(it) in hiddenKeys }
+            }
             if (hiddenBatch.isEmpty() && targets.isEmpty()) {
                 if (fastPass) {
-                    fastPasses = 0
+                    fastPasses--
                     forceFastPass = false
-                    continue
                 }
                 delay(if (hidden.isEmpty()) 30_000L else HIDDEN_RETRY_MS)
                 continue
             }
-            val limit = if (fastPass) STARTUP_ROUTES_PER_PASS else if (session == null) IDLE_ROUTES_PER_PASS else PLAYING_ROUTES_PER_PASS
+            val limit = when {
+                fastPass -> STARTUP_ROUTES_PER_PASS
+                gate == ProbeGatePolicy.Mode.IDLE -> IDLE_ROUTES_PER_PASS
+                else -> PLAYING_ROUTES_PER_PASS
+            }
             val scanLimit = (limit - hiddenBatch.size).coerceAtLeast(0)
             val scanBatch = targets.take(scanLimit)
             val backlog = hidden.size > hiddenBatch.size || targets.size > scanBatch.size
             val pass = hiddenBatch + scanBatch
             var index = 0
+            var interrupted = false
             while (index < pass.size && currentCoroutineContext().isActive) {
-                if (!visible()) break
+                if (!visible()) { interrupted = true; break }
                 val active = PlaybackSession.active
-                val activeNow = SystemClock.elapsedRealtime()
-                if (active?.starting == true) {
-                    if (startingSince == 0L) startingSince = activeNow
-                    if (activeNow - startingSince < 12_000) {
-                        delay(3_000)
-                        continue
-                    }
-                } else {
-                    startingSince = 0L
+                if (active != null && (fastPass || active.quietRecovery || active.starting)) {
+                    interrupted = true
+                    break
                 }
                 val blockedNow = active?.current?.playbackRoutes?.mapTo(HashSet()) { routeIdentity(it) }
                     ?: emptySet()
@@ -159,12 +161,10 @@ internal object RouteHealthProbe {
                 index += batch.size
                 delay(if (active == null) 120 else 700)
             }
-            if (fastPass && index >= pass.size) {
+            if (fastPass && !interrupted && index >= pass.size) {
                 fastPasses--
                 forceFastPass = false
             }
-            // Hidden recovery gets a short gap between tiny batches. Normal
-            // sweeps keep the old backoff so this does not become a hot loop.
             delay(when {
                 fastPass -> STARTUP_PASS_GAP_MS
                 hiddenBatch.isNotEmpty() -> HIDDEN_PASS_GAP_MS
@@ -185,12 +185,24 @@ internal object RouteHealthProbe {
             channel.playbackRoutes.size == 1 && routeIdentity(channel.playbackRoutes.first()) == routeIdentity(route)
         }
         val deep = singleRoute || (!fast && RouteHealth.status(route) == RouteHealth.Status.UNAVAILABLE)
+        // Capture the health version before touching the network. Playback may
+        // successfully render the same route while this request is in flight;
+        // in that case the late probe result must not hide or downgrade it.
+        val version = RouteHealth.version(route)
         when (val result = RouteProbe.check(app, route, deep = deep, fast = fast)) {
-            ProbeResult.AVAILABLE -> RouteHealth.markProbeSuccess(route)
-            ProbeResult.UNAVAILABLE -> RouteHealth.markProbeFailure(route, definitive = true)
-            // In the fast sweep a single 1s miss already hides the route; the
-            // normal 8s probe and the hidden retry can restore a slow-but-alive route.
-            ProbeResult.TEMPORARY -> RouteHealth.markProbeFailure(route, definitive = fast)
+            ProbeResult.AVAILABLE -> RouteHealth.markProbeSuccess(route, expectedVersion = version)
+            ProbeResult.UNAVAILABLE -> RouteHealth.markProbeFailure(
+                route,
+                definitive = true,
+                expectedVersion = version,
+            )
+            // A timeout/5xx/429 is a suspicion, never a death sentence. The next
+            // probe or playback attempt gets a chance to prove the route alive.
+            ProbeResult.TEMPORARY -> RouteHealth.markProbeFailure(
+                route,
+                definitive = false,
+                expectedVersion = version,
+            )
         }
     }
 }
@@ -207,8 +219,8 @@ private object RouteProbe {
     private const val CONNECT_TIMEOUT_MS = 5_000
     private const val FIRST_BYTE_WAIT_MS = 8_000L
     private const val TOTAL_WAIT_MS = 25_000L
-    private const val FAST_FIRST_BYTE_WAIT_MS = 1_000L
-    private const val FAST_TOTAL_WAIT_MS = 2_000L
+    private const val FAST_FIRST_BYTE_WAIT_MS = 2_000L
+    private const val FAST_TOTAL_WAIT_MS = 3_000L
     private const val READ_TIMEOUT_MS = 3_000
     private const val MAX_PLAYLIST_BYTES = 32 * 1024
     private const val MAX_MEDIA_BYTES = 4 * 1024
@@ -225,16 +237,30 @@ private object RouteProbe {
         probeUrl(route.url, headers, deep = deep, fast = fast, depth = 0)
     }
 
-    private fun probeUrl(url: String, headers: Map<String, String>, deep: Boolean, fast: Boolean, depth: Int): ProbeResult {
+    private fun probeUrl(
+        url: String,
+        headers: Map<String, String>,
+        deep: Boolean,
+        fast: Boolean,
+        depth: Int,
+        routeDeadline: Long = 0L,
+    ): ProbeResult {
         if (depth > 2) return ProbeResult.AVAILABLE
         if (!supportsHttpPlayback(url)) return ProbeResult.UNAVAILABLE
+        val started = SystemClock.elapsedRealtime()
+        // Fast sweeps share one 3s budget across playlist + first segment. Without
+        // this, a deep HLS check would get 3s per request and two passes could
+        // exceed the one-minute startup target.
+        val deadline = if (fast) routeDeadline.takeIf { it > 0L } ?: (started + FAST_TOTAL_WAIT_MS) else 0L
+        if (fast && started >= deadline) return ProbeResult.TEMPORARY
         var connection: HttpURLConnection? = null
         return try {
-            val started = SystemClock.elapsedRealtime()
             connection = URL(url).openConnection() as? HttpURLConnection
                 ?: return ProbeResult.UNAVAILABLE
-            connection.connectTimeout = if (fast) FAST_FIRST_BYTE_WAIT_MS.toInt() else CONNECT_TIMEOUT_MS
-            connection.readTimeout = if (fast) FAST_FIRST_BYTE_WAIT_MS.toInt() else READ_TIMEOUT_MS
+            val timeout = if (fast) (deadline - started).coerceIn(1L, FAST_FIRST_BYTE_WAIT_MS).toInt()
+                else CONNECT_TIMEOUT_MS
+            connection.connectTimeout = timeout
+            connection.readTimeout = if (fast) timeout else READ_TIMEOUT_MS
             connection.instanceFollowRedirects = true
             connection.useCaches = false
             connection.requestMethod = "GET"
@@ -252,7 +278,7 @@ private object RouteProbe {
             val contentType = connection.contentType.orEmpty().lowercase()
             val hls = finalUrl.substringBefore('?').endsWith(".m3u8", true) ||
                 contentType.contains("mpegurl") || contentType.contains("m3u8")
-            val bytes = readAdaptive(connection, started, if (hls) MAX_PLAYLIST_BYTES else MAX_MEDIA_BYTES, fast)
+            val bytes = readAdaptive(connection, started, if (hls) MAX_PLAYLIST_BYTES else MAX_MEDIA_BYTES, fast, deadline)
                 ?: return ProbeResult.TEMPORARY
             if (bytes.isEmpty()) return ProbeResult.TEMPORARY
             if (!hls && looksLikeHtml(bytes)) return ProbeResult.UNAVAILABLE
@@ -268,7 +294,7 @@ private object RouteProbe {
                 val next = firstPlaylistUri(text) ?: return ProbeResult.TEMPORARY
                 if (!deep) return ProbeResult.AVAILABLE
                 val resolved = resolve(finalUrl, next) ?: return ProbeResult.TEMPORARY
-                return probeUrl(resolved, headers, deep = true, fast = fast, depth = depth + 1)
+                return probeUrl(resolved, headers, deep = true, fast = fast, depth = depth + 1, routeDeadline = deadline)
             }
             ProbeResult.AVAILABLE
         } catch (_: SocketTimeoutException) {
@@ -283,19 +309,26 @@ private object RouteProbe {
     /**
      * Returns null only when the first byte never arrived before the budget. Once
      * bytes start, the same request may continue until the total budget so a slow
-     * live stream is not mistaken for a dead route. The fast sweep uses a 1s
-     * budget to hide dead routes before the user starts zapping.
+     * live stream is not mistaken for a dead route. The fast sweep shares a 3s
+     * route budget across playlist and segment requests.
      */
-    private fun readAdaptive(connection: HttpURLConnection, started: Long, maxBytes: Int, fast: Boolean): ByteArray? {
+    private fun readAdaptive(
+        connection: HttpURLConnection,
+        started: Long,
+        maxBytes: Int,
+        fast: Boolean,
+        deadline: Long = 0L,
+    ): ByteArray? {
         val input = connection.inputStream
         val out = ByteArrayOutputStream()
         val buffer = ByteArray(8 * 1024)
-        val firstByteWait = if (fast) FAST_FIRST_BYTE_WAIT_MS else FIRST_BYTE_WAIT_MS
-        val totalWait = if (fast) FAST_TOTAL_WAIT_MS else TOTAL_WAIT_MS
+        val firstByteAt = if (fast) minOf(started + FAST_FIRST_BYTE_WAIT_MS, deadline)
+            else started + FIRST_BYTE_WAIT_MS
+        val totalAt = if (fast) deadline else started + TOTAL_WAIT_MS
         while (out.size() < maxBytes) {
             val now = SystemClock.elapsedRealtime()
-            if (out.size() == 0 && now - started >= firstByteWait) return null
-            if (now - started >= totalWait) break
+            if (out.size() == 0 && now >= firstByteAt) return null
+            if (now >= totalAt) break
             val count = input.read(buffer)
             if (count < 0) break
             if (count == 0) continue

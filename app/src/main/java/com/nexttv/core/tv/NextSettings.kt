@@ -86,7 +86,7 @@ private typealias SettingsEntry = SettingsRowData
    SettingsEntry("自动更新","","设置订阅与节目单的自动更新方式。",{focusCategory();subpage="自动更新";scope.launch{navigation.scroll.scrollTo(0);withFrameNanos{};contentRequests["$category/启动时更新订阅"]?.requestFocus()}}))
   category=="播放"->listOf(
    SettingsEntry(START_PAGE,if(p.startLive)LIVE_PAGE else HOME_PAGE,"「主页」打开频道首页。「直播」直接播放上次观看的频道，找不到时播放列表中的第一个频道。",{edit=START_PAGE}),
-   SettingsEntry("隐藏异常线路",if(p.hideUnavailableRoutes)"开启"else"关闭","后台探测线路：启动或开启后数秒内快速隐藏异常线路，单线路频道失效时整台隐藏，多线路频道只隐藏异常线路。隐藏线路每 8 秒复测，恢复后自动显示。",{p.hideUnavailableRoutes=!p.hideUnavailableRoutes;changed()},false),
+   SettingsEntry("隐藏异常线路",if(p.hideUnavailableRoutes)"开启"else"关闭","后台探测线路：首页空闲时快速检查，约 1 分钟覆盖全部线路；播放中低并发小批量巡检，不干扰播放。超时线路先标记疑似，确认后才隐藏；隐藏线路每 8 秒复测，恢复后自动显示。",{p.hideUnavailableRoutes=!p.hideUnavailableRoutes;changed()},false),
    SettingsEntry("换台预加载",listOf("关闭","下一台","上一台","上下台")[p.preloadMode],"提前准备相邻频道；「上下台」会同时预加载上一台和下一台，会增加网络与内存占用。",{edit="换台预加载"}),
    SettingsEntry("换台保留画面",if(p.keepLastFrame)"开启"else"关闭","切换频道或线路时保留上一画面，直到新画面出现。",{p.keepLastFrame=!p.keepLastFrame;changed()},false),
    SettingsEntry("时间显示",playerClockTitle(p.playerClockMode),"设置播放器右上角时间：隐藏、始终显示、每小时显示或每半小时显示。",{edit="时间显示"}))

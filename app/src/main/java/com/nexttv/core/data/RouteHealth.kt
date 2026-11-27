@@ -13,17 +13,28 @@ package com.nexttv.core.data
  *    probe failures, so a slow-but-healthy channel is not killed by one hiccup.
  */
 internal object RouteHealth {
-    internal enum class Status { UNKNOWN, AVAILABLE, UNAVAILABLE }
+    /**
+     * UNKNOWN stays visible because a route we have not checked is not dead.
+     * SUSPECT also stays visible: it failed a soft probe once, but a timeout or
+     * a transient 5xx must never remove a channel before playback can try it.
+     */
+    internal enum class Status { UNKNOWN, AVAILABLE, SUSPECT, UNAVAILABLE }
 
     private const val STORE = "route_health"
     private const val HIDDEN_KEY = "hidden"
     private const val MAX_PERSISTED = 512
 
-    private data class Entry(val status: Status, val failures: Int, val checkedAt: Long)
+    private data class Entry(
+        val status: Status,
+        val failures: Int,
+        val checkedAt: Long,
+        val version: Long,
+    )
 
     private val lock = Any()
     private val entries = HashMap<String, Entry>()
     private var store: android.content.SharedPreferences? = null
+    private var versionSeq = 0L
 
     @Volatile
     var revision: Int = 0
@@ -45,7 +56,7 @@ internal object RouteHealth {
         synchronized(lock) {
             store = prefs
             prefs.getStringSet(HIDDEN_KEY, emptySet()).orEmpty().forEach { encoded ->
-                decode(encoded)?.let { entries[it] = Entry(Status.UNAVAILABLE, 2, 0L) }
+                decode(encoded)?.let { entries[it] = Entry(Status.UNAVAILABLE, 2, 0L, 0L) }
             }
         }
     }
@@ -92,10 +103,23 @@ internal object RouteHealth {
         entries[key(route)]?.checkedAt ?: 0L
     }
 
+    /**
+     * Version of this route's health entry. A background probe captures it before
+     * opening the network and passes it to [markProbeSuccess]/[markProbeFailure].
+     * If playback changed the entry meanwhile, the old probe result is ignored.
+     */
+    fun version(route: ChannelRoute): Long = synchronized(lock) {
+        entries[key(route)]?.version ?: 0L
+    }
+
     fun isAvailable(route: ChannelRoute): Boolean = status(route) != Status.UNAVAILABLE
 
-    fun availableRoutes(routes: List<ChannelRoute>): List<ChannelRoute> =
+    /** Routes that may still be tried. SUSPECT is deliberately included. */
+    fun attemptableRoutes(routes: List<ChannelRoute>): List<ChannelRoute> =
         routes.filter { isAvailable(it) }
+
+    fun availableRoutes(routes: List<ChannelRoute>): List<ChannelRoute> =
+        attemptableRoutes(routes)
 
     /** A channel is visible only while at least one of its routes is not marked dead. */
     fun isChannelAvailable(channel: Channel): Boolean {
@@ -164,26 +188,40 @@ internal object RouteHealth {
         hidden + transient + priority + single + rest
     }
 
-    fun markProbeSuccess(route: ChannelRoute, now: Long = now()) {
-        var notify: Boolean
+    fun markProbeSuccess(
+        route: ChannelRoute,
+        now: Long = now(),
+        expectedVersion: Long? = null,
+    ) {
+        var notify = false
         synchronized(lock) {
             val old = entries[key(route)]
-            entries[key(route)] = Entry(Status.AVAILABLE, 0, now)
-            // UNKNOWN -> AVAILABLE does not change visibility; do not wake the UI
-            // for every healthy route in a background sweep.
+            if (expectedVersion != null && (old?.version ?: 0L) != expectedVersion) return@synchronized
+            entries[key(route)] = Entry(Status.AVAILABLE, 0, now, ++versionSeq)
+            // UNKNOWN/SUSPECT -> AVAILABLE does not change visibility; do not wake
+            // the UI for every healthy route in a background sweep.
             notify = old?.status == Status.UNAVAILABLE
         }
         if (notify) changed()
     }
 
-    fun markProbeFailure(route: ChannelRoute, definitive: Boolean, now: Long = now()) {
-        var notify: Boolean
+    fun markProbeFailure(
+        route: ChannelRoute,
+        definitive: Boolean,
+        now: Long = now(),
+        expectedVersion: Long? = null,
+    ) {
+        var notify = false
         synchronized(lock) {
             val k = key(route)
             val old = entries[k]
+            if (expectedVersion != null && (old?.version ?: 0L) != expectedVersion) return@synchronized
             val failures = if (definitive) (old?.failures ?: 0) + 2 else (old?.failures ?: 0) + 1
-            val status = if (definitive || failures >= 2) Status.UNAVAILABLE else old?.status ?: Status.UNKNOWN
-            entries[k] = Entry(status, failures, now)
+            val status = when {
+                definitive || failures >= 2 -> Status.UNAVAILABLE
+                else -> Status.SUSPECT
+            }
+            entries[k] = Entry(status, failures, now, ++versionSeq)
             notify = status != old?.status
         }
         if (notify) changed()

@@ -75,6 +75,10 @@ import com.nexttv.observeGridDraws
  // "all channels" instead of leaving the user on an empty dead category.
  LaunchedEffect(cacheReady,tab,group,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){
   if(!cacheReady||tab!=0||group.isBlank())return@LaunchedEffect
+  // Health updates can arrive in bursts while the fast sweep hides routes.
+  // Wait for one settled revision before abandoning the open group, otherwise
+  // the UI can jump to "all channels" in the middle of a batch.
+  delay(300)
   if(group !in app.channels.displayGroups){
    val old=group
    group=""

@@ -48,6 +48,7 @@ import kotlin.math.roundToInt
 @Composable fun PlayerScreen(initial:Channel,onClose:(Channel)->Unit,onHome:((Channel)->Unit)?=null,onLaunchReady:(()->Unit)?=null){
  val context=LocalContext.current;val scope=rememberCoroutineScope();val app=App.get()
  val engine=remember{PlaybackSession(context,initial,scope)}
+ val keepFrame=app.prefs.keepLastFrame||engine.quietRecovery
  val launchReady=engine.rendered||engine.error.isNotBlank()||
   (engine.ready&&engine.player.currentTracks.isTypeSelected(C.TRACK_TYPE_AUDIO)&&
    !engine.player.currentTracks.isTypeSelected(C.TRACK_TYPE_VIDEO))
@@ -56,13 +57,13 @@ import kotlin.math.roundToInt
  val retained=remember{RetainedVideoFrame()}
  val frameOpacity=remember{androidx.compose.animation.core.Animatable(1f)}
  val revealOpacity=remember{androidx.compose.animation.core.Animatable(1f)}
- DisposableEffect(engine,context){val activity=context as TvActivity;activity.videoFrameDiagnostics={retained.diagnostics().put("visible",retained.bitmap!=null&&app.prefs.keepLastFrame).put("opacity",frameOpacity.value).put("captureVersion",retained.captureVersion).put("surfaceHasFrame",engine.surfaceHasFrame).put("blackCover",videoTransitionNeedsCover(app.prefs.keepLastFrame,retained.bitmap!=null,engine.surfaceHasFrame,engine.rendered)&&revealOpacity.value>.01f)};onDispose{activity.videoFrameDiagnostics=null}}
- DisposableEffect(engine){engine.beforeRetune={
-  if(app.prefs.keepLastFrame&&(engine.surfaceHasFrame||retained.bitmap!=null)){
+ DisposableEffect(engine,context){val activity=context as TvActivity;activity.videoFrameDiagnostics={retained.diagnostics().put("visible",retained.bitmap!=null&&keepFrame).put("opacity",frameOpacity.value).put("captureVersion",retained.captureVersion).put("surfaceHasFrame",engine.surfaceHasFrame).put("blackCover",videoTransitionNeedsCover(keepFrame,retained.bitmap!=null,engine.surfaceHasFrame,engine.rendered)&&revealOpacity.value>.01f)};onDispose{activity.videoFrameDiagnostics=null}}
+ DisposableEffect(engine,keepFrame){engine.beforeRetune={
+  if(keepFrame&&(engine.surfaceHasFrame||retained.bitmap!=null)){
    val fresh=engine.surfaceHasFrame
    if(fresh||retained.bitmap==null){
     val captureVersion=retained.captureVersion
-    retained.capture(replace=fresh){!engine.rendered&&app.prefs.keepLastFrame}
+    retained.capture(replace=fresh){!engine.rendered&&keepFrame}
     withTimeoutOrNull(80){snapshotFlow{retained.captureVersion>captureVersion}.first{it}}
     if(retained.captureVersion>captureVersion)frameOpacity.snapTo(1f)
     else if(fresh)retained.clear() // Never revive an older channel's fading snapshot.
@@ -70,9 +71,9 @@ import kotlin.math.roundToInt
    if(retained.bitmap!=null){withFrameNanos{};withFrameNanos{}}
   }else retained.clear()
  };onDispose{engine.beforeRetune=null;retained.dispose()}}
- LaunchedEffect(engine.tuneSerial,engine.rendered,app.prefs.keepLastFrame,app.prefs.reduceMotion){
+ LaunchedEffect(engine.tuneSerial,engine.rendered,keepFrame,app.prefs.reduceMotion){
   val fadeSerial=engine.tuneSerial
-  if(!engine.rendered){revealOpacity.snapTo(1f);if(!app.prefs.keepLastFrame)retained.clear()}
+  if(!engine.rendered){revealOpacity.snapTo(1f);if(!keepFrame)retained.clear()}
   else{
    withFrameNanos{};withFrameNanos{}
    if(app.prefs.reduceMotion){frameOpacity.snapTo(0f);revealOpacity.snapTo(0f)}
@@ -226,11 +227,11 @@ import kotlin.math.roundToInt
    else->{val digit=key.digit;if(digit!=null){if(!key.repeated){digits=appendChannelDigit(digits,digit,digitCapacity);digitGeneration++};true}else false}
   }
  }.focusable()){
-  PlaybackVideoSurface(engine.player,engine.aspect,app.prefs.keepLastFrame,retained)
-  retained.bitmap?.takeIf{app.prefs.keepLastFrame}?.let{frame->androidx.compose.foundation.Image(frame.asImageBitmap(),null,Modifier.fillMaxSize().graphicsLayer{alpha=frameOpacity.value}.background(Color.Black),contentScale=playbackContentScale(engine.aspect))}
-  if(videoTransitionNeedsCover(app.prefs.keepLastFrame,retained.bitmap!=null,engine.surfaceHasFrame,engine.rendered))Box(Modifier.fillMaxSize().graphicsLayer{alpha=revealOpacity.value}.background(Color.Black))
+  PlaybackVideoSurface(engine.player,engine.aspect,keepFrame,retained)
+  retained.bitmap?.takeIf{keepFrame}?.let{frame->androidx.compose.foundation.Image(frame.asImageBitmap(),null,Modifier.fillMaxSize().graphicsLayer{alpha=frameOpacity.value}.background(Color.Black),contentScale=playbackContentScale(engine.aspect))}
+  if(videoTransitionNeedsCover(keepFrame,retained.bitmap!=null,engine.surfaceHasFrame,engine.rendered))Box(Modifier.fillMaxSize().graphicsLayer{alpha=revealOpacity.value}.background(Color.Black))
   Box(Modifier.fillMaxSize().pointerInput(Unit){awaitPointerEventScope{var secondaryHeld=false;while(true){val event=awaitPointerEvent(PointerEventPass.Initial);if(event.type==PointerEventType.Press&&event.buttons.isSecondaryPressed){secondaryHeld=true;showBars(true)};if(secondaryHeld){event.changes.forEach{it.consume()};if(event.type==PointerEventType.Release)secondaryHeld=false};if(actionsVisible&&(event.type==PointerEventType.Press||event.type==PointerEventType.Scroll))deadline=System.currentTimeMillis()+InteractionStyle.actionsMillis}}}.pointerInput(side,bars){detectTapGestures(onLongPress={showBars(true)},onTap={if(side||actionsVisible)dismissOverlays()else openSide()})})
-  if(onLaunchReady==null&&engine.loading&&engine.error.isBlank())Column(Modifier.align(Alignment.Center).padding(horizontal=36.dp,vertical=24.dp),horizontalAlignment=Alignment.CenterHorizontally){if(app.prefs.reduceMotion)AppText("◌",fontSize=InteractionStyle.title,color=androidx.compose.ui.graphics.Color.White)else androidx.compose.material3.CircularProgressIndicator(Modifier.size(42.dp),color=NextTvStyle.Accent);AppText("正在连接…",shadow=androidx.compose.ui.graphics.Shadow(Color.Black,androidx.compose.ui.geometry.Offset(0f,1f),4f),fontSize=InteractionStyle.body,color=androidx.compose.ui.graphics.Color.White,modifier=Modifier.padding(top=12.dp))}
+  if(onLaunchReady==null&&engine.loading&&!(engine.quietRecovery&&(engine.surfaceHasFrame||retained.bitmap!=null))&&engine.error.isBlank())Column(Modifier.align(Alignment.Center).padding(horizontal=36.dp,vertical=24.dp),horizontalAlignment=Alignment.CenterHorizontally){if(app.prefs.reduceMotion)AppText("◌",fontSize=InteractionStyle.title,color=androidx.compose.ui.graphics.Color.White)else androidx.compose.material3.CircularProgressIndicator(Modifier.size(42.dp),color=NextTvStyle.Accent);AppText("正在连接…",shadow=androidx.compose.ui.graphics.Shadow(Color.Black,androidx.compose.ui.geometry.Offset(0f,1f),4f),fontSize=InteractionStyle.body,color=androidx.compose.ui.graphics.Color.White,modifier=Modifier.padding(top=12.dp))}
   if(engine.error.isNotBlank())AppText(engine.error,textAlign=androidx.compose.ui.text.style.TextAlign.Center,color=NextTvStyle.Error,fontSize=InteractionStyle.body,modifier=Modifier.align(Alignment.Center).padding(horizontal=32.dp).widthIn(max=620.dp).readingSurface(RoundedCornerShape(InteractionStyle.panelRadius)).padding(horizontal=28.dp,vertical=22.dp))
   if(bars&&dialog!="播放详情"){
   Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height((LocalConfiguration.current.screenHeightDp*.42f).dp).playerScrim())

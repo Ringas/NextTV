@@ -93,4 +93,51 @@ class RouteHealthTest {
         assertEquals(dead, targets.first())
         assertEquals(unknown, targets.last())
     }
+    @Test fun firstSoftProbeIsVisibleSuspectNotDead() {
+        val only = route(1)
+        val ch = channel("suspect", only)
+        RouteHealth.markProbeFailure(only, definitive = false, now = 1_000L)
+        assertEquals(RouteHealth.Status.SUSPECT, RouteHealth.status(only))
+        assertTrue(RouteHealth.isChannelAvailable(ch))
+        assertEquals(listOf(only), RouteHealth.availableRoutes(listOf(only)))
+    }
+
+    @Test fun lateProbeCannotOverridePlaybackSuccess() {
+        val only = route(1)
+        val staleVersion = RouteHealth.version(only)
+        assertTrue(RouteHealth.isChannelAvailable(channel("late", only)))
+        RouteHealth.markProbeSuccess(only, now = 1_000L)
+        RouteHealth.markProbeFailure(only, definitive = true, now = 2_000L, expectedVersion = staleVersion)
+        assertEquals(RouteHealth.Status.AVAILABLE, RouteHealth.status(only))
+        assertTrue(RouteHealth.isChannelAvailable(channel("late", only)))
+    }
+
+    @Test fun playbackSuccessClearsSuspectAndDefinitiveFailureStillWins() {
+        val only = route(1)
+        RouteHealth.markProbeFailure(only, definitive = false, now = 1_000L)
+        assertEquals(RouteHealth.Status.SUSPECT, RouteHealth.status(only))
+        RouteHealth.markProbeSuccess(only, now = 2_000L)
+        assertEquals(RouteHealth.Status.AVAILABLE, RouteHealth.status(only))
+        RouteHealth.markProbeFailure(only, definitive = true, now = 3_000L)
+        assertEquals(RouteHealth.Status.UNAVAILABLE, RouteHealth.status(only))
+        assertFalse(RouteHealth.isChannelAvailable(channel("clear", only)))
+    }
+
+    @Test fun definitiveFailureHidesAtOnceButTimeoutsNeedTwoProbes() {
+        val hard = route(1)
+        val slow = route(2)
+        val channel = channel("mix", hard, slow)
+        RouteHealth.markProbeFailure(hard, definitive = true, now = 1_000L)
+        RouteHealth.markProbeFailure(slow, definitive = false, now = 1_000L)
+        assertEquals(RouteHealth.Status.UNAVAILABLE, RouteHealth.status(hard))
+        assertEquals(RouteHealth.Status.SUSPECT, RouteHealth.status(slow))
+        assertEquals(listOf(slow), RouteHealth.attemptableRoutes(listOf(hard, slow)))
+        assertEquals(listOf(slow), RouteHealth.availableRoutes(channel.playbackRoutes))
+        assertTrue(RouteHealth.isChannelAvailable(channel))
+
+        RouteHealth.markProbeFailure(slow, definitive = false, now = 2_000L)
+        assertEquals(RouteHealth.Status.UNAVAILABLE, RouteHealth.status(slow))
+        assertFalse(RouteHealth.isChannelAvailable(channel))
+    }
+
 }
