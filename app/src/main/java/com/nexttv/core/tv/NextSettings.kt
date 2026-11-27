@@ -103,10 +103,10 @@ private typealias SettingsEntry = SettingsRowData
    SettingsEntry("清除缓存",CacheStore.format(cacheBytes),"删除频道、节目单、播放源备份和台标缓存；不会删除订阅、收藏或设置。",{edit="清除缓存"}))
   else -> listOf(
    SettingsEntry("应用版本", BuildConfig.VERSION_NAME),
-   SettingsEntry("当前分辨率", resolution, "本应用当前渲染窗口的物理像素尺寸。"),
    SettingsEntry("设备名称", deviceName),
    SettingsEntry("设备信息", deviceInfo),
-   SettingsEntry("设备架构", android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "未知")
+   SettingsEntry("设备架构", android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "未知"),
+   SettingsEntry("设备分辨率", resolution, "本应用当前渲染窗口的物理像素尺寸。")
   )
  }
  fun enterContent(){scope.launch{withFrameNanos{};entries.firstOrNull{it.action!=null}?.let{contentRequests["$category/${it.title}"]?.requestFocus()}}}
