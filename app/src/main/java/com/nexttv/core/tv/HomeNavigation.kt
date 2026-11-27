@@ -17,6 +17,10 @@ import kotlin.math.roundToInt
 
 /** Nocturne: plain text tabs with one sliding ivory light line, never a capsule. */
 @Composable internal fun HomeNavigation(tab:Int,focused:Boolean,requests:List<FocusRequester>,modifier:Modifier=Modifier,homeCompositions:()->Int,onSelect:(Int)->Unit){
+ CurrentViewportScale{HomeNavigationContent(tab,focused,requests,modifier,homeCompositions,onSelect)}
+}
+
+@Composable private fun HomeNavigationContent(tab:Int,focused:Boolean,requests:List<FocusRequester>,modifier:Modifier=Modifier,homeCompositions:()->Int,onSelect:(Int)->Unit){
  val positions=remember{mutableStateMapOf<Int,Pair<Float,Float>>()}
  val density=LocalDensity.current
  val reduced=com.nexttv.core.App.get().prefs.reduceMotion

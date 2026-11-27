@@ -15,7 +15,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import com.nexttv.core.App
 import com.nexttv.core.data.Channel
 import com.nexttv.core.data.Source
-import com.nexttv.core.tv.TvViewportScale
+import com.nexttv.core.tv.AppTextScale
 import com.nexttv.core.tv.BrowserController
 import com.nexttv.core.tv.ChannelSidePanel
 import com.nexttv.core.tv.NextTvStyle
@@ -58,7 +58,7 @@ class ChannelBrowserScreenshot {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             CompositionLocalProvider(LocalActivity provides fakeActivity) {
-                TvViewportScale {
+                AppTextScale {
                     Box(Modifier.fillMaxSize().background(NextTvStyle.Home)) {
                         ChannelSidePanel(
                             current = current,
@@ -82,6 +82,48 @@ class ChannelBrowserScreenshot {
             val bitmap = Bitmap.createBitmap(content.width, content.height, Bitmap.Config.ARGB_8888)
             content.draw(Canvas(bitmap))
             FileOutputStream(File("build/outputs/design-screens", "08-channel-hint.png")).use {
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w1920dp-h1080dp-land-mdpi")
+    fun groups1080Mdpi() {
+        seed(App.get(), channels)
+        val current = channels.first { it.id == "cctv5" }
+        val browser = BrowserController()
+        val fakeActivity = TvActivity()
+
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            CompositionLocalProvider(LocalActivity provides fakeActivity) {
+                AppTextScale {
+                    Box(Modifier.fillMaxSize().background(NextTvStyle.Home)) {
+                        ChannelSidePanel(
+                            current = current,
+                            group = null,
+                            generation = 0,
+                            onGroup = {},
+                            onSelect = {},
+                            onProgram = { _, _ -> },
+                            controller = browser,
+                            onCloseAll = {},
+                            modifier = Modifier.align(Alignment.CenterStart),
+                        )
+                    }
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(420)
+        browser.navigate(-1)
+        compose.mainClock.advanceTimeBy(420)
+        compose.activityRule.scenario.onActivity { activity ->
+            val content = activity.findViewById<android.view.ViewGroup>(android.R.id.content)
+            if (content.width <= 0 || content.height <= 0) return@onActivity
+            val bitmap = Bitmap.createBitmap(content.width, content.height, Bitmap.Config.ARGB_8888)
+            content.draw(Canvas(bitmap))
+            FileOutputStream(File("build/outputs/design-screens", "08-groups-1080-mdpi.png")).use {
                 bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
             }
         }

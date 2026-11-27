@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import com.nexttv.core.App
 import com.nexttv.core.data.Channel
@@ -60,6 +61,11 @@ class DesignScreenshots {
 
     @Test fun home() {
         shoot("01-home") { HomeScene(tab = 0) }
+    }
+
+    @Test @Config(qualifiers = "w1920dp-h1080dp-land-mdpi")
+    fun home1080Mdpi() {
+        shoot("01-home-1080-mdpi") { HomeScene(tab = 0) }
     }
 
     @Test fun favorites() {
@@ -145,8 +151,64 @@ class DesignScreenshots {
         shoot("05-schedule") { ScheduleScene() }
     }
 
+    @Test @Config(qualifiers = "w1920dp-h1080dp-land-mdpi")
+    fun player1080Mdpi() {
+        shoot("04-player-1080-mdpi") { PlayerScene() }
+    }
+
+    @Test @Config(qualifiers = "w1920dp-h1080dp-land-mdpi")
+    fun schedule1080Mdpi() {
+        shoot("05-schedule-1080-mdpi") { ScheduleScene() }
+    }
+
     @Test fun settings() {
         shoot("06-settings") { SettingsScene() }
+    }
+
+    @Test @Config(qualifiers = "w1920dp-h1080dp-land-mdpi")
+    fun settings1080Mdpi() {
+        shoot("06-settings-1080-mdpi") { SettingsScene() }
+    }
+
+    @Test @Config(qualifiers = "w1920dp-h1080dp-land-mdpi")
+    fun settingsNavFocus1080Mdpi() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            AppTextScale {
+                val nav = remember { List(3) { FocusRequester() } }
+                Box(Modifier.fillMaxSize().background(NextTvStyle.Home)) {
+                    HomeNavigation(
+                        tab = 2, focused = true, requests = nav,
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 80.dp),
+                        homeCompositions = { 0 }, onSelect = {},
+                    )
+                    Column(Modifier.fillMaxSize().padding(top = 236.dp)) {
+                        CompositionLocalProvider(LocalActivity provides TvActivity()) {
+                            SettingsScreen(
+                                navigation = SettingsNavigation(),
+                                restoreTick = 0,
+                                navFocused = true,
+                                onContentFocus = {},
+                                onBackToNav = {},
+                                onTopBack = {},
+                                onSources = {},
+                                onChanged = {},
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(420)
+        compose.activityRule.scenario.onActivity { activity ->
+            val content = activity.findViewById<android.view.ViewGroup>(android.R.id.content)
+            if (content.width <= 0 || content.height <= 0) return@onActivity
+            val bitmap = Bitmap.createBitmap(content.width, content.height, Bitmap.Config.ARGB_8888)
+            content.draw(Canvas(bitmap))
+            FileOutputStream(File(outputDir, "06-settings-nav-1080-mdpi.png")).use {
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
+        }
     }
 
     @Test fun edgeHint() {
@@ -200,7 +262,7 @@ class DesignScreenshots {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             Box(Modifier.fillMaxSize().background(NextTvStyle.Home)) {
-                TvViewportScale { content() }
+                AppTextScale { content() }
             }
         }
         compose.mainClock.advanceTimeBy(240)
@@ -550,6 +612,8 @@ private fun SettingsScene() {
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 20.dp),
             homeCompositions = { 0 }, onSelect = {},
         )
+        CurrentViewportScale {
+        Box(Modifier.fillMaxSize()) {
         Row(
             Modifier.align(Alignment.TopCenter).padding(top = 92.dp).width(806.dp),
             horizontalArrangement = Arrangement.spacedBy(32.dp),
@@ -611,6 +675,8 @@ private fun SettingsScene() {
                     color = NextTvStyle.Muted, fontSize = InteractionStyle.caption, maxLines = 2,
                 )
             }
+        }
+        }
         }
     }
     LaunchedEffect(Unit) {

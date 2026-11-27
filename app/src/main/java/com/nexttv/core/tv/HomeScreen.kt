@@ -343,7 +343,10 @@ import com.nexttv.observeGridDraws
 
   if(playing!=null){PlayerScreen(playing!!,onLaunchReady=onLaunchReady,onHome={resetCategory();playing=null;tab=0;restoringHome=true;revision++},onClose={current->if(app.prefs.startLive){onExit();return@PlayerScreen};if(tab==1)favoriteRestore.value=if(app.prefs.isFavorite(current))current.id else app.channels.displayChannels.filter{app.prefs.isFavorite(it)}.minByOrNull{kotlin.math.abs(it.number-current.number)}?.id.orEmpty() else channelRestore.value=current.id;resetCategory();restoringHome=true;playing=null;revision++});return@Box}
   if(channelDigits.isNotBlank())AppText(channelDigits,Modifier.align(Alignment.TopEnd).padding(20.dp),fontSize=InteractionStyle.display,color=NextTvStyle.Text)
-  Column(Modifier.fillMaxSize().padding(top=safeInsets.vertical.dp+58.dp)){
+  val currentViewport=tvViewportScale(androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp)
+  val homeTopPadding=safeInsets.vertical+58f
+  val settingsTopPadding=if(tab==2) homeTopPadding*currentViewport else homeTopPadding
+  Column(Modifier.fillMaxSize().padding(top=settingsTopPadding.dp)){
    when{
     sources->SourcesScreen(onBack={closeSources()},onChanged={revision++})
     tab==2->SettingsScreen(settingsNavigation,settingsRestore,navFocused,onContentFocus={contentFocus()},onBackToNav={focusNav()},onTopBack={homeBack()},onSources={sources=true;clearExit()},onChanged={revision++})
@@ -394,7 +397,7 @@ import com.nexttv.observeGridDraws
     }
    }
   }
-  if(!sources)HomeNavigation(tab,navFocused,nav,Modifier.align(Alignment.TopCenter).padding(top=(safeInsets.vertical*.67f).dp),homeCompositions={homeCompositionCount[0]},onSelect={i->if(!cacheReady)return@HomeNavigation;cardInput=false;cancelReturn();clearExit();navFocused=true;selectTab(i)})
+  if(!sources)HomeNavigation(tab,navFocused,nav,Modifier.align(Alignment.TopCenter).padding(top=(safeInsets.vertical*.67f*currentViewport).dp),homeCompositions={homeCompositionCount[0]},onSelect={i->if(!cacheReady)return@HomeNavigation;cardInput=false;cancelReturn();clearExit();navFocused=true;selectTab(i)})
   if(homeNotice.isNotBlank())ExitNotice(homeNotice)
  }
  fun dismissAddSubscription(){

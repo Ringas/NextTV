@@ -31,6 +31,10 @@ private typealias SettingsEntry = SettingsRowData
 
 /** Category navigation and content share the application's native input/focus/material policies. */
 @Composable fun SettingsScreen(navigation:SettingsNavigation,restoreTick:Int,navFocused:Boolean,onContentFocus:()->Unit,onBackToNav:()->Unit,onTopBack:()->Unit,onSources:()->Unit,onChanged:()->Unit){
+ CurrentViewportScale{SettingsScreenCurrent(navigation,restoreTick,navFocused,onContentFocus,onBackToNav,onTopBack,onSources,onChanged)}
+}
+
+@Composable private fun SettingsScreenCurrent(navigation:SettingsNavigation,restoreTick:Int,navFocused:Boolean,onContentFocus:()->Unit,onBackToNav:()->Unit,onTopBack:()->Unit,onSources:()->Unit,onChanged:()->Unit){
  val app=App.get();val p=app.prefs;val scope=rememberCoroutineScope();val view=LocalView.current
  val activity=LocalActivity.current as TvActivity
  var category by remember{mutableStateOf(navigation.group.takeIf{it in settingsCategories}?:settingsCategories.first())}
@@ -125,13 +129,14 @@ private typealias SettingsEntry = SettingsRowData
    Column(Modifier.fillMaxWidth().appVerticalScroll(rememberScrollState()).padding(12.dp),verticalArrangement=Arrangement.spacedBy(2.dp)){
     settingsCategories.forEachIndexed{index,name->
      val key="分类/$name";val request=categories.getValue(name)
+     val active=category==name&&!navFocused
      DisposableEffect(key,request){navigation.rows[key]=request;onDispose{navigation.rows.remove(key)}}
-     TvSurface(Modifier.fillMaxWidth().focusRequester(request).focusEdges(left=true,down=index==settingsCategories.lastIndex).focusProperties{left=FocusRequester.Cancel;right=FocusRequester.Cancel;if(index==0)up=navigation.top?:FocusRequester.Default;if(index==settingsCategories.lastIndex)down=FocusRequester.Cancel}.onPreviewKeyEvent{e->if(e.nativeKeyEvent.action==android.view.KeyEvent.ACTION_DOWN&&TvInput.action(e.nativeKeyEvent.keyCode)==InputAction.RIGHT){enterContent();true}else false},kind="category",selected=category==name,onFocus={
+     TvSurface(Modifier.fillMaxWidth().focusRequester(request).focusEdges(left=true,down=index==settingsCategories.lastIndex).focusProperties{left=FocusRequester.Cancel;right=FocusRequester.Cancel;if(index==0)up=navigation.top?:FocusRequester.Default;if(index==settingsCategories.lastIndex)down=FocusRequester.Cancel}.onPreviewKeyEvent{e->if(e.nativeKeyEvent.action==android.view.KeyEvent.ACTION_DOWN&&TvInput.action(e.nativeKeyEvent.keyCode)==InputAction.RIGHT){enterContent();true}else false},kind="category",selected=active,onFocus={
       pendingRestore?.cancel();inContent=false;onContentFocus();navigation.row=key;navigation.group=name
       if(category!=name){category=name;subpage="";scope.launch{navigation.scroll.scrollTo(0)}}
       explanation=when(name){"订阅与节目单"->"管理频道订阅与节目单。";"播放"->"设置启动方式、换台体验与播放信息。";"频道与外观"->"调整频道展示与动态效果。";"高级"->"配置特殊订阅服务的网络要求。";else->""}
      },onClick={if(InteractionStyle.pointer)runCatching{request.requestFocus()}else enterContent()}){Row(Modifier.fillMaxWidth().height(bodyHeight).padding(horizontal=12.dp,vertical=10.dp),verticalAlignment=Alignment.CenterVertically){
-      AppText(name,Modifier.weight(1f),color=if(category==name)NextTvStyle.Ivory else NextTvStyle.Muted,fontSize=InteractionStyle.body,fontWeight=if(category==name)FontWeight.SemiBold else FontWeight.Normal,maxLines=2)
+      AppText(name,Modifier.weight(1f),color=if(active)NextTvStyle.Ivory else NextTvStyle.Muted,fontSize=InteractionStyle.body,fontWeight=if(active)FontWeight.SemiBold else FontWeight.Normal,maxLines=2)
      }}
     }
    }
