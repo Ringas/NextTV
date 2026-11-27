@@ -15,7 +15,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import com.nexttv.core.App
 import com.nexttv.core.data.Channel
 import com.nexttv.core.data.Source
-import com.nexttv.core.tv.AppTextScale
+import com.nexttv.core.tv.TvViewportScale
 import com.nexttv.core.tv.BrowserController
 import com.nexttv.core.tv.ChannelSidePanel
 import com.nexttv.core.tv.NextTvStyle
@@ -58,7 +58,7 @@ class ChannelBrowserScreenshot {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             CompositionLocalProvider(LocalActivity provides fakeActivity) {
-                AppTextScale {
+                TvViewportScale {
                     Box(Modifier.fillMaxSize().background(NextTvStyle.Home)) {
                         ChannelSidePanel(
                             current = current,

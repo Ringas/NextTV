@@ -157,11 +157,50 @@ class DesignScreenshots {
         }
     }
 
+    @Test @Config(qualifiers = "w1920dp-h1080dp-land-xhdpi")
+    fun home4K() {
+        shoot("01-home-4k") { HomeScene(tab = 0) }
+    }
+
+    @Test @Config(qualifiers = "w3840dp-h2160dp-land-mdpi")
+    fun home4Kmdpi() {
+        shoot("01-home-4k-mdpi") { HomeScene(tab = 0) }
+    }
+
+    @Test @Config(qualifiers = "w1920dp-h1080dp-land-xhdpi")
+    fun settings4K() {
+        shoot("06-settings-4k") { SettingsScene() }
+    }
+
+    @Test @Config(qualifiers = "w1920dp-h1080dp-land-xhdpi")
+    fun startup4K() {
+        val prefs = App.get().prefs
+        val previous = prefs.lightGlass
+        prefs.lightGlass = false
+        try {
+            shoot("09-startup-dark-4k") {
+                StartupCover(live = false, light = false, reduceMotion = false, elapsed = 2.60f, exitAlpha = 0f)
+            }
+        } finally {
+            prefs.lightGlass = previous
+        }
+    }
+
+    @Test @Config(qualifiers = "w1920dp-h1080dp-land-xhdpi")
+    fun player4K() {
+        shoot("04-player-4k") { PlayerScene() }
+    }
+
+    @Test @Config(qualifiers = "w1920dp-h1080dp-land-xhdpi")
+    fun schedule4K() {
+        shoot("05-schedule-4k") { ScheduleScene() }
+    }
+
     private fun shoot(name: String, content: @Composable () -> Unit) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             Box(Modifier.fillMaxSize().background(NextTvStyle.Home)) {
-                AppTextScale { content() }
+                TvViewportScale { content() }
             }
         }
         compose.mainClock.advanceTimeBy(240)

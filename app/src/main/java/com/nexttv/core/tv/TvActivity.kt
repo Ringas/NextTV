@@ -194,7 +194,7 @@ class TvActivity:ComponentActivity(){
    SideEffect {
     window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(canvas.toArgb()))
    }
-   AppTextScale{NextTvTheme{StableFocusScroll{AppModalHost{key(homeEpoch){
+   TvViewportScale{NextTvTheme{StableFocusScroll{AppModalHost{key(homeEpoch){
     StartupContent(onExit={finish()})
    }}}}}
   }

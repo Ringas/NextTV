@@ -55,19 +55,16 @@ private fun CardText(text: String, size: Int, color: Color, modifier: Modifier =
 @Composable
 private fun ChannelNumberBadge(channel: Channel) {
  val number = channel.number.toString().padStart(3, '0')
- val density = LocalDensity.current
- val systemScale = androidx.compose.ui.platform.LocalConfiguration.current.fontScale
- androidx.compose.runtime.CompositionLocalProvider(LocalDensity provides Density(density.density, systemScale)) {
-  Box(
-   Modifier.widthIn(min = 25.dp * systemScale.coerceAtLeast(1f)).height(19.dp * systemScale.coerceAtLeast(1f))
-    .semantics { contentDescription = "频道号 $number" }
-    .background(NextTvStyle.ChannelNumber, RoundedCornerShape(InteractionStyle.badgeRadius))
-    .border(.75.dp, NextTvStyle.PlayerInfoBorder, RoundedCornerShape(InteractionStyle.badgeRadius))
-    .padding(horizontal = 5.dp),
-   contentAlignment = Alignment.Center,
-  ) {
-   CardText(number, 11, NextTvStyle.Text, bold = true)
-  }
+ val scale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+ Box(
+  Modifier.widthIn(min = 25.dp * scale).height(19.dp * scale)
+   .semantics { contentDescription = "频道号 $number" }
+   .background(NextTvStyle.ChannelNumber, RoundedCornerShape(InteractionStyle.badgeRadius))
+   .border(.75.dp, NextTvStyle.PlayerInfoBorder, RoundedCornerShape(InteractionStyle.badgeRadius))
+   .padding(horizontal = 5.dp),
+  contentAlignment = Alignment.Center,
+ ) {
+  CardText(number, 11, NextTvStyle.Text, bold = true)
  }
 }
 
@@ -92,10 +89,7 @@ internal fun channelCoverMark(name: String): String {
   ChannelNumberBadge(c)
  } else Column(Modifier.fillMaxWidth()) {
   val focused = LocalSurfaceFocused.current
-  val density = LocalDensity.current
-  val systemScale = androidx.compose.ui.platform.LocalConfiguration.current.fontScale
-  androidx.compose.runtime.CompositionLocalProvider(LocalDensity provides Density(density.density, systemScale)) {
-   Column {
+  Column {
     val artworkShape = RoundedCornerShape(InteractionStyle.cardRadius)
     Box(Modifier.fillMaxWidth().heightIn(min = 80.dp).aspectRatio(16f / 9f).clip(artworkShape)
      .background(channelArtworkBrush(c))
@@ -119,6 +113,5 @@ internal fun channelCoverMark(name: String): String {
      ChannelNumberBadge(c)
     }
    }
-  }
  }
 }
