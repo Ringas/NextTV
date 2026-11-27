@@ -6,6 +6,8 @@ import androidx.compose.runtime.setValue
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.app.UiModeManager
+import android.os.Build
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
@@ -14,7 +16,8 @@ import kotlin.reflect.KProperty
  */
 class Prefs(context: Context) {
 
-    private val sp = context.applicationContext.getSharedPreferences("nexttv", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val sp = appContext.getSharedPreferences("nexttv", Context.MODE_PRIVATE)
     private val secrets = SecretStore(context)
     private val secretCache = HashMap<String, Pair<String, String>>()
 
@@ -22,19 +25,37 @@ class Prefs(context: Context) {
     private var motionRevision by androidx.compose.runtime.mutableIntStateOf(0)
     // SharedPreferences stores listeners weakly. R8 must retain this owning strong field.
     @androidx.annotation.Keep
-    private val motionListener=android.content.SharedPreferences.OnSharedPreferenceChangeListener { _,key->if(key==null||key=="light_glass")lightGlassState=sp.getBoolean("light_glass",false);if(key==null||key=="channel_previews")previewsState=sp.getBoolean("channel_previews",false);if(key==null||key=="reduce_motion"){val value=sp.getBoolean("reduce_motion",false);if(motionCache!=value){motionCache=value;motionRevision++}} }
+    private val motionListener=android.content.SharedPreferences.OnSharedPreferenceChangeListener { _,key->if(key==null||key=="light_glass"){lightGlassState=sp.getBoolean("light_glass",false);syncSplashNightMode(lightGlassState)};if(key==null||key=="channel_previews")previewsState=sp.getBoolean("channel_previews",false);if(key==null||key=="reduce_motion"){val value=sp.getBoolean("reduce_motion",false);if(motionCache!=value){motionCache=value;motionRevision++}} }
     var reduceMotion:Boolean
         get(){motionRevision;return motionCache?:sp.getBoolean("reduce_motion",false).also{motionCache=it}}
         set(value){if(motionCache!=value){motionCache=value;motionRevision++};sp.edit().putBoolean("reduce_motion",value).apply()}
     private var lightGlassState by androidx.compose.runtime.mutableStateOf(sp.getBoolean("light_glass", false))
     var lightGlass:Boolean
         get()=lightGlassState
-        set(value){lightGlassState=value;sp.edit().putBoolean("light_glass",value).apply()}
+        set(value){lightGlassState=value;sp.edit().putBoolean("light_glass",value).apply();syncSplashNightMode(value)}
     private var previewsState by androidx.compose.runtime.mutableStateOf(sp.getBoolean("channel_previews", false))
     var channelPreviews:Boolean
         get()=previewsState
         set(value){previewsState=value;sp.edit().putBoolean("channel_previews",value).apply()}
-    init {sp.registerOnSharedPreferenceChangeListener(motionListener)}
+    init {
+        sp.registerOnSharedPreferenceChangeListener(motionListener)
+        syncSplashNightMode(lightGlassState)
+    }
+
+    /**
+     * Android 12 reads the splash-screen palette from the system night resources,
+     * while Next TV's light theme is an in-app preference. The v31 splash palette
+     * deliberately uses the inverse qualifier (night = light app theme), so the
+     * next cold start opens on exactly the canvas the Compose cover will use.
+     */
+    private fun syncSplashNightMode(light:Boolean){
+        if(Build.VERSION.SDK_INT<Build.VERSION_CODES.S)return
+        runCatching{
+            appContext.getSystemService(UiModeManager::class.java)?.setApplicationNightMode(
+                if(light)UiModeManager.MODE_NIGHT_YES else UiModeManager.MODE_NIGHT_NO,
+            )
+        }
+    }
     /** 启动时自动更新播放源 */
     var autoUpdateOnStart by booleanSetting("auto_update", true)
 

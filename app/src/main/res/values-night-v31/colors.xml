@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light app theme. NextTvTheme is a manual preference, so Prefs maps light
+         to MODE_NIGHT_YES solely to select this splash palette on the next launch. -->
+    <color name="next_tv_splash">#F4F5F7</color>
+</resources>

@@ -355,9 +355,18 @@ import kotlin.math.roundToInt
  }
 }
 
-/** Optional frameless wall clock; visibility is controlled by the Time display menu. */
-@Composable private fun PlayerPersistentHud(now:Long,modifier:Modifier){
- AppText(Ui.hhmm(now),modifier.semantics{contentDescription="当前时间 ${Ui.hhmm(now)}"},fontSize=InteractionStyle.clockLarge,fontWeight=FontWeight.Bold,color=Color.White,maxLines=1,lineHeight=InteractionStyle.clockLarge,shadow=androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha=.82f),androidx.compose.ui.geometry.Offset(0f,1f),5f))
+/** Optional wall clock on the media layer; visibility is controlled by the Time display menu. */
+@Composable internal fun PlayerPersistentHud(now:Long,modifier:Modifier){
+ val shape=RoundedCornerShape(10.dp)
+ AppText(
+  Ui.hhmm(now),
+  modifier.background(NextTvStyle.MediaHudFill,shape).padding(horizontal=14.dp,vertical=7.dp).semantics{contentDescription="当前时间 ${Ui.hhmm(now)}"},
+  fontSize=InteractionStyle.clock,
+  fontWeight=FontWeight.SemiBold,
+  color=NextTvStyle.MediaText,
+  maxLines=1,
+  lineHeight=InteractionStyle.clock*1.05f,
+ )
 }
 
 internal enum class BadgeTone{Neutral,Warm,Cool,Live}

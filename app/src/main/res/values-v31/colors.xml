@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12 splash. Dark is the default; the night-qualified palette is the
+         light app theme, kept in sync through UiModeManager.setApplicationNightMode. -->
+    <color name="next_tv_splash">#0A0C10</color>
+</resources>

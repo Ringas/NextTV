@@ -89,7 +89,7 @@ object NextTvStyle {
  val Live get()=tone(0xFFFF5F57,0xFFC63A35)
  val TabActive get()=Ivory
  val OnTabActive get()=tone(0xFF0A0C10,0xFFF7F8FA)
- val Scrim get()=tone(0xB3000000,0x66000000)
+ val Scrim=Color(0x66000000)
  // Player chrome sits on a cinematic black scrim in both themes, so it never follows theme ink.
  val MediaText=Color(0xFFF4F6F8)
  val MediaMuted=Color(0xB8FFFFFF)
@@ -100,6 +100,9 @@ object NextTvStyle {
  val MediaPressed=Color(0x38FFFFFF)
  val MediaChipFill=Color(0x1FFFFFFF)
  val MediaChipStroke=Color(0x47FFFFFF)
+ // Persistent player clocks sit directly on the video, so they need a darker
+ // reading surface than the chips used inside the bottom scrim.
+ val MediaHudFill=Color(0xB30A0C10)
  // Flat surfaces share one graphite fill and one hairline; no glass tokens remain.
  val Panel get()=tone(0xFF14171D,0xFFFFFFFF)
  val Decelerate=Easing {1f-(1f-it)*(1f-it)}

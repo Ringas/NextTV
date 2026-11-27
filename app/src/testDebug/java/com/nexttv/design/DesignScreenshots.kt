@@ -85,6 +85,62 @@ class DesignScreenshots {
         }
     }
 
+    @Test fun startupDark() {
+        val prefs = App.get().prefs
+        val previous = prefs.lightGlass
+        prefs.lightGlass = false
+        try {
+            shoot("09-startup-dark") {
+                StartupCover(live = false, light = false, reduceMotion = false, elapsed = 2.60f, exitAlpha = 0f)
+            }
+        } finally {
+            prefs.lightGlass = previous
+        }
+    }
+
+    @Test fun startupSweep() {
+        val prefs = App.get().prefs
+        val previous = prefs.lightGlass
+        prefs.lightGlass = false
+        try {
+            shoot("09b-startup-sweep") {
+                StartupCover(live = false, light = false, reduceMotion = false, elapsed = 1.30f, exitAlpha = 0f)
+            }
+        } finally {
+            prefs.lightGlass = previous
+        }
+    }
+
+    @Test fun startupLight() {
+        val prefs = App.get().prefs
+        val previous = prefs.lightGlass
+        prefs.lightGlass = true
+        try {
+            shoot("10-startup-light") {
+                StartupCover(live = false, light = true, reduceMotion = false, elapsed = 2.60f, exitAlpha = 0f)
+            }
+        } finally {
+            prefs.lightGlass = previous
+        }
+    }
+
+    @Test fun playerHud() {
+        val now = Calendar.getInstance().apply {
+            set(2026, Calendar.NOVEMBER, 24, 21, 14, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        shoot("11-player-hud") {
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(listOf(Color(0xFF27364A), Color(0xFF0B111A)))
+                ),
+                contentAlignment = Alignment.TopEnd,
+            ) {
+                PlayerPersistentHud(now, Modifier.padding(top = 18.dp, end = 26.dp))
+            }
+        }
+    }
+
     @Test fun schedule() {
         shoot("05-schedule") { ScheduleScene() }
     }
