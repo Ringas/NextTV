@@ -8,6 +8,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
 import androidx.activity.compose.setContent
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.createLifecycleAwareWindowRecomposer
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -189,6 +190,10 @@ class TvActivity:ComponentActivity(){
   WindowCompat.setDecorFitsSystemWindows(window,false)
   WindowInsetsControllerCompat(window,window.decorView).apply{hide(WindowInsetsCompat.Type.systemBars());systemBarsBehavior=WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE}
   setContent(parent=window.decorView.createLifecycleAwareWindowRecomposer(AppMotionScale,lifecycle)){
+   val canvas=NextTvStyle.Background
+   SideEffect {
+    window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(canvas.toArgb()))
+   }
    AppTextScale{NextTvTheme{StableFocusScroll{AppModalHost{key(homeEpoch){
     StartupContent(onExit={finish()})
    }}}}}

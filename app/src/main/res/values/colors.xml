@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Keep the system window/splash canvas in sync with NextTvStyle.Background. -->
+    <color name="next_tv_canvas">#0A0C10</color>
+    <color name="next_tv_splash">#0A0C10</color>
+</resources>

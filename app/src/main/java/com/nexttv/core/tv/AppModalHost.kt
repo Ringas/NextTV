@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.zIndex
 
@@ -55,7 +54,7 @@ internal val LocalInWindowModal=staticCompositionLocalOf{false}
  CompositionLocalProvider(LocalModalController provides controller){
   Box(Modifier.fillMaxSize()){
    Box((if(controller.visible)Modifier.fillMaxSize().clearAndSetSemantics{}else Modifier.fillMaxSize()).focusProperties{onEnter={if(controller.visible)cancelFocusChange()else if(controller.restoreBackgroundFocus())cancelFocusChange()}}.focusGroup()){content()}
-   if(controller.visible)Box(Modifier.fillMaxSize().zIndex(20f).background(Color.Black.copy(alpha=.40f)).imePadding().onFocusChanged{modalHasFocus=it.hasFocus}.onKeyEvent{event->val direction=modalFocusDirection(event.nativeKeyEvent);if(direction!=null){if(event.nativeKeyEvent.action==android.view.KeyEvent.ACTION_DOWN)focusManager.moveFocus(direction);true}else false}.focusProperties{onExit={if(controller.visible)cancelFocusChange()}}.focusGroup()){
+   if(controller.visible)Box(Modifier.fillMaxSize().zIndex(20f).background(NextTvStyle.Scrim).imePadding().onFocusChanged{modalHasFocus=it.hasFocus}.onKeyEvent{event->val direction=modalFocusDirection(event.nativeKeyEvent);if(direction!=null){if(event.nativeKeyEvent.action==android.view.KeyEvent.ACTION_DOWN)focusManager.moveFocus(direction);true}else false}.focusProperties{onExit={if(controller.visible)cancelFocusChange()}}.focusGroup()){
     // A static information sheet has no buttons: it must still own keyboard focus.
     LaunchedEffect(controller.ownerToken){withFrameNanos{};if(controller.focusDefault?.invoke()==false){withFrameNanos{};controller.focusDefault?.invoke()}}
     Box(Modifier.size(1.dp).clearAndSetSemantics{}.onFocusChanged{anchorFocused=it.isFocused}.focusRequester(anchor).focusProperties{canFocus=!modalHasFocus||anchorFocused}.focusable())

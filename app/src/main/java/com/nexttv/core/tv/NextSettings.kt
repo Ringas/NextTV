@@ -222,4 +222,4 @@ private typealias SettingsEntry = SettingsRowData
  }
 }
 
-/** Settings categories are plain text, matching iPlayTV's category rail. */
+/** Settings categories use a plain text rail with one selection state. */

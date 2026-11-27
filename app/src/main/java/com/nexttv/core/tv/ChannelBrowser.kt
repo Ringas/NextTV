@@ -6,11 +6,9 @@ import android.view.KeyEvent as K
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.*
-import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
@@ -95,7 +93,7 @@ import kotlinx.coroutines.flow.first
  Box(Modifier.width(width).fillMaxHeight().playerSidebarSurface{with(density){width.toPx()}}){
   Column(Modifier.fillMaxSize().padding(horizontal=12.dp,vertical=12.dp)){
    Row(Modifier.fillMaxWidth().padding(start=10.dp),verticalAlignment=Alignment.Top){
-    Box(Modifier.padding(top=2.dp).width(34.dp).height(28.dp).clip(RoundedCornerShape(6.dp)).background(Brush.linearGradient(listOf(Color(0xFF6C8CA6),Color(0xFF95AFC2)))),contentAlignment=Alignment.Center){
+    Box(Modifier.padding(top=2.dp).width(34.dp).height(28.dp).clip(RoundedCornerShape(6.dp)).background(NextTvStyle.Badge,RoundedCornerShape(6.dp)),contentAlignment=Alignment.Center){
      PlayerLogo(candidate,Modifier.fillMaxSize())
     }
     Column(Modifier.weight(1f).padding(start=8.dp)){
