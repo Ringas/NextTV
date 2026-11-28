@@ -15,6 +15,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import com.nexttv.core.App
 import com.nexttv.core.data.Channel
+import com.nexttv.core.data.ChannelRepository
 
 @Composable
 internal fun HomeChannelTile(
@@ -101,9 +102,15 @@ internal fun HomeChannelDialogs(
         "添加订阅" -> AddressInputDialog("", epg = false, onDismiss = onDismissSubscription, onConfirm = onSubscription)
         "分类" -> {
             val channels = App.get().channels.displayChannels
+            val hiddenChannels = App.get().channels.hiddenGroupChannels
             CategoryDialog(
                 choices = listOf(CategoryChoice("", "全部频道", channels.size)) + groups.map { group ->
-                    CategoryChoice(group, group, channels.count { it.groupName == group })
+                    CategoryChoice(
+                        group,
+                        group,
+                        if (group == ChannelRepository.GROUP_HIDDEN) hiddenChannels.size
+                        else channels.count { it.groupName == group },
+                    )
                 },
                 selectedId = selectedGroup,
                 onDismiss = onDismissCategory,

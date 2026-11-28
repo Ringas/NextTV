@@ -30,15 +30,23 @@ internal class PlaybackPreloader(
   val mode=app.prefs.preloadMode
   if(mode==0||!stillCurrent())return
   while(currentCoroutineContext().isActive&&stillCurrent()&&app.prefs.preloadMode==mode){
-   val channels=app.channels.channels
+   val channels=app.channels.displayChannels
    val index=channels.indexOfFirst{it.id==channelId}
    if(channels.size<2||index<0)return
+   // A route recovers asynchronously. Recompute the plan after a short settle so
+   // the old next-channel preload (e.g. C) is not started in the same instant the
+   // recovered route (e.g. B) becomes the new primary/backup target.
+   delay(PreloadPolicy.PLAN_SETTLE_MS)
+   if(!stillCurrent()||app.prefs.preloadMode!=mode)return
+   val settledChannels=app.channels.displayChannels
+   val settledIndex=settledChannels.indexOfFirst{it.id==channelId}
+   if(settledChannels.size<2||settledIndex<0)return
    val now=android.os.SystemClock.elapsedRealtime()
    unavailableWarmChannels.entries.removeAll{it.value.expiresAt<=now}
-   val plan=effectiveTargets(channels,PreloadPolicy.plan(channels.size,index,direction,mode))
-    .filter{!app.prefs.hideUnavailableRoutes||RouteHealth.isChannelAvailable(channels[it.index])}
+   val plan=effectiveTargets(settledChannels,PreloadPolicy.plan(settledChannels.size,settledIndex,direction,mode))
+    .filter{!app.prefs.hideUnavailableRoutes||RouteHealth.isChannelAvailable(settledChannels[it.index])}
    if(plan.isEmpty())return
-   val keepIds=plan.mapTo(hashSetOf()){channels[it.index].id}
+   val keepIds=plan.mapTo(hashSetOf()){settledChannels[it.index].id}
    preloadPool.retain(keepIds)
    preloadPool.pruneStale(
     now,
@@ -49,16 +57,16 @@ internal class PlaybackPreloader(
    val backups=plan.filter{it!==primary}
    var primaryReady=false
    coroutineScope {
-    val primaryJob=primary?.let{target->async{warmTarget(channels[target.index],target.slot,true,stillCurrent)}}
-    val backupJobs=backups.map{target->async{warmTarget(channels[target.index],target.slot,false,stillCurrent)}}
+    val primaryJob=primary?.let{target->async{warmTarget(settledChannels[target.index],target.slot,true,stillCurrent)}}
+    val backupJobs=backups.map{target->async{warmTarget(settledChannels[target.index],target.slot,false,stillCurrent)}}
     primaryReady=primaryJob?.await()?:false
     backupJobs.awaitAll()
-    if(primary!=null&&!primaryReady&&confirmedUnavailable(channels[primary.index])){
+    if(primary!=null&&!primaryReady&&confirmedUnavailable(settledChannels[primary.index])){
      val promote=backups.firstOrNull{it.slot==0}
      if(promote!=null){
-      preloadPool.remove(channels[promote.index].id)
+      preloadPool.remove(settledChannels[promote.index].id)
       withTimeoutOrNull(PreloadPolicy.DIRECTION_TIMEOUT_MS){
-       warmChannel(channels[promote.index],promote.slot,true,stillCurrent)
+       warmChannel(settledChannels[promote.index],promote.slot,true,stillCurrent)
       }
      }
     }

@@ -47,6 +47,7 @@ class TvActivity:ComponentActivity(){
 
  internal var homeBack:(()->Unit)?=null
  internal var playerBack:(()->Unit)?=null
+ internal var playerZap:((Int)->Boolean)?=null
  internal var homeInteraction:(()->Unit)?=null
  internal var playerInteraction:(()->Unit)?=null
  private var modalKeyOwner:Any?=null
@@ -100,6 +101,15 @@ class TvActivity:ComponentActivity(){
  override fun dispatchKeyEvent(event:android.view.KeyEvent):Boolean {
   InteractionStyle.keyboard(event.keyCode,pointerNavigation)
   if(modalKeys?.invoke(event)==true)return true
+  // Channel keys are handled before Compose focus dispatch. The first CH+/- after
+  // entering playback could otherwise be eaten while Compose was restoring focus,
+  // which looked like "first press only shows the info layer".
+  if(event.action==android.view.KeyEvent.ACTION_DOWN && playerZap!=null){
+   when(event.keyCode){
+    android.view.KeyEvent.KEYCODE_CHANNEL_UP->if(playerZap?.invoke(-1)==true)return true
+    android.view.KeyEvent.KEYCODE_CHANNEL_DOWN->if(playerZap?.invoke(1)==true)return true
+   }
+  }
   if(event.action==android.view.KeyEvent.ACTION_DOWN&&TvKey(event).action!=InputAction.BACK)interaction()
   return super.dispatchKeyEvent(event)
  }

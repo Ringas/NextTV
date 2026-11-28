@@ -112,6 +112,24 @@ class RouteHealthTest {
         assertEquals(listOf(only), RouteHealth.availableRoutes(listOf(only)))
     }
 
+    @Test fun fastProbeTimeoutStaysVisibleEvenWhenRepeated() {
+        val only = route(1)
+        val ch = channel("cold-start", only)
+        // Two fast passes both exceed the 2s budget. Neither may count as a
+        // hide-worthy failure; the route remains visible as SUSPECT.
+        RouteHealth.markProbeSuspect(only, now = 1_000L)
+        RouteHealth.markProbeSuspect(only, now = 2_500L)
+        assertEquals(RouteHealth.Status.SUSPECT, RouteHealth.status(only))
+        assertTrue(RouteHealth.isChannelAvailable(ch))
+
+        // A normal probe with a 5s budget is the first real confirmation. One
+        // timeout there keeps it visible; the second consecutive one hides it.
+        RouteHealth.markProbeFailure(only, definitive = false, now = 8_000L)
+        assertTrue(RouteHealth.isChannelAvailable(ch))
+        RouteHealth.markProbeFailure(only, definitive = false, now = 20_000L)
+        assertFalse(RouteHealth.isChannelAvailable(ch))
+    }
+
     @Test fun lateProbeCannotOverridePlaybackSuccess() {
         val only = route(1)
         val staleVersion = RouteHealth.version(only)

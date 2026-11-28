@@ -7,6 +7,8 @@ internal object PreloadPolicy {
  const val DIRECTION_TIMEOUT_MS=14_000L
  const val SHALLOW_TIMEOUT_MS=8_000L
  const val FAILURE_TTL_MS=20_000L
+ /** Lets a route-health transition settle before the preload plan is locked. */
+ const val PLAN_SETTLE_MS=150L
 
  data class Target(val index:Int,val slot:Int,val deep:Boolean)
 

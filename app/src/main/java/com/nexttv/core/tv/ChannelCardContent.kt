@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.*
 import com.nexttv.core.data.Channel
+import com.nexttv.core.data.ChannelRepository
 import com.nexttv.core.ui.Ui
 
 private val artworkColors = listOf(
@@ -54,6 +55,7 @@ private fun CardText(text: String, size: Int, color: Color, modifier: Modifier =
 
 @Composable
 private fun ChannelNumberBadge(channel: Channel) {
+ if (channel.groupName == ChannelRepository.GROUP_HIDDEN) return
  val number = channel.number.toString().padStart(3, '0')
  val scale = LocalDensity.current.fontScale.coerceAtLeast(1f)
  Box(

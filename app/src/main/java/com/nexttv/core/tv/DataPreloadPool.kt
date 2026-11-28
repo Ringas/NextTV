@@ -11,6 +11,19 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.preload.*
 import kotlinx.coroutines.CompletableDeferred
 
+/**
+ * Number of preloaded streams currently holding a network connection.
+ * RouteHealthProbe uses it to leave room for preloading instead of competing
+ * with it; the counter is process-wide because only one playback pool is live.
+ */
+internal object PreloadActivity {
+ private val active=java.util.concurrent.atomic.AtomicInteger()
+ fun added(){active.incrementAndGet()}
+ fun removed(){active.updateAndGet{value->if(value>0)value-1 else 0}}
+ fun cleared(count:Int){active.updateAndGet{value->(value-count).coerceAtLeast(0)}}
+ val count:Int get()=active.get()
+}
+
 /** Two data loaders share the main playback looper/allocator. They do not create video decoders. */
 internal class DataPreloadPool(private val context:Context) {
  private companion object {
@@ -61,14 +74,19 @@ internal class DataPreloadPool(private val context:Context) {
   val wrapped=m.getMediaSource(source.mediaItem)?:error("预热源创建失败")
   val entry=Entry(channelId,m,source.mediaItem,wrapped,routeIndex,deep)
   entries[channelId]=entry
+  PreloadActivity.added()
   m.invalidate()
   return entry
  }
  fun existing(channelId:String):Entry?=entries[channelId]
  fun routeIndex(channelId:String):Int?=entries[channelId]?.takeUnless{it.failed}?.routeIndex
- fun take(channelId:String,index:Int):Entry?=entries[channelId]?.takeIf{it.routeIndex==index&&!it.failed}?.also{entries.remove(channelId)}
+ fun take(channelId:String,index:Int):Entry?=entries[channelId]?.takeIf{it.routeIndex==index&&!it.failed}?.also{
+  entries.remove(channelId)
+  PreloadActivity.removed()
+ }
  fun remove(channelId:String):Entry?{
   val entry=entries.remove(channelId) ?: return null
+  PreloadActivity.removed()
   entry.manager.remove(entry.item)
   return entry
  }
@@ -87,7 +105,7 @@ internal class DataPreloadPool(private val context:Context) {
  }
  fun adopt(entry:Entry){borrowed=entry}
  fun releaseBorrowed(){borrowed?.let{it.manager.remove(it.item)};borrowed=null}
- fun clear(){entries.values.toList().forEach{it.manager.remove(it.item)};entries.clear()}
+ fun clear(){val count=entries.size;entries.values.toList().forEach{it.manager.remove(it.item)};entries.clear();PreloadActivity.cleared(count)}
  fun readyIds()=entries.values.filter{it.ready}.map{it.channelId}
  fun deepCount()=entries.values.count{it.deep}
  fun shallowCount()=entries.values.count{!it.deep}

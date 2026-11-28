@@ -191,7 +191,12 @@ import kotlin.math.roundToInt
   }
  }
  val latestPlayerBack by rememberUpdatedState<()->Unit>({back()})
- DisposableEffect(context){val activity=context as TvActivity;activity.playerBack={latestPlayerBack()};activity.playerInteraction={if(actionsVisible)deadline=System.currentTimeMillis()+InteractionStyle.actionsMillis;exitGate.reset();if(notice=="再按一次退出播放")notice=""};onDispose{activity.playerBack=null;activity.playerInteraction=null}}
+ // Channel +/- bypasses Compose focus so the very first press after entering
+ // playback always switches, instead of only revealing the info layer.
+ val latestPlayerZap by rememberUpdatedState<(Int)->Boolean> { delta ->
+  if(dialog.isBlank()&&!side&&!actionsVisible){engine.zap(delta);true}else false
+ }
+ DisposableEffect(context){val activity=context as TvActivity;activity.playerBack={latestPlayerBack()};activity.playerZap={latestPlayerZap(it)};activity.playerInteraction={if(actionsVisible)deadline=System.currentTimeMillis()+InteractionStyle.actionsMillis;exitGate.reset();if(notice=="再按一次退出播放")notice=""};onDispose{activity.playerBack=null;activity.playerZap=null;activity.playerInteraction=null}}
  KeepScreenOnWhilePlayback(engine.player,foregroundUi)
  val gestureHost = context as TvActivity
  SideEffect {

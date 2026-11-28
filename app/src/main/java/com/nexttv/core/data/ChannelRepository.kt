@@ -58,24 +58,45 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
      * Channel list after hiding unavailable routes. Playback and auto-skip keep
      * using [channels]; only browsing/selection surfaces use this list.
      */
-    private var displayCache: List<Channel> = emptyList()
+    private var presentationCache: ChannelPresentationPolicy.Presentation? = null
     private var displayCacheRevision = -1
     private var displayCacheHide = false
     private var displayCacheSource: List<Channel>? = null
+    private var displayCacheDisabledSources = false
 
-    val displayChannels: List<Channel>
+    private val presentation: ChannelPresentationPolicy.Presentation
         get() {
-            val health = displayRevision
+            // RouteHealth.revision is the authoritative token. The mirrored
+            // Compose state can miss a callback when health is cleared from a
+            // background refresh; comparing it to the repository token prevents
+            // a stale hidden list from outliving the health entries it came from.
+            val health = RouteHealth.revision
+            if (healthRevision != health) healthRevision = health
             val hide = prefs.hideUnavailableRoutes
             val source = channels
-            if (displayCacheSource !== source || displayCacheRevision != health || displayCacheHide != hide) {
+            val hasDisabled = sources.any { !it.enabled }
+            val cached = presentationCache
+            if (cached == null || displayCacheSource !== source || displayCacheRevision != health ||
+                displayCacheHide != hide || displayCacheDisabledSources != hasDisabled) {
                 displayCacheSource = source
                 displayCacheRevision = health
                 displayCacheHide = hide
-                displayCache = RouteHealth.displayChannels(source, hide)
+                displayCacheDisabledSources = hasDisabled
+                presentationCache = ChannelPresentationPolicy.build(
+                    channels = source,
+                    hideUnavailable = hide,
+                    hasDisabledSource = hasDisabled,
+                    isAvailable = RouteHealth::isChannelAvailable,
+                )
             }
-            return displayCache
+            return checkNotNull(presentationCache)
         }
+
+    /** Normal channels only: hidden channels never leak into 全部频道 or zapping. */
+    val displayChannels: List<Channel> get() = presentation.normal
+
+    /** Playable channels from the synthetic 隐藏 group; empty when hiding is off. */
+    val hiddenGroupChannels: List<Channel> get() = presentation.hidden
 
     /** 分组顺序（按首次出现顺序，4K 专区固定排在最后） */
     var groups: List<String> = emptyList()
@@ -87,7 +108,8 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
             val ordered = LinkedHashSet<String>()
             displayChannels.forEach { ordered.add(it.groupName) }
             val head = ordered.filter { it != M3uParser.GROUP_4K }
-            return if (ordered.contains(M3uParser.GROUP_4K)) head + M3uParser.GROUP_4K else head
+            val normal = if (ordered.contains(M3uParser.GROUP_4K)) head + M3uParser.GROUP_4K else head
+            return if (hiddenGroupChannels.isNotEmpty() && GROUP_HIDDEN !in normal) normal + GROUP_HIDDEN else normal
         }
 
     @Volatile var sources: List<Source> = emptyList()
@@ -342,8 +364,8 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
 
     fun channelsIn(group: String?, favoritesOnly: Boolean, query: String): List<Channel> {
         val fav = if (favoritesOnly) prefs.favorites else null
-        var list = displayChannels
-        if (group != null && group.isNotBlank() && group != GROUP_ALL) {
+        var list = if (group == GROUP_HIDDEN) hiddenGroupChannels else displayChannels
+        if (group != null && group.isNotBlank() && group != GROUP_ALL && group != GROUP_HIDDEN) {
             list = list.filter { it.groupName == group }
         }
         if (fav != null) list = list.filter { channel -> channel.id in fav || channel.playbackRoutes.any { it.originalId in fav } }
@@ -352,7 +374,7 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
             list = list.filter {
                 it.name.lowercase(Locale.ROOT).contains(q) ||
                     it.groupName.lowercase(Locale.ROOT).contains(q) ||
-                    it.number.toString() == q
+                    (it.number > 0 && it.number.toString() == q)
             }
         }
         return list
@@ -362,6 +384,7 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
 
     companion object {
         const val GROUP_ALL = "全部频道"
+        const val GROUP_HIDDEN = ChannelPresentationPolicy.GROUP_HIDDEN
 
         /** 老版本内置演示源的固定 id，仅用于升级时清理 */
         private const val LEGACY_BUILTIN_ID = "builtin"

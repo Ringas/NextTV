@@ -224,8 +224,8 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
    val http=generateSequence<Throwable>(e){it.cause}.take(8).filterIsInstance<androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException>().firstOrNull()?.responseCode
    val message=playbackFailureMessage(e,e.errorCode)
    recordFailure(e.errorCodeName+(http?.let{" HTTP $it"}?:""),message)
-   if(isDefinitiveRouteFailure(e))currentRoute?.let(RouteHealth::markPlaybackDefinitiveFailure)
-   if(!tryDecoderRecovery(e))failed(message,serial,isDefinitiveRouteFailure(e))
+   val definitive=isDefinitiveRouteFailure(e)
+   if(!tryDecoderRecovery(e))failed(message,serial,definitive)
   }}
  }
  init{
@@ -390,6 +390,11 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
  }
  private fun failed(message:String,serial:Int,definitive:Boolean=false){
   if(closed||serial!=tuneSerial||recovering||!foreground)return
+  // Both the player callback and the prepare/resolve exception path converge
+  // here. Mark the route that actually failed before the retry job advances
+  // current/routeIndex; otherwise the 404 card stays visible until the next
+  // five-minute idle sweep.
+  if(definitive)currentRoute?.let(RouteHealth::markPlaybackDefinitiveFailure)
   if(offline()){
    if(replay!=null)pendingPosition=pendingPosition?:player.currentPosition.coerceAtLeast(resumePosition)
    waitForNetwork()
@@ -407,25 +412,33 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
   var nextRoute=if(recoveryBudget.remaining(stallTimeoutMillis)<=0)null else recovery.next(routeCount,routeIndex)
   while(nextRoute!=null&&!RouteHealth.isAvailable(current.playbackRoutes[nextRoute]))nextRoute=recovery.next(routeCount,nextRoute)
   val channel=current
+  var searchPaused=false
   val nextChannel=if(nextRoute==null){
    exhausted+=channel.id
-   if(!AutoRecoveryPolicy.canHop(autoChannelHops,softChannelHops,definitive)) null else {
-    val hide=app.prefs.hideUnavailableRoutes
-    // displayChannels is already cached by health revision; this avoids a
-    // per-channel RouteHealth scan on the playback failure path.
-    val ordered=if(hide){
-     val visible=app.channels.displayChannels
-     if(visible.none{it.id==channel.id})visible+channel else visible
-    }else app.channels.channels
+   val hide=app.prefs.hideUnavailableRoutes
+   // Keep the failing channel at its original position. Appending it to the
+   // visible list put it last, so a forward search had no candidate after it.
+   val ordered=app.channels.displayChannels
+   if(!AutoRecoveryPolicy.canHop(autoChannelHops,softChannelHops,definitive,ordered.size)){
+    // A large lineup is capped for safety. Only claim "no channels" when the
+    // whole visible list was actually exhausted; otherwise say we paused.
+    searchPaused=AutoRecoveryPolicy.searchPaused(autoChannelHops,ordered.size)
+    null
+   } else {
     val at=ordered.indexOfFirst{it.id==channel.id}
-    ChannelSwitchPolicy.directionalIndices(ordered.size,at,direction)
-     .map(ordered::get)
-     .firstOrNull{it.id!=channel.id && it.id !in exhausted &&
-       (!hide || RouteHealth.isChannelAvailable(it)) && !preloader.confirmedUnavailable(it)}
+    val nearby=ChannelSwitchPolicy.directionalIndices(ordered.size,at,direction).map(ordered::get)
+    val healthy=nearby.filter{it.id!=channel.id && it.id !in exhausted &&
+      (!hide || RouteHealth.isChannelAvailable(it))}
+    // A warm-up failure is only a hint. It must never suppress the last
+    // visibly healthy neighbour, otherwise a stale preload result turns a
+    // recoverable 404 into "no channels available" without any HTTP attempt.
+    val next=healthy.firstOrNull{!preloader.confirmedUnavailable(it)}?:healthy.firstOrNull()
+    android.util.Log.i("NextTVSwitch","hop at=$at dir=$direction size=${ordered.size} healthy=${healthy.map{it.name}} warmBlocked=${healthy.filter{preloader.confirmedUnavailable(it)}.map{it.name}} chosen=${next?.name}")
+    next
    }
   }else null
   if(nextChannel!=null){if(definitive)autoChannelHops++ else softChannelHops++}
-  if(nextRoute==null&&nextChannel==null){quietRecovery=false;player.pause();error="暂无可用频道\n$message";return}
+  if(nextRoute==null&&nextChannel==null){quietRecovery=false;player.pause();error=(if(searchPaused)"自动切换已暂停，可稍后重试\n" else "暂无可用频道\n")+message;return}
   retryJob=scope.launch{
    delay(if(nextRoute!=null&&routeCount==1)1000 else 300)
    if(closed||serial!=tuneSerial||!foreground)return@launch

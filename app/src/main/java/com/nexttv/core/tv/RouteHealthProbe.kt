@@ -39,34 +39,31 @@ import kotlinx.coroutines.withContext
  *    user starts zapping;
  *  - hidden routes are retried every few seconds in tiny batches, so recovery is
  *    visible while the user is still zapping rather than minutes later;
- *  - all other routes are swept over a four-hour window, a few dozen per pass;
- *    the pass is incremental, never a full-library burst;
- *  - a normal request gets 8s for its first byte and 25s total once bytes start
- *    flowing. A server that accepts the connection but sends nothing is cut at 8s.
+ *  - all other routes are swept over a short window while the home screen is
+ *    idle (5 minutes) and a long window during playback (30 minutes); the pass is
+ *    incremental, never a full-library burst;
+ *  - a normal request gets 5s for its first byte and 12s total once bytes start
+ *    flowing. A server that accepts the connection but sends nothing is cut at 5s.
  */
 internal object RouteHealthProbe {
+    private const val TAG = "NextTVProbe"
     private const val STARTUP_DELAY_MS = 1_000L
     private const val TRANSIENT_RETRY_MS = 10_000L
     private const val HIDDEN_RETRY_MS = 8_000L
     private const val HIDDEN_PASS_GAP_MS = 3_000L
-    private const val FULL_SWEEP_MS = 4 * 60 * 60 * 1000L
-    private const val IDLE_CONCURRENCY = 2
-    private const val PLAYING_CONCURRENCY = 1
+    // Visible routes are rechecked often enough to notice a URL that went 404 after
+    // launch. Idle home gets the shorter window; playback keeps a gentle long
+    // window because a live stream already owns the uplink and the current route
+    // reports its own failures immediately.
+    private const val IDLE_SWEEP_MS = 5 * 60 * 1000L
+    private const val PLAYBACK_SWEEP_MS = 30 * 60 * 1000L
     // Launch and the moment the hide switch is turned on both start a dedicated
-    // fast sweep: one light request per route, a 2s first-byte budget and eight
-    // workers. Two passes cover up to 150 routes, so dead routes disappear before
-    // the user starts zapping. A timeout stays visible as SUSPECT until a second
-    // probe confirms it. Normal sweeps keep the gentle limits.
+    // fast sweep: one light request per route, a 2s first-byte budget and three
+    // workers. Two passes cover up to 48 routes, so dead routes disappear before
+    // the user starts zapping. A fast timeout stays visible as SUSPECT; only a
+    // normal 5s probe may count as a failure. Normal sweeps keep the gentle limits.
     private const val FAST_PASSES = 2
-    private const val STARTUP_CONCURRENCY = 3
-    private const val STARTUP_ROUTES_PER_PASS = 24
     private const val STARTUP_PASS_GAP_MS = 1_500L
-    // Hidden recovery uses small batches so a recovered route returns to the
-    // channel list within seconds, not after a 20-route burst.
-    private const val IDLE_ROUTES_PER_PASS = 40
-    private const val PLAYING_ROUTES_PER_PASS = 12
-    private const val IDLE_HIDDEN_PER_PASS = 4
-    private const val PLAYING_HIDDEN_PER_PASS = 2
 
     suspend fun run(app: App, priorityGroup: () -> String, visible: () -> Boolean) =
         withContext(Dispatchers.Default) { runLoop(app, priorityGroup, visible) }
@@ -75,6 +72,9 @@ internal object RouteHealthProbe {
         delay(STARTUP_DELAY_MS)
         var fastPasses = FAST_PASSES
         var forceFastPass = true
+        var hiddenCursor = 0
+        var lastHiddenLog = ""
+        var lastHiddenLogAt = 0L
         while (currentCoroutineContext().isActive) {
             if (!visible()) {
                 delay(2_000)
@@ -90,7 +90,7 @@ internal object RouteHealthProbe {
                 delay(2_000)
                 continue
             }
-            val fastPass = fastPasses > 0 && gate == ProbeGatePolicy.Mode.IDLE
+            val fastPassRequested = fastPasses > 0 && gate == ProbeGatePolicy.Mode.IDLE
             val now = SystemClock.elapsedRealtime()
             val channels = app.channels.channels
             if (channels.isEmpty()) {
@@ -106,12 +106,22 @@ internal object RouteHealthProbe {
                 ?: emptySet()
             val hidden = RouteHealth.hiddenRoutes(channels)
                 .filterNot { routeIdentity(it) in blocked }
-            val hiddenLimit = when {
-                fastPass -> 0
-                gate == ProbeGatePolicy.Mode.IDLE -> IDLE_HIDDEN_PER_PASS
-                else -> PLAYING_HIDDEN_PER_PASS
+            val preloads = PreloadActivity.count
+            val budget = ProbeBatchPolicy.budget(gate, fastPassRequested, preloads)
+            if (budget.deferred) {
+                // Every background slot is held by preloading; do not queue up
+                // probes that would only start after the tune is already late.
+                delay(1_500)
+                continue
             }
-            val hiddenBatch = hidden.take(hiddenLimit)
+            val fastPass = budget.allowFastPass
+            if (fastPassRequested && !fastPass) fastPasses = 0
+            val (hiddenBatch, nextHiddenCursor) = ProbeBatchPolicy.rotateHidden(
+                hidden = hidden,
+                cursor = hiddenCursor,
+                limit = budget.hiddenLimit,
+            )
+            hiddenCursor = nextHiddenCursor
             val hiddenKeys = hidden.mapTo(HashSet()) { routeIdentity(it) }
             val forceThisPass = fastPass && forceFastPass
             // Full fast sweeps only happen while the home screen is idle. A
@@ -119,9 +129,10 @@ internal object RouteHealthProbe {
             // one worker, ordinary timeouts, and never the channel being watched.
             // First-frame loading and automatic retune stay completely silent.
             val targets = if (!ProbeGatePolicy.allowsBackgroundSweep(gate)) emptyList() else {
+                val sweepMs = if (gate == ProbeGatePolicy.Mode.IDLE) IDLE_SWEEP_MS else PLAYBACK_SWEEP_MS
                 RouteHealth.routesNeedingProbe(
                     channels = channels,
-                    staleBefore = if (forceThisPass) Long.MAX_VALUE else now - FULL_SWEEP_MS,
+                    staleBefore = if (forceThisPass) Long.MAX_VALUE else now - sweepMs,
                     priorityGroup = priorityGroup(),
                     retryBefore = if (forceThisPass) Long.MAX_VALUE else now - TRANSIENT_RETRY_MS,
                 ).filterNot { routeIdentity(it) in blocked || routeIdentity(it) in hiddenKeys }
@@ -134,15 +145,19 @@ internal object RouteHealthProbe {
                 delay(if (hidden.isEmpty()) 30_000L else HIDDEN_RETRY_MS)
                 continue
             }
-            val limit = when {
-                fastPass -> STARTUP_ROUTES_PER_PASS
-                gate == ProbeGatePolicy.Mode.IDLE -> IDLE_ROUTES_PER_PASS
-                else -> PLAYING_ROUTES_PER_PASS
-            }
-            val scanLimit = (limit - hiddenBatch.size).coerceAtLeast(0)
-            val scanBatch = targets.take(scanLimit)
+            val scanBatch = targets.take(budget.scanLimit)
             val backlog = hidden.size > hiddenBatch.size || targets.size > scanBatch.size
             val pass = hiddenBatch + scanBatch
+            val logKey = "${hidden.size}/${hiddenBatch.size}/$fastPass/$preloads/${budget.concurrency}"
+            if (hidden.isNotEmpty() && (logKey != lastHiddenLog || now - lastHiddenLogAt >= 30_000L)) {
+                lastHiddenLog = logKey
+                lastHiddenLogAt = now
+                android.util.Log.i(
+                    TAG,
+                    "hidden=${hidden.size} batch=${hiddenBatch.size} scan=${scanBatch.size} " +
+                        "fast=$fastPass preloads=$preloads concurrency=${budget.concurrency}",
+                )
+            }
             var index = 0
             var interrupted = false
             while (index < pass.size && currentCoroutineContext().isActive) {
@@ -154,26 +169,31 @@ internal object RouteHealthProbe {
                 }
                 val blockedNow = active?.current?.playbackRoutes?.mapTo(HashSet()) { routeIdentity(it) }
                     ?: emptySet()
-                val activeConcurrency = when {
-                    fastPass -> STARTUP_CONCURRENCY
-                    active == null -> IDLE_CONCURRENCY
-                    else -> PLAYING_CONCURRENCY
+                val liveRoom = (3 - PreloadActivity.count).coerceAtLeast(0)
+                val activeConcurrency = minOf(budget.concurrency, liveRoom)
+                if (activeConcurrency == 0) {
+                    interrupted = true
+                    break
                 }
-                val batch = pass.subList(index, minOf(index + activeConcurrency, pass.size))
+                val batchStart = index
+                val batchEnd = minOf(index + activeConcurrency, pass.size)
+                val batch = pass.subList(batchStart, batchEnd)
                     .filterNot { routeIdentity(it) in blockedNow }
+                // Advance by the whole window, not by the filtered size: a blocked
+                // route at the head must not make the next window overlap and
+                // starve the tail of the pass.
+                index = batchEnd
                 if (batch.isEmpty()) {
-                    index += activeConcurrency
                     continue
                 }
                 supervisorScope {
                     batch.map { route -> async { probe(app, route, fast = fastPass, singleRouteKeys) } }.awaitAll()
                 }
-                index += batch.size
                 delay(if (active == null) 120 else 700)
             }
-            if (fastPass && !interrupted && index >= pass.size) {
-                fastPasses--
-                forceFastPass = false
+            if (fastPass) {
+                fastPasses = if (!interrupted && index >= pass.size) (fastPasses - 1).coerceAtLeast(0) else 0
+                if (!interrupted && index >= pass.size) forceFastPass = false
             }
             delay(when {
                 fastPass -> STARTUP_PASS_GAP_MS
@@ -205,11 +225,19 @@ internal object RouteHealthProbe {
             )
             // A timeout/5xx/429 is a suspicion, never a death sentence. The next
             // probe or playback attempt gets a chance to prove the route alive.
-            ProbeResult.TEMPORARY -> RouteHealth.markProbeFailure(
-                route,
-                definitive = false,
-                expectedVersion = version,
-            )
+            ProbeResult.TEMPORARY -> if (fast) {
+                // The launch fast sweep only waits 2s for the first byte. Cold TLS/
+                // connection setup often exceeds that on a healthy live source, so
+                // a fast timeout must stay visible as SUSPECT and never accumulate
+                // into the two-failure hide rule. The normal 5s probe confirms it.
+                RouteHealth.markProbeSuspect(route, expectedVersion = version)
+            } else {
+                RouteHealth.markProbeFailure(
+                    route,
+                    definitive = false,
+                    expectedVersion = version,
+                )
+            }
         }
     }
 }
@@ -224,8 +252,8 @@ private enum class ProbeResult { AVAILABLE, UNAVAILABLE, TEMPORARY }
  */
 private object RouteProbe {
     private const val CONNECT_TIMEOUT_MS = 5_000
-    private const val FIRST_BYTE_WAIT_MS = 8_000L
-    private const val TOTAL_WAIT_MS = 25_000L
+    private const val FIRST_BYTE_WAIT_MS = 5_000L
+    private const val TOTAL_WAIT_MS = 12_000L
     private const val FAST_FIRST_BYTE_WAIT_MS = 2_000L
     private const val FAST_TOTAL_WAIT_MS = 3_000L
     private const val READ_TIMEOUT_MS = 3_000
@@ -279,7 +307,12 @@ private object RouteProbe {
             val active = opened
             val status = active.responseCode
             if (status == 401 || status == 403 || status == 404 || status == 410) {
-                return ProbeResult.UNAVAILABLE
+                // The root URL is the route identity. Once it answered 2xx/3xx
+                // and produced a playlist, a dead child segment is a playback
+                // problem, not a dead route: hiding the channel here caused
+                // healthy 302→HLS sources to disappear. Keep it visible and let
+                // playback/auto-switch handle a bad segment.
+                return if (depth > 0) ProbeResult.AVAILABLE else ProbeResult.UNAVAILABLE
             }
             if (status == 408 || status == 429 || status >= 500) return ProbeResult.TEMPORARY
             if (status !in 200..299) return ProbeResult.TEMPORARY

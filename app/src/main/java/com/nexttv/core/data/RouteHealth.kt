@@ -33,6 +33,12 @@ internal object RouteHealth {
         val checkedAt: Long,
         val version: Long,
         val sourceId: String? = null,
+        /**
+         * True when the only failure came from the 2s launch fast sweep. Such a
+         * failure keeps the route visible for retry but must not count toward the
+         * two-failure hide rule; the next normal probe starts from zero.
+         */
+        val fastOnlyFailure: Boolean = false,
     )
 
     private val lock = Any()
@@ -61,6 +67,7 @@ internal object RouteHealth {
             }
             // Rewriting drops pre-hash keys that could still contain raw credentials.
             persist()
+            if (entries.isNotEmpty()) revision++
         }
     }
 
@@ -220,16 +227,40 @@ internal object RouteHealth {
             val k = key(route)
             val old = entries[k]
             if (expectedVersion != null && (old?.version ?: 0L) != expectedVersion) return@synchronized
-            val failures = if (definitive) (old?.failures ?: 0) + 2 else (old?.failures ?: 0) + 1
+            val failures = if (definitive) {
+                (old?.failures ?: 0) + 2
+            } else {
+                val confirmed = if (old?.fastOnlyFailure == true) 0 else (old?.failures ?: 0)
+                confirmed + 1
+            }
             val status = when {
                 definitive || failures >= 2 -> Status.UNAVAILABLE
                 else -> Status.SUSPECT
             }
-            entries[k] = Entry(status, failures, now, ++versionSeq, route.sourceId)
+            entries[k] = Entry(status, failures, now, ++versionSeq, route.sourceId, fastOnlyFailure = false)
             trimMemoryLocked()
             notify = status != old?.status
         }
         if (notify) changed()
+    }
+
+    /**
+     * A timeout from the launch fast sweep is weak evidence: cold connections often
+     * need more than the fast 2s first-byte budget. Keep the route visible as SUSPECT
+     * with a single failure, and let the next normal probe (5s budget) decide.
+     * Repeated fast passes must never turn this into UNAVAILABLE.
+     */
+    fun markProbeSuspect(
+        route: ChannelRoute,
+        now: Long = now(),
+        expectedVersion: Long? = null,
+    ) {
+        synchronized(lock) {
+            val k = key(route)
+            val old = entries[k]
+            if (expectedVersion != null && (old?.version ?: 0L) != expectedVersion) return@synchronized
+            entries[k] = Entry(Status.SUSPECT, 1, now, ++versionSeq, route.sourceId, fastOnlyFailure = true)
+        }
     }
 
     fun markPlaybackSuccess(route: ChannelRoute) = markProbeSuccess(route)

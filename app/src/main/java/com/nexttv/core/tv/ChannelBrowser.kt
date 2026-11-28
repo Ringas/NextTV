@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.tv.material3.Text
 import com.nexttv.core.App
 import com.nexttv.core.data.Channel
+import com.nexttv.core.data.ChannelRepository
 import com.nexttv.core.data.Program
 import com.nexttv.core.data.programmeProgress
 import com.nexttv.core.data.replayAddress
@@ -109,8 +110,9 @@ import kotlinx.coroutines.flow.first
      TvSurface(Modifier.fillMaxWidth().heightIn(min=44.dp).focusRequester(request).focusEdges(up=index==0,down=index==channels.lastIndex).focusProperties{canFocus=enabled&&region==BrowserRegion.CHANNELS;if(index==0)up=FocusRequester.Cancel;if(index==channels.lastIndex)down=FocusRequester.Cancel},kind="categoryRow",selected=c.id==candidate.id&&!InteractionStyle.pointer,onFocus={onChannelFocus(c)},onClick={onChannelClick(c)}){
       Row(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically){
        val slot=Modifier.width(logoWidth).height(38.dp)
-       if(showLogos)PlayerLogo(c,slot,fallback=c.number.toString().padStart(3,'0'))
-       else Box(slot,contentAlignment=Alignment.Center){AppText(c.number.toString().padStart(3,'0'),fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,fontFeatureSettings="tnum")}
+       val numberText=if(c.groupName==ChannelRepository.GROUP_HIDDEN)"" else c.number.toString().padStart(3,'0')
+       if(showLogos)PlayerLogo(c,slot,fallback=numberText)
+       else Box(slot,contentAlignment=Alignment.Center){if(numberText.isNotBlank())AppText(numberText,fontSize=InteractionStyle.captionSmall,color=NextTvStyle.Muted,maxLines=1,fontFeatureSettings="tnum")}
        AppText(Ui.displayName(c.name),Modifier.weight(1f).padding(start=8.dp),fontSize=InteractionStyle.body,maxLines=1,overflow=TextOverflow.Ellipsis)
       }
      }
@@ -186,11 +188,14 @@ private suspend fun LazyListState.revealFocusRow(index: Int, animated: Boolean =
  // Navigation owns the active region; delayed focus events from the outgoing column must not steal it.
  var navigation by remember{mutableStateOf(BrowserNavigation())}
  val sourceId=current.sourceId
- val sourceChannels=remember(sourceId,app.channels.revision,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){app.channels.displayChannels.filter{it.sourceId==sourceId}}
+ val sourceChannels=remember(sourceId,app.channels.revision,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){ (app.channels.displayChannels + app.channels.hiddenGroupChannels).filter{it.sourceId==sourceId}}
  val categories=remember(sourceId,app.channels.revision,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){listOf<String?>(null)+sourceChannels.map{it.groupName}.distinct()}
  var groupFocus by remember{mutableIntStateOf(categories.indexOf(group).coerceAtLeast(0))}
  val groupList=rememberLazyListState((categories.indexOf(group)-1).coerceAtLeast(0))
- val channels=remember(sourceId,activeGroup,app.channels.revision,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){sourceChannels.filter{activeGroup==null||it.groupName==activeGroup}}
+ val channels=remember(sourceId,activeGroup,app.channels.revision,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){
+  if(activeGroup==null)sourceChannels.filter{it.groupName!=ChannelRepository.GROUP_HIDDEN}
+  else sourceChannels.filter{it.groupName==activeGroup}
+ }
  val latestChannels by rememberUpdatedState(channels)
  val list=rememberLazyListState((channels.indexOfFirst{it.id==current.id}.coerceAtLeast(0)-2).coerceAtLeast(0))
  LaunchedEffect(app.channels.revision,app.channels.displayRevision,app.prefs.hideUnavailableRoutes){if(sourceChannels.isEmpty())onCloseAll()else if(activeGroup!=null&&activeGroup !in categories){activeGroup=null;onGroup(null)}}

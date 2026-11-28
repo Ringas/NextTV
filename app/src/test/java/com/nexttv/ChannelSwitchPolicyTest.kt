@@ -26,12 +26,27 @@ class ChannelSwitchPolicyTest {
         assertEquals(1, ChannelSwitchPolicy.directionalIndices(90, 88, 1).size)
     }
 
-    @Test fun hardFailureMayHopTwiceButSoftFailureOnlyOnce() {
-        assertTrue(AutoRecoveryPolicy.canHop(0, 0, definitive = true))
-        assertTrue(AutoRecoveryPolicy.canHop(1, 0, definitive = true))
-        assertFalse(AutoRecoveryPolicy.canHop(2, 0, definitive = true))
-        assertTrue(AutoRecoveryPolicy.canHop(0, 0, definitive = false))
-        assertFalse(AutoRecoveryPolicy.canHop(2, 1, definitive = false))
+    @Test fun hardFailureCanWalkSmallLineupAndStaysBoundedOnLargeOne() {
+        assertTrue(AutoRecoveryPolicy.canHop(0, 0, definitive = true, visibleCount = 7))
+        assertTrue(AutoRecoveryPolicy.canHop(5, 0, definitive = true, visibleCount = 7))
+        assertFalse(AutoRecoveryPolicy.canHop(6, 0, definitive = true, visibleCount = 7))
+        assertTrue(AutoRecoveryPolicy.canHop(0, 0, definitive = true, visibleCount = 90))
+        assertTrue(AutoRecoveryPolicy.canHop(6, 0, definitive = true, visibleCount = 90))
+        assertFalse(AutoRecoveryPolicy.canHop(8, 0, definitive = true, visibleCount = 90))
+        assertTrue(AutoRecoveryPolicy.canHop(0, 0, definitive = false, visibleCount = 7))
+        assertFalse(AutoRecoveryPolicy.canHop(2, 1, definitive = false, visibleCount = 7))
+    }
+
+    @Test fun channelHopLimitNeverExceedsVisibleCandidates() {
+        assertEquals(6, AutoRecoveryPolicy.channelHopLimit(7))
+        assertEquals(8, AutoRecoveryPolicy.channelHopLimit(90))
+        assertEquals(1, AutoRecoveryPolicy.channelHopLimit(1))
+    }
+
+    @Test fun searchPausedOnlyWhenCapLeavesUntriedChannels() {
+        assertFalse(AutoRecoveryPolicy.searchPaused(6, 7))
+        assertTrue(AutoRecoveryPolicy.searchPaused(8, 90))
+        assertFalse(AutoRecoveryPolicy.searchPaused(0, 90))
     }
 
     @Test fun probeGateOnlyAllowsFullScanWhenIdle() {
