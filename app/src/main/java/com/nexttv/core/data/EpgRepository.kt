@@ -31,6 +31,9 @@ import java.time.ZoneId
 import java.util.Locale
 import java.util.TimeZone
 
+/** 304 是条件请求命中缓存，不是重定向；不能要求 Location。 */
+internal fun isEpgRedirect(status:Int)=status in 300..399&&status!=304
+
 /**
  * XMLTV 电子节目单。支持远程 URL 与本地文件，解析结果落盘缓存。
  */
@@ -192,7 +195,7 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
             customHeaders.forEach{(k,v)->conn.setRequestProperty(k,v)}
             budget.watch{conn.disconnect()}
             val status=conn.responseCode
-            if(status in 300..399){
+            if(isEpgRedirect(status)){
                 val location=conn.getHeaderField("Location")?:run{conn.disconnect();throw IllegalStateException("HTTP $status 缺少重定向地址")}
                 val next=URL(current,location)
                 if(next.protocol !in setOf("http","https")){conn.disconnect();throw IllegalStateException("重定向到不支持的协议")}
