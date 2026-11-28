@@ -8,10 +8,9 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.net.URI
 import java.net.URLDecoder
-import java.security.SecureRandom
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** A short-lived, token-protected LAN form. Never serves existing subscription data. */
+/** A short-lived LAN form. Never serves existing subscription data. */
 class SubscriptionInputServer(
     address: InetAddress,
     private val lifetimeMs: Long = 300_000,
@@ -23,14 +22,10 @@ class SubscriptionInputServer(
     private val running = AtomicBoolean(true)
     private val consumed = AtomicBoolean(false)
     private val started = System.nanoTime()
-    // 128-bit capability token, hex encoded to keep the QR/URL short (32 chars).
-    private val token = ByteArray(16).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
     private val server = ServerSocket(0, 4, address).apply { soTimeout = 1000 }
     @Volatile private var client: Socket? = null
-    // Always keep the capability token in the path. A short "/" page would let
-    // any LAN client GET the form and learn the session before the phone does.
-    val url = "http://${address.hostAddress}:${server.localPort}/$token"
-    private val formPath get()="/$token"
+    val url = "http://${address.hostAddress}:${server.localPort}"
+    private val formPath = "/"
     init {
         Thread({
             try {
