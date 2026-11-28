@@ -3,5 +3,5 @@
     <!-- Stable entry points for isolated API compatibility devices. -->
     <instrumentation android:name="com.nexttv.CompatibilityInstrumentation" android:targetPackage="com.nexttv" android:functionalTest="true" />
     <instrumentation android:name="com.nexttv.CompatibilityPlaybackInstrumentation" android:targetPackage="com.nexttv" android:functionalTest="true" />
-    <instrumentation android:name="com.nexttv.ColdReleaseBenchmarkInstrumentation" android:targetPackage="com.nexttv.test" android:functionalTest="true" />
+    <instrumentation android:name="com.nexttv.ColdReleaseBenchmarkInstrumentation" android:targetPackage="com.nexttv" android:functionalTest="true" />
 </manifest>

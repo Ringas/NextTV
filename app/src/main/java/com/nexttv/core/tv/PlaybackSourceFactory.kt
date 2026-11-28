@@ -27,17 +27,18 @@ internal class PlaybackSourceFactory(
   val ua=playbackUserAgent(headers,app.prefs.defaultUserAgent)
   if(!com.nexttv.supportsHttpPlayback(route.url))throw UnsupportedPlaybackProtocol()
   if(app.prefs.httpsOnly&&!route.url.startsWith("https://",true))throw HttpsRequired()
-  val resolved=resolveStream(replay?.let{replayAddress(route,it,System.currentTimeMillis())}?:route.url,headers)
+  val hasCredentialHeaders=headers.keys.any{!it.equals("User-Agent",true)}
+  val resolved=resolveStream(replay?.let{replayAddress(route,it,System.currentTimeMillis())}?:route.url,headers,app.prefs.httpsOnly,probe=hasCredentialHeaders)
   if(app.prefs.httpsOnly&&!resolved.url.startsWith("https://",true))throw HttpsRequired()
-  val http=DefaultHttpDataSource.Factory().setUserAgent(ua).setAllowCrossProtocolRedirects(!app.prefs.httpsOnly).setDefaultRequestProperties(headers).setConnectTimeoutMs(8000).setReadTimeoutMs(10000)
   val expectedReplay=replay?.start
+  val http=DefaultHttpDataSource.Factory().setUserAgent(ua).setAllowCrossProtocolRedirects(!app.prefs.httpsOnly&&!hasCredentialHeaders).setDefaultRequestProperties(emptyMap()).setConnectTimeoutMs(8000).setReadTimeoutMs(10000)
   http.setTransferListener(object:androidx.media3.datasource.TransferListener {
    override fun onTransferInitializing(s:androidx.media3.datasource.DataSource,d:androidx.media3.datasource.DataSpec,n:Boolean){}
    override fun onTransferStart(s:androidx.media3.datasource.DataSource,d:androidx.media3.datasource.DataSpec,n:Boolean){}
    override fun onTransferEnd(s:androidx.media3.datasource.DataSource,d:androidx.media3.datasource.DataSpec,n:Boolean){}
    override fun onBytesTransferred(s:androidx.media3.datasource.DataSource,d:androidx.media3.datasource.DataSpec,n:Boolean,bytes:Int){if(isCurrent(channel.id,index,expectedReplay))transfer.onBytesTransferred(s,d,n,bytes)}
   })
-  val factory=DefaultMediaSourceFactory(http)
+  val factory=DefaultMediaSourceFactory(OriginScopedHttpDataSourceFactory(http,resolved.url,headers))
   if(onPreloadHttpFailure!=null)factory.setLoadErrorHandlingPolicy(object:androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy(){
    override fun getRetryDelayMsFor(info:androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy.LoadErrorInfo):Long {
     if(!isConfirmedPreloadFailure(info.exception))return super.getRetryDelayMsFor(info)

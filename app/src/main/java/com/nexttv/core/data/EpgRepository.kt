@@ -13,6 +13,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
 import androidx.compose.runtime.*
+import androidx.core.net.toUri
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -124,6 +125,9 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
                     val value=Feed(previous.parsed,System.currentTimeMillis())
                     synchronized(feeds){feeds[url]=value}
                     saveMeta(url,opened.etag,opened.lastModified)
+                    // 304 still refreshes the cache timestamp so a cold start does
+                    // not immediately classify the same feed as stale again.
+                    saveCache(url,value,budget)
                     return@use
                 }
                 val stream=opened.stream?:error("无法打开节目单")
@@ -163,7 +167,7 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
         if (url.startsWith("content://") || url.startsWith("/") || url.startsWith("file:")) {
             val u = url.removePrefix("file://")
             return OpenFeed(if (u.startsWith("content://")) {
-                context.contentResolver.openInputStream(android.net.Uri.parse(u))
+                context.contentResolver.openInputStream(u.toUri())
             } else {
                 (if(url.startsWith("file:"))File(java.net.URI(url))else File(u)).inputStream()
             }, null, null)

@@ -68,7 +68,7 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
  private val preloader=PlaybackPreloader(app,resources,preloadPool,sourceFactory,::preferredRoute)
  private val warmSlots get()=if(app.prefs.preloadMode==3)2 else if(app.prefs.preloadMode==0)0 else 1
  private val lastGoodRoutes=mutableMapOf<String,String>()
- private fun routeKey(channel:Channel,index:Int)=channel.playbackRoutes.getOrNull(index)?.let{"${it.sourceId}\n${it.url}\n${it.headers.toSortedMap()}"}.orEmpty()
+ private fun routeKey(channel:Channel,index:Int)=channel.playbackRoutes.getOrNull(index)?.healthKey.orEmpty()
  private val softwareAttempts=mutableSetOf<String>()
  private var tuneStarted=0L
  private var firstFrameMs=0L
@@ -410,13 +410,18 @@ class PlaybackSession(private val context:Context,initial:Channel,private val sc
   val nextChannel=if(nextRoute==null){
    exhausted+=channel.id
    if(!AutoRecoveryPolicy.canHop(autoChannelHops,softChannelHops,definitive)) null else {
-    val all=app.channels.channels
-    val ordered=if(app.prefs.hideUnavailableRoutes) all.filter{it.id==channel.id||RouteHealth.isChannelAvailable(it)} else all
+    val hide=app.prefs.hideUnavailableRoutes
+    // displayChannels is already cached by health revision; this avoids a
+    // per-channel RouteHealth scan on the playback failure path.
+    val ordered=if(hide){
+     val visible=app.channels.displayChannels
+     if(visible.none{it.id==channel.id})visible+channel else visible
+    }else app.channels.channels
     val at=ordered.indexOfFirst{it.id==channel.id}
     ChannelSwitchPolicy.directionalIndices(ordered.size,at,direction)
      .map(ordered::get)
      .firstOrNull{it.id!=channel.id && it.id !in exhausted &&
-       RouteHealth.isChannelAvailable(it) && !preloader.confirmedUnavailable(it)}
+       (!hide || RouteHealth.isChannelAvailable(it)) && !preloader.confirmedUnavailable(it)}
    }
   }else null
   if(nextChannel!=null){if(definitive)autoChannelHops++ else softChannelHops++}

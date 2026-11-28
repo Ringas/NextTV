@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 @file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 package com.nexttv.core.tv
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.get
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Handler
@@ -32,7 +34,7 @@ internal class RetainedVideoFrame {
   val edge=if(memory.isLowRamDevice||memory.memoryClass<192)640f else 960f
   val scale=minOf(1f,edge/surface.width,edge/surface.height)
   val width=(surface.width*scale).toInt().coerceAtLeast(1);val height=(surface.height*scale).toInt().coerceAtLeast(1)
-  val output=runCatching{Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888)}.getOrNull()?:return
+  val output=runCatching{createBitmap(width,height,Bitmap.Config.ARGB_8888)}.getOrNull()?:return
   val request=++ticket;val requestedGeneration=generation;inFlight=request
   fun finish(success:Boolean){
    if(inFlight!=request)return
@@ -48,7 +50,7 @@ internal class RetainedVideoFrame {
  }
  fun diagnostics():org.json.JSONObject {
   val frame=bitmap;var low=255;var high=0
-  if(frame!=null)for(y in 1..7)for(x in 1..11){val pixel=frame.getPixel(frame.width*x/12,frame.height*y/8);val value=(android.graphics.Color.red(pixel)+android.graphics.Color.green(pixel)+android.graphics.Color.blue(pixel))/3;low=minOf(low,value);high=maxOf(high,value)}
+  if(frame!=null)for(y in 1..7)for(x in 1..11){val pixel=frame[frame.width*x/12,frame.height*y/8];val value=(android.graphics.Color.red(pixel)+android.graphics.Color.green(pixel)+android.graphics.Color.blue(pixel))/3;low=minOf(low,value);high=maxOf(high,value)}
   return org.json.JSONObject().put("pendingCopy",inFlight!=0).put("retained",frame!=null).put("width",frame?.width?:0).put("height",frame?.height?:0).put("variation",if(frame!=null)high-low else 0)
  }
  fun dispose(){surfaceRoot=null;clear()}

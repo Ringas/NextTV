@@ -38,7 +38,7 @@ object M3uParser {
                 stableChannelId(sourceId, name, entry.tvgId), name, entry.tvgId, entry.logo,
                 normalizeGroup(entry.group, name), url, sourceId, number = entry.number ?: 0,
                 catchup = entry.catchup, catchupSource = entry.catchupSource,
-                catchupDays = entry.catchupDays, headers = entry.headers + pipeHeaders
+                catchupDays = entry.catchupDays, headers = capHeaders(entry.headers + pipeHeaders)
             )
         }
 
@@ -149,9 +149,16 @@ object M3uParser {
         return if (headers.isEmpty()) raw to emptyMap() else raw.substring(0, separator) to headers
     }
 
+    private fun capHeaders(headers: Map<String, String>): Map<String, String> =
+        if (headers.size <= MAX_HEADERS) headers
+        else headers.entries.take(MAX_HEADERS).associate { it.key to it.value }
+
     private fun parseHeaderPairs(text: String): Map<String, String> {
         val out = linkedMapOf<String, String>()
-        text.split('&', ';').forEach { pair ->
+        // Pipe headers are &-separated. A semicolon is legal inside Cookie /
+        // Referer values, so it must never split the pair.
+        text.split('&').forEach { pair ->
+            if (out.size >= MAX_HEADERS) return@forEach
             val key = pair.substringBefore('=', "").trim()
             val value = pair.substringAfter('=', "").trim()
             if (key.isNotEmpty() && value.isNotEmpty() && key.length <= 64 && value.length <= 4096) out[key] = value
@@ -163,6 +170,7 @@ object M3uParser {
         val json = org.json.JSONObject(text.trim())
         val out = linkedMapOf<String, String>()
         json.keys().forEach { key ->
+            if (out.size >= MAX_HEADERS) return@forEach
             val value = json.optString(key, "")
             if (key.length <= 64 && value.isNotBlank() && value.length <= 4096) out[key] = value
         }
@@ -223,6 +231,7 @@ object M3uParser {
         return buildString(35){append("v2-");for(i in 0 until 16){val v=bytes[i].toInt() and 255;append(hex[v ushr 4]);append(hex[v and 15])}}
     }
     const val GROUP_4K = "4K专区"
+    const val MAX_HEADERS = 100
 
     private data class Pending(
         val name: String,

@@ -2,6 +2,7 @@
 // Next TV — main activity (Compose for TV).
 @file:OptIn(androidx.tv.material3.ExperimentalTvMaterial3Api::class,androidx.compose.ui.ExperimentalComposeUiApi::class)
 package com.nexttv.core.tv
+import androidx.core.graphics.drawable.toDrawable
 
 import com.nexttv.core.App
 import android.os.Bundle
@@ -192,7 +193,7 @@ class TvActivity:ComponentActivity(){
   setContent(parent=window.decorView.createLifecycleAwareWindowRecomposer(AppMotionScale,lifecycle)){
    val canvas=NextTvStyle.Background
    SideEffect {
-    window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(canvas.toArgb()))
+    window.setBackgroundDrawable(canvas.toArgb().toDrawable())
    }
    AppTextScale{NextTvTheme{StableFocusScroll{AppModalHost{key(homeEpoch){
     StartupContent(onExit={finish()})

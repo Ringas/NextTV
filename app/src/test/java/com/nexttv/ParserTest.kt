@@ -34,6 +34,15 @@ http://stream.test/live|User-Agent=PipeUA&Referer=http://pipe.test
   assertEquals("PipeUA",c.headers["User-Agent"]);assertEquals("http://pipe.test",c.headers["Referer"])
   assertEquals("session%3D1",c.headers["Cookie"]);assertEquals("t",c.headers["X-Token"])
  }
+ @Test fun pipeHeaderSemicolonIsCookieDataNotSeparator(){
+  val c=M3uParser.parse("#EXTINF:-1,Cookie\nhttp://stream.test/live|Cookie=a=b; c=d&X-Token=t","provider").channels.single()
+  assertEquals("a=b; c=d",c.headers["Cookie"]);assertEquals("t",c.headers["X-Token"])
+ }
+ @Test fun pipeHeaderCountIsCappedBeforeCacheWrite(){
+  val pairs=(1..120).joinToString("&"){"X-"+it+"=v"+it}
+  val c=M3uParser.parse("#EXTINF:-1,Many\nhttp://stream.test/live|"+pairs,"provider").channels.single()
+  assertEquals(M3uParser.MAX_HEADERS,c.headers.size)
+ }
  @Test fun catchupDefaultAndShiftModesAreAccepted(){
   val base=com.nexttv.core.data.ChannelRoute("http://host/live","p","1",catchup="default",catchupSource="")
   assertEquals("http://host/live?utc=1000&lutc=3000",com.nexttv.core.data.replayAddress(base,com.nexttv.core.data.Program("1","p","",1000000,2000000),3000000))

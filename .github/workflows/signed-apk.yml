@@ -86,7 +86,7 @@ jobs:
           path: app/build/outputs/design-screens
           if-no-files-found: ignore
 
-      - name: Compile instrumentation tests
+      - name: Compile instrumentation tests (CI does not execute device tests)
         run: bash ./gradlew --no-daemon :app:assembleDebugAndroidTest
 
       - name: Upload unit test report

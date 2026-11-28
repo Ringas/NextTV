@@ -35,6 +35,8 @@ import com.nexttv.core.App
 import com.nexttv.core.data.*
 import com.nexttv.core.ui.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import com.nexttv.observeGridDraws
 
@@ -121,7 +123,16 @@ import com.nexttv.observeGridDraws
  val focusers=remember{hashMapOf<String,FocusRequester>()}
  fun resetCategory(){group="";if(app.prefs.selectedGroup.isNotEmpty())app.prefs.selectedGroup=""}
  fun selectTab(index:Int){gridInput.entering=false;gridInput.entryGeneration++;settingsNavigation.cancelPendingFocus();if(index==2)settingsNavigation.resetEntry();gridInput.job?.cancel();gridInput.target=null;menuChannel=null;if(index!=tab)channelDigits="";if(index==0&&tab!=0){resetCategory();channelRestore.value="";channelGrid.requestScrollToItem(0);firstCardFocusPending=false};tab=index}
- fun refresh(onChannelsUpdated:(()->Unit)?=null){scope.launch{status="正在更新订阅…";val result=app.channels.refreshAll(){status=it};revision++;status="订阅更新：${result.ok} 个成功，${result.failed} 个失败";onChannelsUpdated?.invoke();if(app.prefs.autoUpdateEpg) {app.epg.refresh();revision++}}}
+ fun refresh(onChannelsUpdated:(()->Unit)?=null){scope.launch{
+  app.channels.sourceConfigError?.let{error->status=error;return@launch}
+  status="正在更新订阅…"
+  val result=try{app.channels.refreshAll(){status=it}}
+  catch(e:CancellationException){throw e}
+  catch(e:Exception){status="订阅更新失败，已保留缓存";return@launch}
+  revision++;status="订阅更新：${result.ok} 个成功，${result.failed} 个失败"
+  result.storageWarning.takeIf{it.isNotBlank()}?.let{status="订阅更新：$it"}
+  onChannelsUpdated?.invoke();if(app.prefs.autoUpdateEpg) {app.epg.refresh();revision++}
+ }}
  LaunchedEffect(cacheReady){if(!cacheReady)return@LaunchedEffect;app.prefs.selectedGroup="";launch{withContext(Dispatchers.IO){app.epg.loadCache()};revision++;if(app.prefs.autoUpdateOnStart)refresh()else if(app.prefs.autoUpdateEpg){app.epg.refresh();revision++}}}
  LaunchedEffect(playing){if(playing==null){
   val serial=gridInput.serial
@@ -162,8 +173,17 @@ import com.nexttv.observeGridDraws
  var programmeMinute by remember{mutableLongStateOf(System.currentTimeMillis()/60000)}
  LaunchedEffect(Unit){while(true){delay(60000);programmeMinute=System.currentTimeMillis()/60000}}
  var captions by remember{mutableStateOf<Map<String,String>>(emptyMap())}
- LaunchedEffect(all,revision,app.epg.revision,programmeMinute){
-  captions=withContext(Dispatchers.Default){all.associate{c->c.id to (app.epg.nowNext(c).first?.let{"${Ui.hhmm(it.start)}  ${it.title}"}?:"暂无节目信息")}}
+ // Captions are only shown on mounted cards. Computing all 40k channels was
+ // wasted work on every health revision and every programme minute.
+ LaunchedEffect(all,revision,app.epg.revision,programmeMinute,tab,group){
+  snapshotFlow{
+   val layout=grid.layoutInfo
+   layout.visibleItemsInfo.mapNotNull{info->all.getOrNull(info.index)}
+  }.distinctUntilChanged().collectLatest{visible->
+   if(visible.isEmpty())return@collectLatest
+   val values=withContext(Dispatchers.Default){visible.associate{c->c.id to (app.epg.nowNext(c).first?.let{"${Ui.hhmm(it.start)}  ${it.title}"}?:"暂无节目信息")}}
+   captions=values
+  }
  }
  val lifecycle=LocalLifecycleOwner.current.lifecycle
  LaunchedEffect(lifecycle){lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED){while(true){delay(com.nexttv.core.App.epgRefreshMillis);if(app.prefs.autoUpdateEpg){app.epg.refresh(true);revision++}}}}
@@ -381,7 +401,7 @@ import com.nexttv.observeGridDraws
       }
       if(cacheReady&&all.isEmpty())item(span={GridItemSpan(columns)}){
        HomeEmptyState(
-        message=homeEmptyMessage(tab,app.prefs.favorites.isEmpty(),noSources,addingSubscription,app.updatingAll,
+        message=app.channels.sourceConfigError ?: homeEmptyMessage(tab,app.prefs.favorites.isEmpty(),noSources,addingSubscription,app.updatingAll,
          app.channels.sources.any{it.enabled},app.channels.hasLoadedChannels),
         hint=homeEmptyHint(tab,noSources,app.prefs.favorites.isEmpty()),
         actionLabel=homeEmptyActionLabel(noSources,app.channels.sources.any{it.enabled},app.channels.hasLoadedChannels,tab),

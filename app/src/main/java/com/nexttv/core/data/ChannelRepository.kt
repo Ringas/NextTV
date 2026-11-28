@@ -8,6 +8,7 @@ import kotlinx.coroutines.CancellationException
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import android.content.Context
+import com.nexttv.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -42,8 +43,15 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
     private val refresh = SubscriptionRefresh(context, prefs, cache)
     @Volatile private var configVersion = 0L
 
+    /**
+     * Non-null when the encrypted source list could not be read or parsed.
+     * Startup refresh must not treat that as an empty subscription list.
+     */
+    var sourceConfigError by androidx.compose.runtime.mutableStateOf<String?>(null)
+        private set
+
     /** 合并后的频道（已过滤） */
-    var channels: List<Channel> = emptyList()
+    @Volatile var channels: List<Channel> = emptyList()
         private set
 
     /**
@@ -82,7 +90,7 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
             return if (ordered.contains(M3uParser.GROUP_4K)) head + M3uParser.GROUP_4K else head
         }
 
-    var sources: List<Source> = emptyList()
+    @Volatile var sources: List<Source> = emptyList()
         private set
 
     /** 是否存在被过滤设置隐藏的频道，用于给出准确的空列表提示 */
@@ -94,13 +102,22 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
     // ---------------- 源管理 ----------------
 
     fun loadSources() {
+        prefs.sourceConfigFailure()?.let { failure ->
+            sourceConfigError = failure
+            return
+        }
         val json = prefs.sourcesJson
         if (json.isBlank()) {
+            sourceConfigError = null
             sources = emptyList()
             prefs.migrateLegacyEpg(emptySet())
             return
         }
-        val parsed = runCatching { SubscriptionSettingsCodec.decode(json) }.getOrDefault(emptyList())
+        val parsed = runCatching { SubscriptionSettingsCodec.decode(json) }.getOrElse { error ->
+            sourceConfigError = "订阅配置解析失败，已保留原频道缓存：${error.message ?: "格式错误"}"
+            return
+        }
+        sourceConfigError = null
         // 老版本自带的内置演示源已经移除，这里顺手清掉遗留项，避免它一直报错
         val cleaned = parsed.filterNot { it.id == LEGACY_BUILTIN_ID || it.url.startsWith("asset://") }
         val enriched=cleaned.map{source->if(source.epgUrl.isNotBlank())source else {
@@ -113,8 +130,15 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
         if (cleaned.size != parsed.size) saveSources()
     }
 
-    fun saveSources() {
+    fun saveSources(): Boolean {
         prefs.sourcesJson = SubscriptionSettingsCodec.encode(sources)
+        val failure = prefs.sourceConfigFailure()
+        if (failure != null) {
+            sourceConfigError = failure
+            return false
+        }
+        sourceConfigError = null
+        return true
     }
 
     @Synchronized fun upsertSource(source: Source) {
@@ -147,16 +171,30 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
         prefs.removeFavorites(rawChannels.filter{it.sourceId==id}.map{it.id}.toSet())
         applyChannels(rawChannels.filterNot{it.sourceId==id})
         cache.deleteSourceCache(id)
+        RouteHealth.clearSource(id)
     }
 
     // ---------------- 缓存 ----------------
 
     fun loadCache() {
         loadSources()
-        runCatching {
-            val (list, legacy) = cache.loadChannels() ?: return
+        val cached = runCatching { cache.loadChannels() }.getOrNull()
+        if (cached != null) {
+            val (list, legacy, plaintextAtRest) = cached
             val migrated = if(legacy)sources.flatMap{source->cache.readSourceCache(source.id, source.url).orEmpty()}else emptyList()
-            applyChannels(migrated.ifEmpty{list}, persist = legacy)
+            val repaired = if (list.isEmpty() && sources.isNotEmpty()) {
+                sources.flatMap { source -> cache.readSourceCache(source.id, source.url).orEmpty() }
+            } else emptyList()
+            val migrateAtRest = plaintextAtRest && !BuildConfig.DEBUG
+            applyChannels(migrated.ifEmpty { repaired.ifEmpty { list } }, persist = legacy || repaired.isNotEmpty() || migrateAtRest)
+            return
+        }
+        // channels.json is corrupt: rebuild from the per-source playlist backups instead of showing an empty home.
+        val fromSources = sources.flatMap { source ->
+            cache.readSourceCache(source.id, source.url).orEmpty()
+        }
+        if (fromSources.isNotEmpty()) {
+            applyChannels(fromSources, persist = true)
         }
     }
 
@@ -229,6 +267,14 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
                 loadSources()
                 RefreshSnapshot(configVersion, sources.toList(), rawChannels.groupBy(Channel::sourceId))
             }
+            sourceConfigError?.let { error ->
+                return@withContext RefreshResult(0, 0, snapshot.sources, prefs.epgUrl, error)
+            }
+            // A failed decrypt/parse must never be treated as an intentional empty list.
+            if (snapshot.sources.isEmpty() && snapshot.previousBySource.isNotEmpty()) {
+                return@withContext RefreshResult(0, 0, snapshot.sources, prefs.epgUrl,
+                    "订阅配置为空，已保留原频道缓存")
+            }
             val staged = linkedMapOf<String, File>()
             try {
                 val batch = refresh.prepare(snapshot.sources, snapshot.previousBySource, staged, onProgress, respectAutoUpdate)
@@ -278,10 +324,15 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
             runCatching { file.inputStream().use { cache.writeSourceCache(id, it) } }.getOrDefault(false).not()
         }
         sources = batch.sources
-        saveSources()
+        val sourcesSaved = saveSources()
         prefs.removeFavorites(batch.expiredFavorites)
         applyChannels(batch.channels, persist = false)
-        val warning = if (unavailable == 0) "" else "已更新频道，${unavailable} 个订阅备份未能保存"
+        val warnings = buildList {
+            if (unavailable > 0) add("$unavailable 个订阅备份未能保存")
+            batch.storageWarning.takeIf { it.isNotBlank() }?.let(::add)
+            if (!sourcesSaved) add("订阅配置无法加密保存")
+        }
+        val warning = if (warnings.isEmpty()) "" else "已更新频道，" + warnings.joinToString("，")
         return RefreshResult(batch.refreshed.size, batch.failed, sources, batch.guide, warning)
     }
 
@@ -324,7 +375,7 @@ class ChannelRepository(private val context: Context, private val prefs: Prefs) 
                 if (idx > 0) {
                     val key = line.substring(0, idx).trim()
                     val value = line.substring(idx + 1).trim()
-                    if (key.isNotEmpty() && value.isNotEmpty()) out[key] = value
+                    if (key.isNotEmpty() && value.isNotEmpty() && out.size < M3uParser.MAX_HEADERS) out[key] = value
                 }
             }
             return out

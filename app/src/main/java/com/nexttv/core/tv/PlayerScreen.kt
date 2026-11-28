@@ -90,7 +90,7 @@ import kotlin.math.roundToInt
  var bars by remember{mutableStateOf(true)};var actionsVisible by remember{mutableStateOf(false)};var side by remember{mutableStateOf(false)}
  var actionFocused by remember{mutableStateOf(false)};var group by remember(engine.current.id,engine.current.group){mutableStateOf<String?>(engine.current.group.takeIf{it.isNotBlank()})}
  var dialog by remember{mutableStateOf("")};var notice by remember{mutableStateOf("")};var digits by remember{mutableStateOf("")}
- var tick by remember{mutableLongStateOf(System.currentTimeMillis())};var deadline by remember{mutableLongStateOf(System.currentTimeMillis()+InteractionStyle.infoMillis)}
+ var tick by remember{mutableLongStateOf(System.currentTimeMillis())};var hudTick by remember{mutableLongStateOf(System.currentTimeMillis())};var deadline by remember{mutableLongStateOf(System.currentTimeMillis()+InteractionStyle.infoMillis)}
  var requestActions by remember{mutableIntStateOf(0)};var sideGeneration by remember{mutableIntStateOf(0)};var digitGeneration by remember{mutableIntStateOf(0)}
  var exitNoticeEpoch by remember{mutableIntStateOf(0)}
  var seekFeedback by remember{mutableStateOf<ReplaySeekFeedback?>(null)}
@@ -163,7 +163,21 @@ import kotlin.math.roundToInt
  var foregroundUi by remember{mutableStateOf(true)};var remainingDeadline by remember{mutableLongStateOf(0)}
  val lifecycle=LocalLifecycleOwner.current.lifecycle
  DisposableEffect(lifecycle){val observer=LifecycleEventObserver{_,event->when(event){Lifecycle.Event.ON_PAUSE->{cancelPendingDigits();remainingDeadline=(deadline-System.currentTimeMillis()).coerceAtLeast(0);foregroundUi=false;engine.setForeground(false)};Lifecycle.Event.ON_RESUME->{if(!foregroundUi)deadline=System.currentTimeMillis()+remainingDeadline;foregroundUi=true;engine.setForeground(true)};else->Unit}};lifecycle.addObserver(observer);onDispose{lifecycle.removeObserver(observer);engine.release()}}
- LaunchedEffect(Unit){root.requestFocus();while(true){if(!foregroundUi){delay(500);continue};tick=System.currentTimeMillis();if(bars&&tick>=deadline&&dialog.isBlank())hideBars();delay(250)}}
+ LaunchedEffect(Unit){root.requestFocus();var lastMinute=System.currentTimeMillis()/60000;var lastClockMode=app.prefs.playerClockMode
+  while(true){
+   if(!foregroundUi){delay(500);continue}
+   val now=System.currentTimeMillis();tick=now
+   val mode=app.prefs.playerClockMode
+   val minute=now/60000
+   if(mode!=lastClockMode){lastClockMode=mode;hudTick=now}
+   if(mode==PLAYER_CLOCK_ALWAYS){if(minute!=lastMinute)hudTick=now}
+   else if(mode==PLAYER_CLOCK_HOURLY||mode==PLAYER_CLOCK_HALF_HOURLY)hudTick=now
+   lastMinute=minute
+   if(bars&&tick>=deadline&&dialog.isBlank())hideBars()
+   // Progress needs 4 Hz only while controls are visible; idle HUD is minute/1 Hz.
+   delay(if(bars||actionsVisible)250 else 1000)
+  }
+ }
  LaunchedEffect(engine.tuneSerial){cancelPendingDigits();if(!side&&!actionsVisible&&dialog.isBlank()&&notice!="再按一次退出播放"){bars=true;actionsVisible=false;deadline=System.currentTimeMillis()+InteractionStyle.infoMillis}}
  LaunchedEffect(requestActions){if(requestActions>0){delay(60);runCatching{actionFocus.requestFocus()}}}
  LaunchedEffect(notice,exitNoticeEpoch){if(notice.isNotBlank()){delay(if(notice=="再按一次退出播放")2000 else 1800);notice=""}}
@@ -240,7 +254,7 @@ import kotlin.math.roundToInt
   val clockMode=app.prefs.playerClockMode
   // A clock the viewer explicitly turned on is not an action overlay: information
   // panels (side rail, dialogs, channel digits) must not make it disappear.
-  if(engine.error.isBlank()&&engine.ready&&playerClockVisible(clockMode,tick))PlayerPersistentHud(tick,Modifier.align(Alignment.TopEnd).padding(top=18.dp,end=26.dp))
+  if(engine.error.isBlank()&&engine.ready&&playerClockVisible(clockMode,hudTick))PlayerPersistentHud(hudTick,Modifier.align(Alignment.TopEnd).padding(top=18.dp,end=26.dp))
   if(side)key(engine.current.sourceId,sideGeneration){ChannelSidePanel(engine.current,group,sideGeneration,onGroup={group=it},onSelect={if(it.id!=engine.current.id)engine.tune(it);side=false;root.requestFocus()},controller=browserController,onCloseAll={dismissOverlays()},playingReplay=engine.replay!=null,playingPaused=engine.ready&&!engine.player.playWhenReady,onProgram={c,p->if(engine.playReplay(c,p)){side=false;root.requestFocus()}else if(System.currentTimeMillis() in p.start until p.stop){engine.tune(c);side=false;root.requestFocus()}else if(p.desc.isNotBlank()){selectedProgram=p;dialog="节目详情"}else notice=if(p.start>System.currentTimeMillis())"节目尚未开始"else"该节目暂不支持回放"},modifier=Modifier.align(Alignment.CenterStart))}
   if(!actionsVisible)seekFeedback?.let{ReplaySeekOverlay(it,Modifier.align(Alignment.BottomCenter))}
   if(digits.isNotBlank())AppText(
@@ -266,7 +280,7 @@ import kotlin.math.roundToInt
  }
 }
 
-@Composable private fun PlayerBottomBar(engine:PlaybackSession,now:Long,actionsVisible:Boolean,action:FocusRequester,onActionFocus:(Boolean)->Unit,onAction:(String)->Unit,modifier:Modifier){
+@Composable private fun PlayerBottomBar(engine:PlaybackSession,now:Long,actionsVisible:Boolean,action:FocusRequester,onActionFocus:(Boolean)->Unit,onAction:(String)->Unit,modifier:Modifier=Modifier){
  val app=App.get();val c=engine.current;val pair=app.epg.nowNext(c);val current=engine.replay?:pair.first;val next=if(engine.replay!=null)null else pair.second
  val scale=LocalDensity.current.fontScale
  val replaySeek=remember{FocusRequester()}
@@ -373,7 +387,7 @@ import kotlin.math.roundToInt
 
 internal enum class BadgeTone{Neutral,Warm,Cool,Live}
 
-@Composable internal fun InfoBadge(value:String,tone:BadgeTone=BadgeTone.Neutral,modifier:Modifier=Modifier,fontSize:androidx.compose.ui.unit.TextUnit=InteractionStyle.micro,horizontalPadding:Dp=6.dp,bordered:Boolean=true,onMedia:Boolean=false){
+@Composable internal fun InfoBadge(value:String,modifier:Modifier=Modifier,tone:BadgeTone=BadgeTone.Neutral,fontSize:androidx.compose.ui.unit.TextUnit=InteractionStyle.micro,horizontalPadding:Dp=6.dp,bordered:Boolean=true,onMedia:Boolean=false){
  val shape=RoundedCornerShape(InteractionStyle.badgeRadius)
  val fill=when{tone==BadgeTone.Warm->NextTvStyle.SpecWarmFill;tone==BadgeTone.Cool->NextTvStyle.SpecCoolFill;tone==BadgeTone.Live->NextTvStyle.AccentBadge;onMedia->NextTvStyle.MediaChipFill;else->NextTvStyle.SpecNeutralFill}
  val stroke=when{tone==BadgeTone.Warm->NextTvStyle.SpecWarmStroke;tone==BadgeTone.Cool->NextTvStyle.SpecCoolStroke;tone==BadgeTone.Live->NextTvStyle.AccentText.copy(alpha=.45f);onMedia->NextTvStyle.MediaChipStroke;else->NextTvStyle.SpecNeutralStroke}

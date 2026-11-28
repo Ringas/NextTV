@@ -102,12 +102,15 @@ private object PreviewRouteMemory {
     try{
      ensureActive();snapshotFlow{latestRunning}.first{it}
      val app=App.get();val source=app.channels.sources.firstOrNull{it.id==route.sourceId}
+     if(app.prefs.httpsOnly&&!route.url.startsWith("https://",true)){recordFailure("仅允许 HTTPS");continue}
      val headers=playbackHeaders(source,app.prefs.defaultUserAgent,app.prefs.defaultReferer,route.headers)
-     val resolved=withTimeout(8000){resolveStream(route.url,headers)}
+     val hasCredentialHeaders=headers.keys.any{!it.equals("User-Agent",true)}
+     val resolved=withTimeout(8000){resolveStream(route.url,headers,app.prefs.httpsOnly,probe=hasCredentialHeaders)}
      ensureActive();snapshotFlow{latestRunning}.first{it}
-     val http=DefaultHttpDataSource.Factory().setUserAgent(playbackUserAgent(headers,app.prefs.defaultUserAgent)).setDefaultRequestProperties(headers).setConnectTimeoutMs(6000).setReadTimeoutMs(8000).setAllowCrossProtocolRedirects(true)
+     if(app.prefs.httpsOnly&&!resolved.url.startsWith("https://",true)){recordFailure("仅允许 HTTPS");continue}
+     val http=DefaultHttpDataSource.Factory().setUserAgent(playbackUserAgent(headers,app.prefs.defaultUserAgent)).setAllowCrossProtocolRedirects(!app.prefs.httpsOnly&&!hasCredentialHeaders).setDefaultRequestProperties(emptyMap()).setConnectTimeoutMs(6000).setReadTimeoutMs(8000)
      val buffers=DefaultLoadControl.Builder().setBufferDurationsMs(1500,4000,250,500).setTargetBufferBytes(4*1024*1024).build()
-     val p=ExoPlayer.Builder(context,DefaultRenderersFactory(context).setEnableDecoderFallback(true)).setLoadControl(buffers).setMediaSourceFactory(DefaultMediaSourceFactory(http)).build()
+     val p=ExoPlayer.Builder(context,DefaultRenderersFactory(context).setEnableDecoderFallback(true)).setLoadControl(buffers).setMediaSourceFactory(DefaultMediaSourceFactory(OriginScopedHttpDataSourceFactory(http,resolved.url,headers))).build()
      player=p;playerState=p;PreviewDiagnostics.started(channel.id)
      p.volume=0f;p.setAudioAttributes(AudioAttributes.DEFAULT,false)
      p.setVideoChangeFrameRateStrategy(C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF)

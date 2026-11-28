@@ -2,7 +2,10 @@
 // Next TV — Compose for TV implementation.
 package com.nexttv.core.data
 
-data class ChannelRoute(val url: String, val sourceId: String, val originalId: String, val catchup:String="", val catchupSource:String="", val catchupDays:Int?=null,val headers:Map<String,String> = emptyMap(),val tvgId:String="",val channelName:String="")
+data class ChannelRoute(val url: String, val sourceId: String, val originalId: String, val catchup:String="", val catchupSource:String="", val catchupDays:Int?=null,val headers:Map<String,String> = emptyMap(),val tvgId:String="",val channelName:String=""){
+    /** SHA-256 of source/url/headers; safe for logs, journals and SharedPreferences. */
+    val healthKey: String by lazy(LazyThreadSafetyMode.NONE) { RouteKeys.of(this) }
+}
 
 /** 一个直播频道；合并身份保留首条 ID，线路保留各自源配置。 */
 data class Channel(

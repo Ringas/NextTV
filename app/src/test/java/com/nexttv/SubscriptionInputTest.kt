@@ -10,11 +10,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SubscriptionInputTest {
+    companion object { init { System.setProperty("sun.net.http.allowRestrictedHeaders", "true") } }
     private fun request(url:String, data:String?=null):Pair<Int,String> {
         val c=URL(url).openConnection() as HttpURLConnection
         c.connectTimeout=2000;c.readTimeout=2000
         try {
-            if(data!=null) {c.requestMethod="POST";c.doOutput=true;c.setRequestProperty("Content-Type","application/x-www-form-urlencoded");c.outputStream.use {it.write(data.toByteArray())}}
+            if(data!=null) {
+                c.requestMethod="POST";c.doOutput=true
+                c.setRequestProperty("Content-Type","application/x-www-form-urlencoded")
+                c.setRequestProperty("Origin","http://"+URL(url).authority)
+                c.outputStream.use {it.write(data.toByteArray())}
+            }
             val code=c.responseCode
             return code to (if(code<400)c.inputStream else c.errorStream).bufferedReader().use{it.readText()}
         } finally {c.disconnect()}
@@ -87,14 +93,15 @@ class SubscriptionInputTest {
             assertEquals(200,response.first);assertTrue(response.second.contains("确认更新节目单"))
         }
     }
-    @Test fun shortLanAddressCarriesSessionInFormInsteadOfPath() {
+    @Test fun shortLanAddressKeepsCapabilityTokenInPath() {
         val received=java.util.concurrent.LinkedBlockingQueue<String>()
         SubscriptionInputServer(InetAddress.getLoopbackAddress(),simpleAddress=true,namedInput=true){received.add(it)}.use { server ->
-            assertTrue(java.net.URI(server.url).path.isNullOrEmpty())
-            val page=request(server.url).second
-            val token=Regex("name=\"session\" value=\"([^\"]+)\"").find(page)!!.groupValues[1]
-            assertEquals(403,request(server.url,"url="+URLEncoder.encode("http://example.test/live.m3u","UTF-8")).first)
-            assertEquals(200,request(server.url,"session=$token&url="+URLEncoder.encode("家庭，http://example.test/live.m3u","UTF-8")).first)
+            val path=java.net.URI(server.url).path
+            assertTrue(path.length>=32)
+            assertTrue(request(server.url).second.contains("name=\"url\""))
+            assertFalse(request(server.url).second.contains("name=\"session\""))
+            assertEquals(403,request(server.url.substringBeforeLast('/')+"/bad","url="+URLEncoder.encode("http://example.test/live.m3u","UTF-8")).first)
+            assertEquals(200,request(server.url,"url="+URLEncoder.encode("家庭，http://example.test/live.m3u","UTF-8")).first)
             assertEquals("家庭,http://example.test/live.m3u",received.poll(2,TimeUnit.SECONDS))
         }
     }

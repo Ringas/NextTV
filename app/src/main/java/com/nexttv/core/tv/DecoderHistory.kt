@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package com.nexttv.core.tv
+import androidx.core.content.edit
 
 import android.content.Context
 import android.os.Build
@@ -18,5 +19,5 @@ internal class DecoderHistory(context:Context){
  private val failed=mutableMapOf<String,Long>()
  @Synchronized fun failure(route:String,name:String){if(name.isNotBlank()){failed[key(route)+"\n"+name]=System.currentTimeMillis();while(failed.size>64)failed.remove(failed.keys.first())}}
  @Synchronized fun discouraged(route:String):Set<String>{val now=System.currentTimeMillis();failed.entries.removeAll{now-it.value !in 0..600000L};val prefix=key(route)+"\n";return failed.keys.filter{it.startsWith(prefix)}.map{it.removePrefix(prefix)}.toSet()}
- private fun save(){while(entries.length()>64){val oldest=entries.keys().asSequence().minByOrNull{entries.optJSONObject(it)?.optLong("at")?:0}?:break;entries.remove(oldest)};prefs.edit().putString("entries",entries.toString()).apply()}
+ private fun save(){while(entries.length()>64){val oldest=entries.keys().asSequence().minByOrNull{entries.optJSONObject(it)?.optLong("at")?:0}?:break;entries.remove(oldest)};prefs.edit { putString("entries",entries.toString()) }}
 }

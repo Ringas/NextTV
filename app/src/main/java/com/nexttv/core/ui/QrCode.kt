@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import androidx.core.graphics.createBitmap
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.common.BitArray
 import com.google.zxing.qrcode.QRCodeWriter
@@ -14,7 +15,7 @@ object QrCode {
         if (text.isBlank() || size !in 1..1024) return null
         return runCatching {
             val modules = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size)
-            val bitmap = Bitmap.createBitmap(modules.width, modules.height, Bitmap.Config.ARGB_8888)
+            val bitmap = createBitmap(modules.width, modules.height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             canvas.drawColor(Color.WHITE)
             val ink = Paint().apply { color = Color.BLACK }

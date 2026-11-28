@@ -4,6 +4,7 @@ package com.nexttv.core.data
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import com.nexttv.core.io.*
 import java.io.File
 import java.io.IOException
@@ -20,7 +21,7 @@ internal class SubscriptionTransport(private val context: Context, private val p
         val raw = src.url.trim()
         if (prefs.httpsOnly && raw.startsWith("http://", true)) throw IOException("已开启仅 HTTPS，拒绝该订阅地址")
         if (raw.startsWith("content://")) {
-            write(context.contentResolver.openInputStream(Uri.parse(raw)) ?: throw IOException("无法读取本地文件"))
+            write(context.contentResolver.openInputStream(raw.toUri()) ?: throw IOException("无法读取本地文件"))
             return
         }
         if (raw.startsWith("/") || raw.startsWith("file://")) {

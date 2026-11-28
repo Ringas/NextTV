@@ -32,6 +32,7 @@ object CacheStore {
         deleteChildren(File(filesDir, "epg_feeds"))
         deleteChildren(File(context.cacheDir, "logos"))
         RouteFailureJournal.clear(context)
+        RouteHealth.clear()
         return before
     }
 

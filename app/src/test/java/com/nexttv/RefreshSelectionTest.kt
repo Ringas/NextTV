@@ -77,6 +77,24 @@ class RefreshSelectionTest {
         assertTrue(selection.refreshed.isEmpty())
     }
 
+    @Test fun disabledSourcesCannotTruncateRefreshedSources() {
+        val disabled = source("off", enabled = false)
+        val enabled = source("live")
+        val selection = selectRefreshOutcomes(
+            listOf(
+                RefreshOutcome(disabled, (1..5).map { channel("off", "c$it") }, null, false, "", null),
+                RefreshOutcome(enabled, (1..5).map { channel("live", "c$it") }, null, true, "", null),
+            ),
+            emptyMap(),
+            channelCap = 5,
+        )
+
+        assertEquals(5, selection.channels.size)
+        assertTrue(selection.channels.all { it.sourceId == "live" })
+        assertTrue(selection.refreshed.contains("live"))
+        assertTrue(selection.sources.first { it.id == "off" }.lastError.contains("仅保留前 0 个"))
+    }
+
     @Test fun guideUsesFirstNonBlankSource() {
         val s1 = source("s1")
         val s2 = source("s2")

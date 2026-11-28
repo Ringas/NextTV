@@ -202,8 +202,8 @@ com.nexttv
 
 ### 测试
 
-- **221 个单元测试（51 个测试类）**：覆盖 M3U / XMLTV 解析边界、订阅地址校验、导入预算、回看模板、跨源合并、多源节目单汇总、恢复预算、预加载索引、焦点滚动等纯逻辑。
-- **122 个设备测试文件（4 个 `Instrumentation` 入口）**：真机 UI 自动化验证遥控器焦点、返回路径、布局一致性、播放恢复与冷启动性能，默认审计型 Runner 可用 Gradle 属性 `perfRunner` 切换。
+- **254 个 JVM 单元测试（57 个测试类；Debug 额外运行 25 个设计截图校验）**：覆盖 M3U / XMLTV 解析边界、订阅地址校验、导入预算、回看模板、跨源合并、多源节目单汇总、恢复预算、预加载索引、焦点滚动等纯逻辑。
+- **122 个设备测试源文件（4 个 `Instrumentation` 入口）**：覆盖遥控器焦点、返回路径、布局一致性、播放恢复与冷启动性能；CI 只执行 `assembleDebugAndroidTest` 编译，**不会在 CI 中运行真机测试**，设备测试需本地连接电视执行。默认审计型 Runner 可用 Gradle 属性 `perfRunner` 切换。
 
 ```sh
 bash ./gradlew :app:testReleaseUnitTest

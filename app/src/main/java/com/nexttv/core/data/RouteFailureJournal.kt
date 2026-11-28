@@ -24,6 +24,7 @@ data class RouteFailureRecord(
  */
 object RouteFailureJournal {
     private const val FILE_NAME = "route_failures.json"
+    private const val MAX_RECORDS = 64
     private val records = ConcurrentHashMap<String, RouteFailureRecord>()
     private val writer = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "nexttv-route-failures").apply { isDaemon = true }
@@ -38,6 +39,8 @@ object RouteFailureJournal {
         load(file)
     }
 
+    private val hashKey = Regex("[0-9a-f]{64}")
+
     fun record(
         key: String,
         channelName: String,
@@ -46,14 +49,18 @@ object RouteFailureJournal {
         message: String,
         at: Long = System.currentTimeMillis(),
     ) {
-        if (key.isBlank()) return
+        if (!hashKey.matches(key)) return
         records[key] = RouteFailureRecord(
             channelName = channelName.take(160),
             routeLabel = routeLabel.take(40),
             code = code.take(160),
-            message = message.take(300),
+            message = redactSensitive(message.take(300)),
             at = at,
         )
+        if (records.size > MAX_RECORDS) {
+            records.entries.sortedBy { it.value.at }.take(records.size - MAX_RECORDS)
+                .forEach { records.remove(it.key, it.value) }
+        }
         persist()
     }
 
@@ -73,36 +80,47 @@ object RouteFailureJournal {
         if (!file.isFile) return
         runCatching {
             val array = JSONObject(file.readText()).optJSONArray("records") ?: return@runCatching
+            var dropped = false
             for (i in 0 until array.length()) {
                 val item = array.optJSONObject(i) ?: continue
                 val key = item.optString("key")
-                if (key.isBlank()) continue
+                // v1 stored raw source/url/header keys. Never keep those at rest.
+                if (!hashKey.matches(key)) { dropped = true; continue }
                 records[key] = RouteFailureRecord(
                     channelName = item.optString("channel"),
                     routeLabel = item.optString("route"),
                     code = item.optString("code"),
-                    message = item.optString("message"),
+                    message = redactSensitive(item.optString("message")),
                     at = item.optLong("at"),
                 )
             }
+            if (records.size > MAX_RECORDS) {
+                records.entries.sortedBy { it.value.at }.take(records.size - MAX_RECORDS)
+                    .forEach { records.remove(it.key, it.value) }
+                dropped = true
+            }
+            if (dropped) persist()
         }
     }
 
     private fun persist() {
         val file = journalFile ?: return
-        val snapshot = JSONArray()
-        records.forEach { (key, record) ->
-            snapshot.put(JSONObject()
-                .put("key", key)
-                .put("channel", record.channelName)
-                .put("route", record.routeLabel)
-                .put("code", record.code)
-                .put("message", record.message)
-                .put("at", record.at))
-        }
-        val payload = JSONObject().put("version", 1).put("records", snapshot).toString()
+        // Serializing even 64 records on the caller thread can block playback;
+        // snapshot the immutable records here and build JSON inside the writer.
+        val snapshot = records.entries.map { it.key to it.value }
         writer.execute {
             runCatching {
+                val array = JSONArray()
+                snapshot.forEach { (key, record) ->
+                    array.put(JSONObject()
+                        .put("key", key)
+                        .put("channel", record.channelName)
+                        .put("route", record.routeLabel)
+                        .put("code", record.code)
+                        .put("message", record.message)
+                        .put("at", record.at))
+                }
+                val payload = JSONObject().put("version", 1).put("records", array).toString()
                 val temp = File(file.parentFile, "${file.name}.tmp")
                 temp.writeText(payload)
                 if (!temp.renameTo(file)) {

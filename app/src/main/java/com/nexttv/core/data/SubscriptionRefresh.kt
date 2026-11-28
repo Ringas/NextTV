@@ -28,7 +28,8 @@ internal class SubscriptionRefresh(
         val refreshed: Set<String>,
         val expiredFavorites: Set<String>,
         val failed: Int,
-        val guide: String
+        val guide: String,
+        val storageWarning: String = "",
     )
 
     /**
@@ -55,17 +56,20 @@ internal class SubscriptionRefresh(
 
         val selection = selectRefreshOutcomes(outcomes, previousBySource)
         var stagedBytes = 0L
+        var stagedDropped = 0
         outcomes.forEach { outcome ->
             val file = outcome.staged ?: return@forEach
             if (stagedBytes + file.length() > ImportPolicy.PLAYLIST_BYTES * 4) {
                 file.delete()
+                stagedDropped++
             } else {
                 staged[outcome.source.id] = file
                 stagedBytes += file.length()
             }
         }
+        val warning = if (stagedDropped == 0) "" else "$stagedDropped 个订阅暂存文件超出磁盘预算，未写入备份"
         return PreparedRefresh(selection.sources, selection.channels, selection.refreshed,
-            selection.expiredFavorites, selection.failed, selection.guide)
+            selection.expiredFavorites, selection.failed, selection.guide, warning)
     }
 
     private suspend fun fetchOutcome(
@@ -163,16 +167,30 @@ internal fun selectRefreshOutcomes(
     previousBySource: Map<String, List<Channel>>,
     channelCap: Int = ImportPolicy.CHANNEL_CACHE_RECORDS,
 ): RefreshSelection {
+    // Enabled, refreshed sources own the cap first; skipped auto-update sources
+    // come next; disabled sources last. A disabled or skipped source must never
+    // truncate a source that is actually being updated.
+    val selectedBySource = HashMap<String, List<Channel>>(outcomes.size)
+    val trimmedBySource = HashMap<String, Boolean>(outcomes.size)
+    var remaining = channelCap
+    val priority = outcomes.sortedBy { if (!it.source.enabled) 2 else if (it.skipped) 1 else 0 }
+    priority.forEach { outcome ->
+        val original = outcome.channels
+        val room = remaining.coerceAtLeast(0)
+        val selected = if (original.size > room) original.take(room) else original
+        trimmedBySource[outcome.source.id] = selected.size < original.size
+        selectedBySource[outcome.source.id] = selected
+        remaining = (remaining - selected.size).coerceAtLeast(0)
+    }
+
     val channels = ArrayList<Channel>()
     val updated = ArrayList<Source>()
     val refreshed = linkedSetOf<String>()
     var failures = 0
     var guide = ""
     outcomes.forEach { outcome ->
-        val original = outcome.channels
-        val room = (channelCap - channels.size).coerceAtLeast(0)
-        val selected = if (original.size > room) original.take(room) else original
-        val trimmed = selected.size < original.size
+        val selected = selectedBySource[outcome.source.id].orEmpty()
+        val trimmed = trimmedBySource[outcome.source.id] == true
         val refreshedFully = outcome.refreshed && !trimmed
         if (refreshedFully) refreshed += outcome.source.id
         if (outcome.source.enabled && !refreshedFully && !outcome.skipped) failures++

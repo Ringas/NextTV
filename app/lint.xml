@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- TV UI is landscape-only and sized from the physical display; WindowInfo
+         migration changes density assumptions across 1080p/4K Android TV skins. -->
+    <issue id="ConfigurationScreenWidthHeight" severity="ignore"/>
+    <!-- Dependencies are pinned and updated deliberately after TV regression tests. -->
+    <issue id="GradleDependency" severity="ignore"/>
+    <issue id="NewerVersionAvailable" severity="ignore"/>
+    <issue id="AndroidGradlePluginVersion" severity="ignore"/>
+    <!-- targetSdk 36 requires Android 16 TV validation (P3-2, deferred). -->
+    <issue id="OldTargetApi" severity="ignore"/>
+    <!-- LAN IPTV streams and HTTP EPG are explicitly supported behind httpsOnly. -->
+    <issue id="InsecureBaseConfiguration" severity="ignore"/>
+    <!-- Fixed landscape is intentional for a television player. -->
+    <issue id="DiscouragedApi" severity="ignore"/>
+    <!-- API 24/31 attributes are safely ignored on the minSdk 23 path. -->
+    <issue id="UnusedAttribute" severity="ignore"/>
+</lint>

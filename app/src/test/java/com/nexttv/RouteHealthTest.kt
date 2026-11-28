@@ -93,6 +93,16 @@ class RouteHealthTest {
         assertEquals(dead, targets.first())
         assertEquals(unknown, targets.last())
     }
+    @Test fun deletingSourceClearsOnlyItsHealthEntries() {
+        val removed = route(1, "old")
+        val kept = route(2, "new")
+        RouteHealth.markProbeFailure(removed, definitive = true, now = 1_000L)
+        RouteHealth.markProbeFailure(kept, definitive = true, now = 2_000L)
+        RouteHealth.clearSource("old")
+        assertEquals(RouteHealth.Status.UNKNOWN, RouteHealth.status(removed))
+        assertEquals(RouteHealth.Status.UNAVAILABLE, RouteHealth.status(kept))
+    }
+
     @Test fun firstSoftProbeIsVisibleSuspectNotDead() {
         val only = route(1)
         val ch = channel("suspect", only)

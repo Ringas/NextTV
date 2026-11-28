@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
 import android.content.Context
+import androidx.core.content.edit
 import android.content.SharedPreferences
 import android.app.UiModeManager
 import android.os.Build
@@ -21,6 +22,12 @@ class Prefs(context: Context) {
     private val secrets = SecretStore(context)
     private val secretCache = HashMap<String, Pair<String, String>>()
 
+    /** Non-null means the encrypted source list could not be read/written safely. */
+    @Volatile private var sourcesReadFailure: String? = null
+    @Volatile private var sourcesWriteFailure: String? = null
+
+    fun sourceConfigFailure(): String? = sourcesReadFailure ?: sourcesWriteFailure
+
     @Volatile private var motionCache:Boolean?=null
     private var motionRevision by androidx.compose.runtime.mutableIntStateOf(0)
     // SharedPreferences stores listeners weakly. R8 must retain this owning strong field.
@@ -28,15 +35,15 @@ class Prefs(context: Context) {
     private val motionListener=android.content.SharedPreferences.OnSharedPreferenceChangeListener { _,key->if(key==null||key=="light_glass"){lightGlassState=sp.getBoolean("light_glass",false);syncSplashNightMode(lightGlassState)};if(key==null||key=="channel_previews")previewsState=sp.getBoolean("channel_previews",false);if(key==null||key=="reduce_motion"){val value=sp.getBoolean("reduce_motion",false);if(motionCache!=value){motionCache=value;motionRevision++}} }
     var reduceMotion:Boolean
         get(){motionRevision;return motionCache?:sp.getBoolean("reduce_motion",false).also{motionCache=it}}
-        set(value){if(motionCache!=value){motionCache=value;motionRevision++};sp.edit().putBoolean("reduce_motion",value).apply()}
+        set(value){if(motionCache!=value){motionCache=value;motionRevision++};sp.edit { putBoolean("reduce_motion",value) }}
     private var lightGlassState by androidx.compose.runtime.mutableStateOf(sp.getBoolean("light_glass", false))
     var lightGlass:Boolean
         get()=lightGlassState
-        set(value){lightGlassState=value;sp.edit().putBoolean("light_glass",value).apply();syncSplashNightMode(value)}
+        set(value){lightGlassState=value;sp.edit { putBoolean("light_glass",value) };syncSplashNightMode(value)}
     private var previewsState by androidx.compose.runtime.mutableStateOf(sp.getBoolean("channel_previews", false))
     var channelPreviews:Boolean
         get()=previewsState
-        set(value){previewsState=value;sp.edit().putBoolean("channel_previews",value).apply()}
+        set(value){previewsState=value;sp.edit { putBoolean("channel_previews",value) }}
     init {
         sp.registerOnSharedPreferenceChangeListener(motionListener)
         syncSplashNightMode(lightGlassState)
@@ -78,7 +85,7 @@ class Prefs(context: Context) {
 
     var preloadMode:Int
         get() = sp.getInt("preload_mode",if(preloadNext)1 else 0).coerceIn(0,3)
-        set(value) = sp.edit().putInt("preload_mode",value).apply()
+        set(value) = sp.edit { putInt("preload_mode",value) }
     var startLive by booleanSetting("start_live", false)
 
     /** 频道列表是否网格模式 */
@@ -113,9 +120,13 @@ class Prefs(context: Context) {
         SENSITIVE_KEYS.forEach { key ->
             val current = sp.getString(key, null) ?: return@forEach
             if (current.isEmpty() || secrets.isEncrypted(current)) return@forEach
-            val sealed = secrets.seal(current) ?: return@forEach
-            sp.edit().putString(key, sealed).apply()
+            val sealed = secrets.seal(current) ?: run {
+                if (key == "sources") sourcesWriteFailure = "订阅配置无法加密保存，请检查系统密钥"
+                return@forEach
+            }
+            sp.edit { putString(key, sealed) }
             secretCache[key] = sealed to current
+            if (key == "sources") { sourcesWriteFailure = null; sourcesReadFailure = null }
         }
     }
     val needsEpgMigration:Boolean get()=!sp.contains("manual_epg_url")
@@ -175,7 +186,7 @@ class Prefs(context: Context) {
         val before = favorites
         val after = HashSet(before)
         val result = after.change()
-        if (before != after) sp.edit().putStringSet("favorites", after).apply()
+        if (before != after) sp.edit { putStringSet("favorites", after) }
         return result
     }
 
@@ -183,17 +194,35 @@ class Prefs(context: Context) {
     private fun readSecret(key: String, fallback: String): String {
         val raw = sp.getString(key, null) ?: return fallback
         secretCache[key]?.takeIf { it.first == raw }?.let { return it.second }
-        val plain = secrets.open(raw)
-        secretCache[key] = raw to plain
-        return plain
+        return when (val result = secrets.read(raw)) {
+            is SecretStore.Read.Value -> {
+                secretCache[key] = raw to result.text
+                if (key == "sources") sourcesReadFailure = null
+                result.text
+            }
+            SecretStore.Read.Empty -> {
+                secretCache[key] = raw to ""
+                if (key == "sources") sourcesReadFailure = null
+                fallback
+            }
+            is SecretStore.Read.Failed -> {
+                secretCache.remove(key)
+                if (key == "sources") sourcesReadFailure = "订阅配置无法解密，请检查系统密钥或重新添加订阅"
+                fallback
+            }
+        }
     }
 
     @Synchronized
     private fun writeSecret(key: String, value: String) {
-        val sealed = if (value.isEmpty()) "" else secrets.seal(value)
-        val stored = sealed ?: value
-        sp.edit().putString(key, stored).apply()
+        val stored = if (value.isEmpty()) "" else secrets.seal(value)
+        if (stored == null) {
+            if (key == "sources") sourcesWriteFailure = "订阅配置无法加密保存，请检查系统密钥"
+            return
+        }
+        sp.edit { putString(key, stored) }
         secretCache[key] = stored to value
+        if (key == "sources") { sourcesWriteFailure = null; sourcesReadFailure = null }
     }
 
     private fun secretTextSetting(key: String, fallback: String) = setting(
@@ -220,7 +249,7 @@ class Prefs(context: Context) {
         override fun getValue(thisRef: Prefs, property: KProperty<*>): T = sp.read(key)
 
         override fun setValue(thisRef: Prefs, property: KProperty<*>, value: T) {
-            sp.edit().apply { write(key, value) }.apply()
+            sp.edit { write(key, value) }
         }
     }
 

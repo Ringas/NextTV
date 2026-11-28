@@ -7,7 +7,9 @@ import com.nexttv.core.data.ChannelRoute
 import com.nexttv.core.data.RouteHealth
 import com.nexttv.core.data.playbackHeaders
 import com.nexttv.supportsHttpPlayback
+import com.nexttv.sameHttpOrigin
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URI
@@ -56,9 +58,9 @@ internal object RouteHealthProbe {
     // the user starts zapping. A timeout stays visible as SUSPECT until a second
     // probe confirms it. Normal sweeps keep the gentle limits.
     private const val FAST_PASSES = 2
-    private const val STARTUP_CONCURRENCY = 8
-    private const val STARTUP_ROUTES_PER_PASS = 75
-    private const val STARTUP_PASS_GAP_MS = 1_000L
+    private const val STARTUP_CONCURRENCY = 3
+    private const val STARTUP_ROUTES_PER_PASS = 24
+    private const val STARTUP_PASS_GAP_MS = 1_500L
     // Hidden recovery uses small batches so a recovered route returns to the
     // channel list within seconds, not after a 20-route burst.
     private const val IDLE_ROUTES_PER_PASS = 40
@@ -66,7 +68,10 @@ internal object RouteHealthProbe {
     private const val IDLE_HIDDEN_PER_PASS = 4
     private const val PLAYING_HIDDEN_PER_PASS = 2
 
-    suspend fun run(app: App, priorityGroup: () -> String, visible: () -> Boolean) {
+    suspend fun run(app: App, priorityGroup: () -> String, visible: () -> Boolean) =
+        withContext(Dispatchers.Default) { runLoop(app, priorityGroup, visible) }
+
+    private suspend fun runLoop(app: App, priorityGroup: () -> String, visible: () -> Boolean) {
         delay(STARTUP_DELAY_MS)
         var fastPasses = FAST_PASSES
         var forceFastPass = true
@@ -91,6 +96,11 @@ internal object RouteHealthProbe {
             if (channels.isEmpty()) {
                 delay(30_000)
                 continue
+            }
+            // Compute once per pass; probe() must not scan every channel for every route.
+            val singleRouteKeys = HashSet<String>()
+            channels.forEach { channel ->
+                if (channel.playbackRoutes.size == 1) singleRouteKeys.add(routeIdentity(channel.playbackRoutes.first()))
             }
             val blocked = session?.current?.playbackRoutes?.mapTo(HashSet()) { routeIdentity(it) }
                 ?: emptySet()
@@ -156,7 +166,7 @@ internal object RouteHealthProbe {
                     continue
                 }
                 supervisorScope {
-                    batch.map { route -> async { probe(app, route, fast = fastPass) } }.awaitAll()
+                    batch.map { route -> async { probe(app, route, fast = fastPass, singleRouteKeys) } }.awaitAll()
                 }
                 index += batch.size
                 delay(if (active == null) 120 else 700)
@@ -174,16 +184,13 @@ internal object RouteHealthProbe {
         }
     }
 
-    private fun routeIdentity(route: ChannelRoute): String =
-        route.sourceId + "\u0000" + route.url.trim()
+    private fun routeIdentity(route: ChannelRoute): String = route.healthKey
 
-    private suspend fun probe(app: App, route: ChannelRoute, fast: Boolean) {
+    private suspend fun probe(app: App, route: ChannelRoute, fast: Boolean, singleRouteKeys: Set<String>) {
         // Hidden routes and single-route channels get a deeper check (playlist +
         // first segment), because one dead segment can hide the whole channel.
         // Multi-route channels only need the first request during the light sweep.
-        val singleRoute = app.channels.channels.any { channel ->
-            channel.playbackRoutes.size == 1 && routeIdentity(channel.playbackRoutes.first()) == routeIdentity(route)
-        }
+        val singleRoute = routeIdentity(route) in singleRouteKeys
         val deep = singleRoute || (!fast && RouteHealth.status(route) == RouteHealth.Status.UNAVAILABLE)
         // Capture the health version before touching the network. Playback may
         // successfully render the same route while this request is in flight;
@@ -234,7 +241,7 @@ private object RouteProbe {
             defaultReferer = app.prefs.defaultReferer,
             routeHeaders = route.headers,
         )
-        probeUrl(route.url, headers, deep = deep, fast = fast, depth = 0)
+        probeUrl(route.url, headers, deep = deep, fast = fast, depth = 0, httpsOnly = app.prefs.httpsOnly, allowedOrigin = route.url)
     }
 
     private fun probeUrl(
@@ -243,10 +250,13 @@ private object RouteProbe {
         deep: Boolean,
         fast: Boolean,
         depth: Int,
+        httpsOnly: Boolean = false,
+        allowedOrigin: String = url,
         routeDeadline: Long = 0L,
     ): ProbeResult {
         if (depth > 2) return ProbeResult.AVAILABLE
         if (!supportsHttpPlayback(url)) return ProbeResult.UNAVAILABLE
+        if (httpsOnly && !url.startsWith("https://", true)) return ProbeResult.UNAVAILABLE
         val started = SystemClock.elapsedRealtime()
         // Fast sweeps share one 3s budget across playlist + first segment. Without
         // this, a deep HLS check would get 3s per request and two passes could
@@ -255,30 +265,29 @@ private object RouteProbe {
         if (fast && started >= deadline) return ProbeResult.TEMPORARY
         var connection: HttpURLConnection? = null
         return try {
-            connection = URL(url).openConnection() as? HttpURLConnection
-                ?: return ProbeResult.UNAVAILABLE
-            val timeout = if (fast) (deadline - started).coerceIn(1L, FAST_FIRST_BYTE_WAIT_MS).toInt()
-                else CONNECT_TIMEOUT_MS
-            connection.connectTimeout = timeout
-            connection.readTimeout = if (fast) timeout else READ_TIMEOUT_MS
-            connection.instanceFollowRedirects = true
-            connection.useCaches = false
-            connection.requestMethod = "GET"
-            connection.setRequestProperty("Accept", "*/*")
-            connection.setRequestProperty("Range", "bytes=0-")
-            headers.forEach { (key, value) -> if (key.isNotBlank() && value.isNotBlank()) connection.setRequestProperty(key, value) }
-            val status = connection.responseCode
+            val (opened, finalUrl) = openFollowingSafeRedirects(
+                url = url,
+                headers = headers,
+                allowedOrigin = allowedOrigin,
+                httpsOnly = httpsOnly,
+                connectTimeoutMs = if (fast) (deadline - started).coerceIn(1L, FAST_FIRST_BYTE_WAIT_MS).toInt()
+                    else CONNECT_TIMEOUT_MS,
+                readTimeoutMs = if (fast) (deadline - started).coerceIn(1L, FAST_FIRST_BYTE_WAIT_MS).toInt()
+                    else READ_TIMEOUT_MS,
+            )
+            connection = opened
+            val active = opened
+            val status = active.responseCode
             if (status == 401 || status == 403 || status == 404 || status == 410) {
                 return ProbeResult.UNAVAILABLE
             }
             if (status == 408 || status == 429 || status >= 500) return ProbeResult.TEMPORARY
             if (status !in 200..299) return ProbeResult.TEMPORARY
 
-            val finalUrl = connection.url.toString()
-            val contentType = connection.contentType.orEmpty().lowercase()
+            val contentType = active.contentType.orEmpty().lowercase()
             val hls = finalUrl.substringBefore('?').endsWith(".m3u8", true) ||
                 contentType.contains("mpegurl") || contentType.contains("m3u8")
-            val bytes = readAdaptive(connection, started, if (hls) MAX_PLAYLIST_BYTES else MAX_MEDIA_BYTES, fast, deadline)
+            val bytes = readAdaptive(active, started, if (hls) MAX_PLAYLIST_BYTES else MAX_MEDIA_BYTES, fast, deadline)
                 ?: return ProbeResult.TEMPORARY
             if (bytes.isEmpty()) return ProbeResult.TEMPORARY
             if (!hls && looksLikeHtml(bytes)) return ProbeResult.UNAVAILABLE
@@ -294,7 +303,8 @@ private object RouteProbe {
                 val next = firstPlaylistUri(text) ?: return ProbeResult.TEMPORARY
                 if (!deep) return ProbeResult.AVAILABLE
                 val resolved = resolve(finalUrl, next) ?: return ProbeResult.TEMPORARY
-                return probeUrl(resolved, headers, deep = true, fast = fast, depth = depth + 1, routeDeadline = deadline)
+                return probeUrl(resolved, headers, deep = true, fast = fast, depth = depth + 1,
+                    httpsOnly = httpsOnly, allowedOrigin = allowedOrigin, routeDeadline = deadline)
             }
             ProbeResult.AVAILABLE
         } catch (_: SocketTimeoutException) {
@@ -304,6 +314,53 @@ private object RouteProbe {
         } finally {
             connection?.disconnect()
         }
+    }
+
+    /**
+     * Follows 3xx manually so a cross-host redirect never receives custom
+     * Authorization/Referer headers. Returns the final open connection and URL.
+     */
+    private fun openFollowingSafeRedirects(
+        url: String,
+        headers: Map<String, String>,
+        allowedOrigin: String,
+        httpsOnly: Boolean,
+        connectTimeoutMs: Int,
+        readTimeoutMs: Int,
+    ): Pair<HttpURLConnection, String> {
+        var current = url
+        for (hop in 0..5) {
+            if (!supportsHttpPlayback(current)) throw IOException("不支持的播放协议")
+            if (httpsOnly && !current.startsWith("https://", true)) throw IOException("仅允许 HTTPS")
+            val connection = URL(current).openConnection() as HttpURLConnection
+            var keep = false
+            try {
+                connection.connectTimeout = connectTimeoutMs
+                connection.readTimeout = readTimeoutMs
+                connection.instanceFollowRedirects = false
+                connection.useCaches = false
+                connection.requestMethod = "GET"
+                connection.setRequestProperty("Accept", "*/*")
+                connection.setRequestProperty("Range", "bytes=0-")
+                if (sameHttpOrigin(current, allowedOrigin)) {
+                    headers.forEach { (key, value) ->
+                        if (key.isNotBlank() && value.isNotBlank()) connection.setRequestProperty(key, value)
+                    }
+                }
+                val status = connection.responseCode
+                if (status in setOf(301, 302, 303, 307, 308)) {
+                    val location = connection.getHeaderField("Location")
+                    if (location.isNullOrBlank()) throw IOException("HTTP $status")
+                    current = URI(current).resolve(location.trim()).toURL().toString()
+                    continue
+                }
+                keep = true
+                return connection to current
+            } finally {
+                if (!keep) connection.disconnect()
+            }
+        }
+        throw IOException("重定向次数过多")
     }
 
     /**

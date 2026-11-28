@@ -26,8 +26,10 @@ class SubscriptionInputServer(
     private val token = ByteArray(24).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
     private val server = ServerSocket(0, 4, address).apply { soTimeout = 1000 }
     @Volatile private var client: Socket? = null
-    val url = "http://${address.hostAddress}:${server.localPort}"+(if(simpleAddress)""else"/$token")
-    private val formPath get()=if(simpleAddress)"/"else"/$token"
+    // Always keep the capability token in the path. A short "/" page would let
+    // any LAN client GET the form and learn the session before the phone does.
+    val url = "http://${address.hostAddress}:${server.localPort}/$token"
+    private val formPath get()="/$token"
     init {
         Thread({
             try {
@@ -82,7 +84,8 @@ class SubscriptionInputServer(
         when (request[0]) {
             "GET" -> reply(200, page("手机与电视需连接同一局域网。发送后请在电视确认导入。", true))
             "POST" -> {
-                if (headers["origin"]?.let { it != "http://${URI(url).rawAuthority}" } == true) {
+                // A missing Origin is a raw/non-browser request, not the form.
+                if (headers["origin"] != "http://${URI(url).rawAuthority}") {
                     reply(403, page("请从扫码页面提交。")); return
                 }
                 val length = headers["content-length"]?.toIntOrNull()
@@ -94,7 +97,6 @@ class SubscriptionInputServer(
                 var offset = 0
                 while (offset < length) { val count = input.read(body, offset, length - offset); require(count > 0); offset += count }
                 val values = body.toString(Charsets.UTF_8).split('&').map { it.split('=', limit = 2) }
-                if(simpleAddress && values.singleOrNull{it[0]=="session"}?.getOrNull(1)!=token){reply(403,page("会话已失效，请重新打开输入页面。"));return}
                 val value = values.singleOrNull { it[0] == "url" }?.getOrNull(1)
                 val source = runCatching { URLDecoder.decode(value.orEmpty(), "UTF-8").let { normalizeAddressInput(it,if(namedInput)AddressInputKind.SUBSCRIPTION else if(epgInput)AddressInputKind.PROGRAMME_GUIDE else AddressInputKind.PLAIN_URL,allowEmpty=false) } }.getOrNull()
                 if (source == null) { reply(400, page("请输入完整的 http:// 或 https:// 订阅地址。", true)); return }
@@ -106,7 +108,7 @@ class SubscriptionInputServer(
         }
     }
     private fun page(message: String, form: Boolean = false): String {
-      val markup = """<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>电视订阅输入</title><style>body{margin:0;background:#15161a;color:#f2f2f4;font:18px system-ui;line-height:1.6}main{max-width:480px;margin:8vh auto;padding:24px}h1{font-size:28px}p{color:#c5c7ce}input,button{box-sizing:border-box;width:100%;padding:16px;border-radius:12px;font:inherit;margin:12px 0}input{background:#282a30;color:white;border:1px solid #777}button{background:#fff;color:#20232a;border:0}</style><main><h1>电视订阅输入</h1><p>$message</p>${if (form) """<form method="post" action="$formPath">${if(simpleAddress)"""<input type="hidden" name="session" value="$token">"""else""}<label for="url">M3U 订阅地址</label><input id="url" name="url" type="url" maxlength="2048" placeholder="http://…/live.m3u" required autocomplete="off" autocapitalize="none" spellcheck="false"><button type="submit">发送到电视</button></form>""" else ""}</main></html>"""
+      val markup = """<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>电视订阅输入</title><style>body{margin:0;background:#15161a;color:#f2f2f4;font:18px system-ui;line-height:1.6}main{max-width:480px;margin:8vh auto;padding:24px}h1{font-size:28px}p{color:#c5c7ce}input,button{box-sizing:border-box;width:100%;padding:16px;border-radius:12px;font:inherit;margin:12px 0}input{background:#282a30;color:white;border:1px solid #777}button{background:#fff;color:#20232a;border:0}</style><main><h1>电视订阅输入</h1><p>$message</p>${if (form) """<form method="post" action="$formPath"><label for="url">M3U 订阅地址</label><input id="url" name="url" type="url" maxlength="2048" placeholder="http://…/live.m3u" required autocomplete="off" autocapitalize="none" spellcheck="false"><button type="submit">发送到电视</button></form>""" else ""}</main></html>"""
       val visual=if(simpleAddress)markup.replace("#15161a","#f5f7fb").replace("#f2f2f4","#17243b").replace("#c5c7ce","#566579").replace("#282a30","#ffffff").replace("color:white","color:#17243b").replace("background:#fff;color:#20232a","background:#2f80ed;color:#fff").replace("电视订阅输入","Next TV 地址输入")else markup
       val prepared=if(namedInput)visual.replace("M3U 订阅地址","订阅名称与地址（名称可省略）").replace("type=\"url\"","type=\"text\"").replace("http://…/live.m3u","名称,http://…/live.m3u").replace("导入 / 确认","确认保存订阅") else visual
       return if(epgInput) prepared.replace("电视订阅输入","Next TV 节目单地址").replace("M3U 订阅地址","XMLTV 节目单地址").replace("订阅地址","节目单地址").replace("/live.m3u","/guide.xml").replace("导入 / 确认","确认更新节目单").replace("确认导入","确认更新") else prepared

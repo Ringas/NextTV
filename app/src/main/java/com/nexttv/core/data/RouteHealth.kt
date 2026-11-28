@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package com.nexttv.core.data
+import androidx.core.content.edit
 
 /**
  * Session-wide route health. Unknown routes stay visible; only a route we have
@@ -23,12 +24,15 @@ internal object RouteHealth {
     private const val STORE = "route_health"
     private const val HIDDEN_KEY = "hidden"
     private const val MAX_PERSISTED = 512
+    private const val MAX_MEMORY = 8192
+    private val hashKey = Regex("[0-9a-f]{64}")
 
     private data class Entry(
         val status: Status,
         val failures: Int,
         val checkedAt: Long,
         val version: Long,
+        val sourceId: String? = null,
     )
 
     private val lock = Any()
@@ -44,20 +48,19 @@ internal object RouteHealth {
     @Volatile
     var onChanged: (() -> Unit)? = null
 
-    private fun key(route: ChannelRoute): String {
-        val headers = route.headers.entries.sortedBy { it.key.lowercase() }
-            .joinToString("\u0001") { "${it.key.lowercase()}=${it.value}" }
-        return "${route.sourceId}\u0000${route.url.trim()}\u0000$headers"
-    }
+    private fun key(route: ChannelRoute): String = route.healthKey
 
     /** Restore confirmed dead routes before the first home frame, without probing. */
     fun attach(context: android.content.Context) {
         val prefs = context.getSharedPreferences(STORE, android.content.Context.MODE_PRIVATE)
         synchronized(lock) {
             store = prefs
+            entries.clear()
             prefs.getStringSet(HIDDEN_KEY, emptySet()).orEmpty().forEach { encoded ->
-                decode(encoded)?.let { entries[it] = Entry(Status.UNAVAILABLE, 2, 0L, 0L) }
+                decode(encoded)?.takeIf(hashKey::matches)?.let { entries[it] = Entry(Status.UNAVAILABLE, 2, 0L, 0L) }
             }
+            // Rewriting drops pre-hash keys that could still contain raw credentials.
+            persist()
         }
     }
 
@@ -65,13 +68,13 @@ internal object RouteHealth {
         val target = store ?: return
         val snapshot = synchronized(lock) {
             entries.asSequence()
-                .filter { it.value.status == Status.UNAVAILABLE }
+                .filter { hashKey.matches(it.key) && it.value.status == Status.UNAVAILABLE }
                 .sortedByDescending { it.value.checkedAt }
                 .map { encode(it.key) }
                 .take(MAX_PERSISTED)
                 .toSet()
         }
-        target.edit().putStringSet(HIDDEN_KEY, snapshot).apply()
+        target.edit { putStringSet(HIDDEN_KEY, snapshot) }
     }
 
     private fun encode(value: String): String = android.util.Base64.encodeToString(
@@ -197,7 +200,8 @@ internal object RouteHealth {
         synchronized(lock) {
             val old = entries[key(route)]
             if (expectedVersion != null && (old?.version ?: 0L) != expectedVersion) return@synchronized
-            entries[key(route)] = Entry(Status.AVAILABLE, 0, now, ++versionSeq)
+            entries[key(route)] = Entry(Status.AVAILABLE, 0, now, ++versionSeq, route.sourceId)
+            trimMemoryLocked()
             // UNKNOWN/SUSPECT -> AVAILABLE does not change visibility; do not wake
             // the UI for every healthy route in a background sweep.
             notify = old?.status == Status.UNAVAILABLE
@@ -221,7 +225,8 @@ internal object RouteHealth {
                 definitive || failures >= 2 -> Status.UNAVAILABLE
                 else -> Status.SUSPECT
             }
-            entries[k] = Entry(status, failures, now, ++versionSeq)
+            entries[k] = Entry(status, failures, now, ++versionSeq, route.sourceId)
+            trimMemoryLocked()
             notify = status != old?.status
         }
         if (notify) changed()
@@ -230,6 +235,31 @@ internal object RouteHealth {
     fun markPlaybackSuccess(route: ChannelRoute) = markProbeSuccess(route)
 
     fun markPlaybackDefinitiveFailure(route: ChannelRoute) = markProbeFailure(route, definitive = true)
+
+    /** Drop health for one deleted source without clearing unrelated routes. */
+    fun clearSource(sourceId: String) {
+        val had = synchronized(lock) {
+            val keys = entries.filterValues { it.sourceId == sourceId }.keys.toList()
+            if (keys.isEmpty()) false else {
+                keys.forEach(entries::remove)
+                true
+            }
+        }
+        if (had) changed()
+    }
+
+    /** Cap in-memory history; hidden routes are kept so they can recover. */
+    private fun trimMemoryLocked() {
+        if (entries.size <= MAX_MEMORY) return
+        val excess = entries.size - MAX_MEMORY
+        entries.entries.asSequence()
+            .filter { it.value.status != Status.UNAVAILABLE }
+            .sortedBy { it.value.checkedAt }
+            .take(excess)
+            .map { it.key }
+            .toList()
+            .forEach(entries::remove)
+    }
 
     /** Tests and source refresh use this to forget stale URLs/tokens. */
     fun clear() {
