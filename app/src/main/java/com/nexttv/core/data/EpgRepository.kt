@@ -82,7 +82,9 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
                                 val key=reader.nextName();chars+=key.length;if(key.length>ImportPolicy.FIELD_CHARS)throw ImportLimitException("节目字段过长");destination[key]=text()
                             };reader.endObject()}
                         else->reader.skipValue()
-                    }};reader.endObject();Feed(XmltvFeed(map,alias,names),time)
+                    }};reader.endObject()
+                    val checked=(readMeta(url)?.checkedAt?:0L).coerceAtMost(System.currentTimeMillis())
+                    Feed(XmltvFeed(map,alias,names),maxOf(time,checked))
                 }
             }
             if(!aggregate.admit(url,programmeCount(value.parsed),epgTextWeight(value.parsed.programmes,value.parsed.aliases,value.parsed.displayNames)))throw ImportLimitException("节目单总节目数量超过上限")
@@ -124,10 +126,11 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
                     val previous=cached?:error("服务器返回 304，但本地没有节目单缓存")
                     val value=Feed(previous.parsed,System.currentTimeMillis())
                     synchronized(feeds){feeds[url]=value}
+                    // 304 only needs a fresh validation timestamp. Rewriting the
+                    // whole EPG here would make a cache write failure fail the
+                    // refresh, so persist the tiny meta file instead; loadCache
+                    // folds its checkedAt into the feed timestamp.
                     saveMeta(url,opened.etag,opened.lastModified)
-                    // 304 still refreshes the cache timestamp so a cold start does
-                    // not immediately classify the same feed as stale again.
-                    saveCache(url,value,budget)
                     return@use
                 }
                 val stream=opened.stream?:error("无法打开节目单")
@@ -147,18 +150,18 @@ class EpgRepository(private val context: Context, private val prefs: Prefs) {
         catch(e:Exception){return RefreshOutcome(url,false,e.message?:if(url==manual)"单独节目单刷新失败"else"内置节目单刷新失败")}
     }
 
-    private data class CacheMeta(val etag:String?,val lastModified:String?)
+    private data class CacheMeta(val etag:String?,val lastModified:String?,val checkedAt:Long=0L)
     private data class OpenFeed(val stream:java.io.InputStream?,val etag:String?,val lastModified:String?,val notModified:Boolean=false)
 
     private fun metaFile(url:String)=File(file(url).path+".meta")
     private fun readMeta(url:String):CacheMeta? = runCatching{
         val f=metaFile(url);if(!f.exists())return@runCatching null
-        val json=JSONObject(f.readText());CacheMeta(json.optString("etag").takeIf{it.isNotBlank()},json.optString("lastModified").takeIf{it.isNotBlank()})
+        val json=JSONObject(f.readText());CacheMeta(json.optString("etag").takeIf{it.isNotBlank()},json.optString("lastModified").takeIf{it.isNotBlank()},json.optLong("checkedAt"))
     }.getOrNull()
     private fun saveMeta(url:String,etag:String?,lastModified:String?){
         if(etag.isNullOrBlank()&&lastModified.isNullOrBlank()){metaFile(url).delete();return}
         val atomic=android.util.AtomicFile(metaFile(url));val out=atomic.startWrite()
-        try{out.write(JSONObject().put("etag",etag.orEmpty()).put("lastModified",lastModified.orEmpty()).toString().toByteArray(Charsets.UTF_8));atomic.finishWrite(out)}
+        try{out.write(JSONObject().put("etag",etag.orEmpty()).put("lastModified",lastModified.orEmpty()).put("checkedAt",System.currentTimeMillis()).toString().toByteArray(Charsets.UTF_8));atomic.finishWrite(out)}
         catch(e:Exception){atomic.failWrite(out)}
     }
 

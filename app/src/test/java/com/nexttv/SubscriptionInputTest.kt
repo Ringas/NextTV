@@ -97,7 +97,9 @@ class SubscriptionInputTest {
         val received=java.util.concurrent.LinkedBlockingQueue<String>()
         SubscriptionInputServer(InetAddress.getLoopbackAddress(),simpleAddress=true,namedInput=true){received.add(it)}.use { server ->
             val path=java.net.URI(server.url).path
-            assertTrue(path.length>=32)
+            val token=path.removePrefix("/")
+            assertEquals(32, token.length)
+            assertTrue(token.matches(Regex("[0-9a-f]{32}")))
             assertTrue(request(server.url).second.contains("name=\"url\""))
             assertFalse(request(server.url).second.contains("name=\"session\""))
             assertEquals(403,request(server.url.substringBeforeLast('/')+"/bad","url="+URLEncoder.encode("http://example.test/live.m3u","UTF-8")).first)

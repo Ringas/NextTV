@@ -532,8 +532,8 @@ private fun PlayerScene() {
                         )
                         Row(Modifier.padding(top = 3.dp).height(20.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             InfoBadge("线路 1/3", onMedia = true)
-                            InfoBadge("1080P", BadgeTone.Cool, onMedia = true)
-                            InfoBadge("立体声", BadgeTone.Cool, onMedia = true)
+                            InfoBadge("1080P", tone = BadgeTone.Cool, onMedia = true)
+                            InfoBadge("立体声", tone = BadgeTone.Cool, onMedia = true)
                         }
                     }
                 }
@@ -545,7 +545,7 @@ private fun PlayerScene() {
                         maxLines = 1, lineHeight = InteractionStyle.heading * 1.1f,
                     )
                     Row(Modifier.fillMaxWidth().padding(top = 3.dp).height(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                        InfoBadge("直播中", BadgeTone.Live, onMedia = true)
+                        InfoBadge("直播中", tone = BadgeTone.Live, onMedia = true)
                         AppText(
                             "19:35–21:00 · 接下来 21:00 体育世界",
                             Modifier.weight(1f).padding(start = 7.dp),
